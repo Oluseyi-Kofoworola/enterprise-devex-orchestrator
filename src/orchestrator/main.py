@@ -395,7 +395,7 @@ def _resolve_intent_with_meta(
 
 
 @click.group()
-@click.version_option(version="1.0.0", prog_name="Enterprise DevEx Orchestrator")
+@click.version_option(version="1.1.0", prog_name="Enterprise DevEx Orchestrator")
 def cli() -> None:
     """Enterprise DevEx Orchestrator Agent.
 
