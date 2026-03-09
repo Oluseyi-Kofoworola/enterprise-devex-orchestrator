@@ -16,8 +16,8 @@
 # Login to Azure
 az login
 
-# Set subscription
-az account set --subscription e47370c7-8804-46b9-86f9-a96f5e950535
+# Set subscription (replace with your own subscription ID)
+az account set --subscription <your-subscription-id>
 
 # Verify
 az account show --query "{name:name, id:id}" -o table
@@ -30,7 +30,7 @@ az group create \
   --name rg-devex-orchestrator \
   --location eastus2 \
   --tags project=devex-orchestrator environment=dev costCenter=ENG-001 \
-         owner=team@microsoft.com managedBy=bicep dataSensitivity=internal \
+         owner=your-team@example.com managedBy=bicep dataSensitivity=internal \
          createdBy=devex-orchestrator
 ```
 

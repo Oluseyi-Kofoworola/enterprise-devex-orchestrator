@@ -386,7 +386,7 @@ cp .env.example .env
 
 ```bash
 az login
-az account set --subscription {spec.azure_region}
+az account set --subscription <your-subscription-id>
 ```
 
 ### Step 2: Create Resource Group

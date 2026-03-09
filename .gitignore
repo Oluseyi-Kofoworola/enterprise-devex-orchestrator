@@ -28,7 +28,7 @@ Thumbs.db
 # Azure
 .azure/
 
-# Output
+# Output (generated scaffolds)
 out/
 deploy-test/
 demo-output/
@@ -37,7 +37,11 @@ test-enterprise/
 test-inline/
 test-from-template/
 test-upgrade/
+test-iot-pipeline/
 my-test/
+
+# State
+.devex/
 
 # Ruff
 .ruff_cache/
@@ -47,6 +51,14 @@ my-test/
 htmlcov/
 .pytest_cache/
 .mypy_cache/
+test_results.txt
+test_run.txt
+
+# Temp scripts
+fix_encoding.py
+
+# Intent test files
+test-intent.md
 
 # Node (if Streamlit frontend added later)
 node_modules/

@@ -60,7 +60,7 @@ No files are written -- this is a preview only.
 For a quick inline test:
 
 ```powershell
-devex plan "Build a secure REST API with blob storage and Cosmos DB"
+devex plan "Build a healthcare voice agent with Cosmos DB and Redis"
 ```
 
 ---
@@ -140,7 +140,7 @@ Get-Content ./test-from-template/docs/improvement-suggestions.md
 For a quick inline test (skips enterprise sections):
 
 ```powershell
-devex scaffold "Build a secure REST API with blob storage" -o ./test-inline
+devex scaffold "Build a healthcare voice agent with Cosmos DB and Redis" -o ./test-inline
 ```
 
 ---
@@ -148,7 +148,7 @@ devex scaffold "Build a secure REST API with blob storage" -o ./test-inline
 ## Step 7: Dry Run (Preview Without Writing)
 
 ```powershell
-devex scaffold "Build a secure API" --dry-run
+devex scaffold "Build a healthcare voice agent" --dry-run
 ```
 
 Shows what files would be generated, but doesn't write anything to disk.
@@ -208,11 +208,11 @@ devex history ./test-upgrade
 ## Step 10: Run All Tests
 
 ```powershell
-# Run the full test suite (433 tests)
+# Run the full test suite (486 tests)
 pytest tests/ -v
 ```
 
-All 433 tests should pass. Key test files:
+All 486 tests should pass. Key test files:
 
 | Test File | Tests | What It Covers |
 |-----------|-------|----------------|
@@ -310,7 +310,7 @@ Remove-Item -Recurse -Force ./my-test -ErrorAction SilentlyContinue
 | Problem | Solution |
 |---------|----------|
 | `devex` not found | Activate venv: `.venv\Scripts\Activate.ps1` |
-| "No intent provided" | Quote the intent string: `devex scaffold "Build a secure API" -o ./out` |
+| "No intent provided" | Quote the intent string: `devex scaffold "Build a healthcare voice agent" -o ./out` |
 | "No .devex metadata found" | Run `devex scaffold` first before `validate`/`deploy`/`upgrade` |
 | LLM connection error | Expected -- system auto-falls back to template-only mode |
 | pip install fails | Check Python version: `python --version` (need 3.11+) |

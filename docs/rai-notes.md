@@ -68,6 +68,16 @@ The LLM only influences:
 3. **Template coverage is bounded** -- the system covers common Azure patterns, not all possible architectures
 4. **Intent parsing has limits** -- very ambiguous or contradictory intents may produce unexpected results
 
+## Healthcare-Specific Considerations
+
+When used with healthcare workloads (e.g., HIPAA-compliant voice agents):
+
+- **PHI Handling**: The orchestrator generates infrastructure with encryption at rest and in transit, but organisations must independently verify PHI handling meets their BAA obligations
+- **Clinical Decision Support**: Generated applications are operational tools (scheduling, routing) -- they must not be used for clinical decision-making without separate FDA/regulatory review
+- **Voice Data**: AI-generated voice transcripts may contain errors -- human review is required for any transcript used in clinical documentation
+- **Bias in Voice Recognition**: Voice-to-text accuracy may vary across accents, languages, and speech patterns -- organisations should monitor and report disparities
+- **Patient Consent**: The orchestrator does not generate consent management workflows -- organisations must implement appropriate informed consent for AI-assisted interactions
+
 ## Contact
 
 For RAI concerns, contact the Enterprise DevEx team or your organization's

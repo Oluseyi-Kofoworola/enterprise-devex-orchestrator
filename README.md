@@ -1,4 +1,4 @@
-# Enterprise DevEx Orchestrator Agent
+﻿# Enterprise DevEx Orchestrator Agent
 
 > **GitHub Copilot SDK Enterprise Challenge -- Q3 FY26**
 
@@ -177,7 +177,7 @@ devex scaffold --file intent.md -o ./my-project
 For quick prototyping, you can still pass intent inline:
 
 ```bash
-devex scaffold "Build a secure REST API with blob storage" -o ./my-project
+devex scaffold "Build a healthcare voice agent with Cosmos DB and Redis" -o ./my-project
 ```
 
 ### Option C: Plan Only (No Files Generated)
@@ -227,7 +227,7 @@ devex init -p my-cool-api            # Sets project name in the template
 ### `devex plan` -- Preview Architecture Plan (No Files)
 
 ```bash
-devex plan "Build a secure REST API with blob storage"
+devex plan "Build a healthcare voice agent with Cosmos DB and Redis"
 devex plan --file intent.md
 devex plan --file intent.md -F json          # JSON output format
 devex plan "Build an API" -o ./docs-only     # Save plan docs to directory
@@ -242,7 +242,7 @@ devex plan "Build an API" -o ./docs-only     # Save plan docs to directory
 ### `devex scaffold` -- Generate Full Production Scaffold
 
 ```bash
-devex scaffold "Build a secure REST API with blob storage" -o ./my-project
+devex scaffold "Build a healthcare voice agent with Cosmos DB and Redis" -o ./my-project
 devex scaffold --file intent.md -o ./my-project
 devex scaffold --file intent.md --dry-run    # Preview without writing files
 ```
@@ -637,7 +637,7 @@ duration tracking, and plan history (last 10 runs).
 
 ```python
 planner = PersistentPlanner(Path("./out"))
-planner.create_pipeline_plan("Build a secure API", "abc123")
+planner.create_pipeline_plan("Build a healthcare voice agent", "abc123")
 planner.execute_task("parse-intent")  # checkpointed to .devex/plan_state.json
 ```
 
@@ -686,7 +686,7 @@ Every generated scaffold enforces:
 ## Testing
 
 ```bash
-# Run all tests (433 tests)
+# Run all tests (486 tests)
 pytest tests/ -v
 
 # Run specific test suites
@@ -737,11 +737,11 @@ mypy src/orchestrator/
 You must provide intent either as a quoted string argument or via `--file`:
 ```bash
 # Correct:
-devex scaffold "Build a secure API" -o ./out
+devex scaffold "Build a healthcare voice agent" -o ./out
 devex scaffold --file intent.md -o ./out
 
 # Wrong (missing quotes):
-devex scaffold Build a secure API -o ./out
+devex scaffold Build a healthcare voice agent -o ./out
 ```
 
 ### Copilot SDK / LLM connection errors
@@ -761,7 +761,7 @@ contains the metadata these commands need.
 
 ```bash
 # First, scaffold:
-devex scaffold "Build a secure API" -o ./my-project
+devex scaffold "Build a healthcare voice agent" -o ./my-project
 
 # Then you can validate, deploy, etc.:
 devex validate ./my-project
