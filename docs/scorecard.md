@@ -1,4 +1,4 @@
-# Enterprise Scorecard
+﻿# Enterprise Scorecard
 
 > **Enterprise DevEx Orchestrator** -- Challenge scoring with evidence
 > Total: **135/135** (100 core + 35 bonus)
@@ -125,3 +125,5 @@
 ---
 
 *135/135 | Enterprise Architecture + Azure WAF + Security + Operations + Advanced Patterns*
+
+

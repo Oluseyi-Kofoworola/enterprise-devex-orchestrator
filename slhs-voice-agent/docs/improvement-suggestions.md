@@ -1,4 +1,4 @@
-# Improvement Suggestions -- SLHS Voice Agent v3.0
+﻿# Improvement Suggestions -- SLHS Voice Agent v3.0
 
 > **Actionable enhancements** for the next iteration
 > Organized by priority and WAF pillar alignment
@@ -178,7 +178,7 @@ jobs:
 ```bash
 # Deploy new revision with 0% traffic
 az containerapp update --name devex-orchestrator-dev \
-  --resource-group rg-devex-orchestrator-dev \
+  --resource-group rg-enterprise-devex-orchestrator-dev \
   --image devexorchestratordevacr.azurecr.io/devex-orchestrator:v3.1.0 \
   --revision-suffix v310
 
@@ -187,7 +187,7 @@ curl -f https://devex-orchestrator-dev---v310.greenbay-9ec52bc2.eastus2.azurecon
 
 # Shift traffic
 az containerapp ingress traffic set --name devex-orchestrator-dev \
-  --resource-group rg-devex-orchestrator-dev \
+  --resource-group rg-enterprise-devex-orchestrator-dev \
   --revision-weight devex-orchestrator-dev--v310=100
 ```
 
@@ -215,3 +215,5 @@ az containerapp ingress traffic set --name devex-orchestrator-dev \
 
 *Each suggestion maps to Azure Well-Architected Framework pillars*
 *Implement in priority order for maximum production readiness improvement*
+
+

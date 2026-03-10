@@ -1,4 +1,4 @@
-# contract-review
+﻿# contract-review
 
 > Provide a one-paragraph executive summary of the solution you are building.
 > Describe the system, its purpose, and the key business outcome it delivers.
@@ -166,3 +166,4 @@ architecture, generate infrastructure, produce tests, and suggest
 improvements. Each re-run with updated content brings the solution
 closer to production readiness.
 -->
+

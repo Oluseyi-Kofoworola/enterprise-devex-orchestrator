@@ -476,7 +476,9 @@ MIT License. See `LICENSE` for details.
 ---
 
 *Enterprise DevEx Orchestrator v1.1.0*  
-*Built with GitHub Copilot SDK | Deployed on Azure Container Apps*  
+*Deployed on Azure Container Apps*  
 *486 tests | 25 governance policies | 26 WAF principles | 135/135 scorecard*  
-*GitHub Copilot SDK Enterprise Challenge, Q3 FY26*
+*Enterprise proof-of-concept*
+
+
 

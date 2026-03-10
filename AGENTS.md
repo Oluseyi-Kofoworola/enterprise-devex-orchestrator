@@ -1,4 +1,4 @@
-# AGENTS.md -- Enterprise DevEx Orchestrator Agent
+﻿# AGENTS.md -- Enterprise DevEx Orchestrator Agent
 
 > This file defines the agent roles, tool bindings, and orchestration flow
 > for the Enterprise DevEx Orchestrator -- a GitHub Copilot SDK powered agent
@@ -401,3 +401,4 @@ revisions with traffic shifting (0% -> health check -> 100%).
 - Tool execution is sandboxed -- no arbitrary code execution
 - State files (`.devex/state.json`) contain only hashes, never raw secrets or credentials
 - Enterprise tags enforce data-sensitivity classification on every generated resource
+

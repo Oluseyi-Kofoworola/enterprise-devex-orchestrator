@@ -1,4 +1,4 @@
-# Intent: Legal Contract Review and Redlining AI
+﻿# Intent: Legal Contract Review and Redlining AI
 
 ## Project Configuration
 
@@ -139,7 +139,7 @@ St. Luke's Hospital Network's legal team manually reviews 200+ vendor contracts 
 - **Document Upload:** < 5 seconds for 10MB file
 - **Text Extraction (Document Intelligence):** < 30 seconds for 50-page contract
 - **AI Analysis (GPT-4-1):** < 45 seconds for full risk framework evaluation
-- **End-to-End Processing:** < 90 seconds (upload → extract → analyze → redlines ready)
+- **End-to-End Processing:** < 90 seconds (upload â†’ extract â†’ analyze â†’ redlines ready)
 - **API p95 Latency:** < 2 seconds for GET requests, < 5 seconds for POST /upload
 - **Availability SLA:** 99.9% uptime (43 minutes downtime/month allowed)
 - **RTO:** 4 hours, **RPO:** 1 hour
@@ -158,9 +158,9 @@ St. Luke's Hospital Network's legal team manually reviews 200+ vendor contracts 
 - **Legal Case Management** -- Export risk reports for litigation readiness review
 
 ### Event-Driven Triggers
-- New contract uploaded → trigger Document Intelligence processing → trigger AI analysis
-- High/Critical risk detected → send alert to `legal-team@stlukes.org`
-- Contract approved → archive to long-term storage, update CRM
+- New contract uploaded â†’ trigger Document Intelligence processing â†’ trigger AI analysis
+- High/Critical risk detected â†’ send alert to `legal-team@stlukes.org`
+- Contract approved â†’ archive to long-term storage, update CRM
 
 ---
 
@@ -190,5 +190,7 @@ St. Luke's Hospital Network's legal team manually reviews 200+ vendor contracts 
 
 ---
 
-*Generated for the GitHub Copilot SDK Enterprise Challenge, Q3 FY26*
+*Generated for enterprise proof-of-concept use*
 *Target: St. Luke's Hospital Network -- Legal Operations Automation*
+
+

@@ -1,4 +1,4 @@
-# Challenge Scorecard -- SLHS Voice Agent
+﻿# Challenge Scorecard -- SLHS Voice Agent
 
 > **Enterprise DevEx Orchestrator** powered by GitHub Copilot SDK
 > Total Score: **135/135** (100 core + 35 bonus)
@@ -28,7 +28,7 @@
 |-------------|----------|-------|
 | Azure services used | Container Apps, Key Vault, ACR, Log Analytics, Managed Identity | 10/10 |
 | Infrastructure as Code | 5 Bicep modules + parameterized main template | 8/8 |
-| Production deployment | Live at `https://devex-orchestrator-dev.greenbay-9ec52bc2.eastus2.azurecontainerapps.io` | 7/7 |
+| Production deployment | Live at `https://<container-app-fqdn>` | 7/7 |
 
 **Artifacts:**
 - `infra/bicep/main.bicep` + 5 modules (log-analytics, managed-identity, keyvault, container-registry, container-app)
@@ -158,3 +158,5 @@
 ---
 
 *Enterprise DevEx Orchestrator | GitHub Copilot SDK Challenge*
+
+

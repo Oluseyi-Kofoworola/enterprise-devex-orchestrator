@@ -1,4 +1,4 @@
-# Enterprise Standards -- SLHS Voice Agent v3.0
+﻿# Enterprise Standards -- SLHS Voice Agent v3.0
 
 > **Azure Cloud Adoption Framework (CAF)** naming conventions and enterprise tagging
 > Enforced by the Enterprise Standards Engine
@@ -11,7 +11,7 @@
 
 | Resource Type | Prefix | Name | Convention |
 |--------------|--------|------|-----------|
-| Resource Group | `rg-` | `rg-devex-orchestrator-dev` | `rg-<project>-<env>` |
+| Resource Group | `rg-` | `rg-enterprise-devex-orchestrator-dev` | `rg-<project>-<env>` |
 | Log Analytics | `-law` | `devex-orchestrator-dev-law` | `<project>-<env>-law` |
 | Managed Identity | `-id` | `devex-orchestrator-dev-id` | `<project>-<env>-id` |
 | Key Vault | `kv` | `devexorchestratordevkv` | `<project><env>kv` (no hyphens) |
@@ -161,3 +161,5 @@ pytest tests/test_standards.py -v
 
 *Enterprise Standards Engine | Azure CAF Aligned*
 *Automated naming + tagging enforcement across all generated resources*
+
+

@@ -1,4 +1,4 @@
-# Security Posture -- SLHS Voice Agent v3.0
+﻿# Security Posture -- SLHS Voice Agent v3.0
 
 > **Defense-in-depth security** across identity, secrets, network, container,
 > supply chain, and application layers.
@@ -187,3 +187,5 @@ Select-String -Path "slhs-voice-agent/src/app/*.py" -Pattern "(password|secret|k
 
 *Security posture validated by Enterprise Governance Reviewer*
 *STRIDE threat model covers all 6 categories with documented mitigations*
+
+

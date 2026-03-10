@@ -1,4 +1,4 @@
-# Quick Start Guide -- Test Everything Step by Step
+﻿# Quick Start Guide -- Test Everything Step by Step
 
 > Follow this guide to install, run, and test every feature of the
 > Enterprise DevEx Orchestrator. No Azure account needed for local testing.
@@ -277,8 +277,8 @@ devex deploy ./test-inline -g rg-my-test -r eastus2 --dry-run
 ```
 
 **Live reference deployment:** The SLHS Voice Agent is deployed at
-`https://devex-orchestrator-dev.greenbay-9ec52bc2.eastus2.azurecontainerapps.io`
-in resource group `rg-devex-orchestrator-dev` (East US 2).
+`https://<container-app-fqdn>`
+in resource group `rg-enterprise-devex-orchestrator-dev` (East US 2).
 
 ---
 
@@ -328,5 +328,7 @@ Remove-Item -Recurse -Force ./my-test -ErrorAction SilentlyContinue
 
 ---
 
-*Enterprise DevEx Orchestrator v1.1.0 | GitHub Copilot SDK Enterprise Challenge, Q3 FY26*
+*Enterprise DevEx Orchestrator v1.1.0 | Enterprise proof-of-concept*
 *486 tests | 25 governance policies | 26 WAF principles | 135/135 scorecard*
+
+

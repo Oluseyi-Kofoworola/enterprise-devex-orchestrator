@@ -1,4 +1,4 @@
-# Deployment Guide
+﻿# Deployment Guide
 
 > **Enterprise DevEx Orchestrator** -- Deploy orchestrator-generated scaffolds to Azure
 
@@ -119,12 +119,12 @@ The SLHS Voice Agent is deployed using this exact pattern:
 
 | Resource | Value |
 |----------|-------|
-| Resource Group | `rg-devex-orchestrator-dev` |
+| Resource Group | `rg-enterprise-devex-orchestrator-dev` |
 | Region | `eastus2` |
 | Container App | `devex-orchestrator-dev` |
 | ACR | `devexorchestratordevacr` |
 | Image | `devexorchestratordevacr.azurecr.io/devex-orchestrator:v3.0.1` |
-| URL | `https://devex-orchestrator-dev.greenbay-9ec52bc2.eastus2.azurecontainerapps.io` |
+| URL | `https://<container-app-fqdn>` |
 
 ```bash
 # Actual deploy command used
@@ -145,3 +145,5 @@ az containerapp ingress traffic set --name <app> --resource-group $RG \
 ---
 
 *Deployment patterns enforce enterprise security: OIDC auth, Managed Identity, RBAC over access policies*
+
+

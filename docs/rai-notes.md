@@ -1,4 +1,4 @@
-# Responsible AI Notes
+﻿# Responsible AI Notes
 
 > **Enterprise DevEx Orchestrator** -- Responsible AI considerations for AI-powered code generation
 
@@ -92,3 +92,5 @@ For the SLHS Voice Agent (the live deployment):
 
 *Responsible AI is embedded in the architecture, not bolted on after the fact.*
 *Governance validation, deterministic boundaries, and audit trails ensure accountable AI-powered generation.*
+
+

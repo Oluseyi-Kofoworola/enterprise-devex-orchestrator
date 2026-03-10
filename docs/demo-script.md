@@ -1,4 +1,4 @@
-# Demo Script
+﻿# Demo Script
 
 > **Enterprise DevEx Orchestrator** -- 5-minute demonstration
 > Shows the full pipeline: intent -> plan -> scaffold -> deploy
@@ -93,10 +93,10 @@ cat demo-output/docs/waf-report.md | head -30
 
 ```bash
 # Show the live app
-curl https://devex-orchestrator-dev.greenbay-9ec52bc2.eastus2.azurecontainerapps.io/health
+curl https://<container-app-fqdn>/health
 ```
 
-**Open in browser:** `https://devex-orchestrator-dev.greenbay-9ec52bc2.eastus2.azurecontainerapps.io`
+**Open in browser:** `https://<container-app-fqdn>`
 
 **Demo the app:**
 1. Click microphone -- speak "Show me Maria Garcia's information"
@@ -147,3 +147,5 @@ If demo environment is unavailable:
 
 *Full pipeline: intent -> parse -> plan -> govern -> generate -> deploy*
 *486 tests | 25 policies | 26 WAF principles | Live on Azure Container Apps*
+
+

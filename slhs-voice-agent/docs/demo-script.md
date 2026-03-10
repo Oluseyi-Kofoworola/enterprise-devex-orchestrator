@@ -1,4 +1,4 @@
-# Demo Script -- SLHS Voice Agent v3.0
+﻿# Demo Script -- SLHS Voice Agent v3.0
 
 > **3-minute live demonstration** of the St. Luke's Health System Voice Agent
 > Enterprise healthcare assistant with real-time voice interaction
@@ -8,7 +8,7 @@
 ## Pre-Demo Setup
 
 1. Open browser (Chrome recommended for best voice support)
-2. Navigate to: `https://devex-orchestrator-dev.greenbay-9ec52bc2.eastus2.azurecontainerapps.io`
+2. Navigate to: `https://<container-app-fqdn>`
 3. Allow microphone access when prompted
 4. Verify the HIPAA badge and "SLHS Voice Agent" header are visible
 
@@ -140,3 +140,5 @@ ContainerAppConsoleLogs_CL
 
 *SLHS Voice Agent Demo -- St. Luke's Health System*
 *Enterprise DevEx Orchestrator | GitHub Copilot SDK Challenge*
+
+

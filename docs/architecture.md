@@ -1,4 +1,4 @@
-# Architecture Overview
+﻿# Architecture Overview
 
 > **Enterprise DevEx Orchestrator** -- 4-Agent Chain Architecture
 > Transforms business intent into production-ready Azure workloads
@@ -186,3 +186,5 @@ graph TD
 
 *4-agent chain | 9 MCP tools | 6 generators | 25 policies | 486 tests*
 *Azure CAF naming + enterprise tagging + WAF 5-pillar alignment*
+
+

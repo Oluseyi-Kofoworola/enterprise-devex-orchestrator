@@ -1,7 +1,7 @@
-# Alerting Runbook -- SLHS Voice Agent v3.0
+﻿# Alerting Runbook -- SLHS Voice Agent v3.0
 
 > **Azure Monitor Alert Rules** with severity levels, thresholds, and response procedures
-> Live: `https://devex-orchestrator-dev.greenbay-9ec52bc2.eastus2.azurecontainerapps.io`
+> Live: `https://<container-app-fqdn>`
 
 ---
 
@@ -30,14 +30,14 @@
 ```bash
 # Check current CPU
 az monitor metrics list \
-  --resource /subscriptions/e47370c7-8804-46b9-86f9-a96f5e950535/resourceGroups/rg-devex-orchestrator-dev/providers/Microsoft.App/containerApps/devex-orchestrator-dev \
+  --resource /subscriptions/<AZURE_SUBSCRIPTION_ID>/resourceGroups/rg-enterprise-devex-orchestrator-dev/providers/Microsoft.App/containerApps/devex-orchestrator-dev \
   --metric CpuPercentage \
   --interval PT1M
 
 # Check replica count
 az containerapp revision list \
   --name devex-orchestrator-dev \
-  --resource-group rg-devex-orchestrator-dev \
+  --resource-group rg-enterprise-devex-orchestrator-dev \
   --query "[0].properties.replicas"
 ```
 
@@ -61,7 +61,7 @@ az containerapp revision list \
 ```bash
 # Check memory usage
 az monitor metrics list \
-  --resource /subscriptions/e47370c7-8804-46b9-86f9-a96f5e950535/resourceGroups/rg-devex-orchestrator-dev/providers/Microsoft.App/containerApps/devex-orchestrator-dev \
+  --resource /subscriptions/<AZURE_SUBSCRIPTION_ID>/resourceGroups/rg-enterprise-devex-orchestrator-dev/providers/Microsoft.App/containerApps/devex-orchestrator-dev \
   --metric MemoryPercentage \
   --interval PT1M
 ```
@@ -87,13 +87,13 @@ az monitor metrics list \
 # Check container logs
 az containerapp logs show \
   --name devex-orchestrator-dev \
-  --resource-group rg-devex-orchestrator-dev \
+  --resource-group rg-enterprise-devex-orchestrator-dev \
   --type system
 
 # Check revision status
 az containerapp revision list \
   --name devex-orchestrator-dev \
-  --resource-group rg-devex-orchestrator-dev \
+  --resource-group rg-enterprise-devex-orchestrator-dev \
   --query "[].{name:name, status:properties.healthState, replicas:properties.replicas}"
 ```
 
@@ -107,12 +107,12 @@ az containerapp revision list \
 ```bash
 az containerapp revision list \
   --name devex-orchestrator-dev \
-  --resource-group rg-devex-orchestrator-dev \
+  --resource-group rg-enterprise-devex-orchestrator-dev \
   --query "[].name" -o tsv
 
 az containerapp ingress traffic set \
   --name devex-orchestrator-dev \
-  --resource-group rg-devex-orchestrator-dev \
+  --resource-group rg-enterprise-devex-orchestrator-dev \
   --revision-weight <previous-revision>=100
 ```
 
@@ -181,7 +181,7 @@ ContainerAppConsoleLogs_CL
 
 ### Response
 
-1. **Verify app is running** -- Hit health endpoint: `curl https://devex-orchestrator-dev.greenbay-9ec52bc2.eastus2.azurecontainerapps.io/health`
+1. **Verify app is running** -- Hit health endpoint: `curl https://<container-app-fqdn>/health`
 2. **Check scale-to-zero** -- Container Apps may scale to 0 replicas; first request has cold start
 3. **DNS/networking** -- Verify the FQDN resolves correctly
 4. **Expected** -- Low traffic in dev is normal; suppress this alert in non-prod if desired
@@ -198,12 +198,12 @@ ContainerAppConsoleLogs_CL
 
 ```bash
 # Test health endpoint
-curl -s -o /dev/null -w "%{http_code}" https://devex-orchestrator-dev.greenbay-9ec52bc2.eastus2.azurecontainerapps.io/health
+curl -s -o /dev/null -w "%{http_code}" https://<container-app-fqdn>/health
 
 # Check running revisions
 az containerapp revision list \
   --name devex-orchestrator-dev \
-  --resource-group rg-devex-orchestrator-dev \
+  --resource-group rg-enterprise-devex-orchestrator-dev \
   --query "[].{name:name, active:properties.active, healthy:properties.healthState}"
 ```
 
@@ -217,7 +217,7 @@ az containerapp revision list \
 ```bash
 az containerapp update \
   --name devex-orchestrator-dev \
-  --resource-group rg-devex-orchestrator-dev \
+  --resource-group rg-enterprise-devex-orchestrator-dev \
   --image devexorchestratordevacr.azurecr.io/devex-orchestrator:v3.0.1
 ```
 
@@ -255,4 +255,6 @@ resource actionGroup 'Microsoft.Insights/actionGroups@2023-01-01' = {
 ---
 
 *Azure Monitor Alerting | 7 Rules | 4 Severity Levels*
-*All alerts reference actual deployed resources in `rg-devex-orchestrator-dev`*
+*All alerts reference actual deployed resources in `rg-enterprise-devex-orchestrator-dev`*
+
+

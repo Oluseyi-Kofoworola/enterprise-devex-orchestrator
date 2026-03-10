@@ -1,4 +1,4 @@
-# Deployment Guide -- SLHS Voice Agent v3.0
+﻿# Deployment Guide -- SLHS Voice Agent v3.0
 
 > **St. Luke's Health System Voice Agent** -- Enterprise Healthcare Assistant
 > Built as a 0.0001% engineering showcase | Azure Well-Architected Framework aligned
@@ -7,7 +7,7 @@
 
 | Attribute | Value |
 |-----------|-------|
-| **URL** | `https://devex-orchestrator-dev.greenbay-9ec52bc2.eastus2.azurecontainerapps.io` |
+| **URL** | `https://<container-app-fqdn>` |
 | **Version** | v3.0.0 (app) / v3.0.1 (container image) |
 | **Region** | East US 2 |
 | **Status** | Production -- serving traffic |
@@ -38,7 +38,7 @@ Internet (TLS 1.2+)
 
 | Resource | Name | SKU | Purpose |
 |----------|------|-----|---------|
-| Resource Group | `rg-devex-orchestrator-dev` | -- | Logical container |
+| Resource Group | `rg-enterprise-devex-orchestrator-dev` | -- | Logical container |
 | Log Analytics | `devex-orchestrator-dev-law` | PerGB2018 | Centralized logging |
 | Managed Identity | `devex-orchestrator-dev-id` | -- | Zero-secret auth |
 | Key Vault | `devexorchestratordevkv` | Standard | Secrets management |
@@ -69,7 +69,7 @@ Internet (TLS 1.2+)
 
 ```powershell
 az login
-az account set --subscription "e47370c7-8804-46b9-86f9-a96f5e950535"
+az account set --subscription "<AZURE_SUBSCRIPTION_ID>"
 ```
 
 ### Step 2: Deploy Infrastructure (Bicep)
@@ -77,19 +77,19 @@ az account set --subscription "e47370c7-8804-46b9-86f9-a96f5e950535"
 ```powershell
 # Validate -- catch errors before deploy
 az deployment group validate `
-  --resource-group rg-devex-orchestrator-dev `
+  --resource-group rg-enterprise-devex-orchestrator-dev `
   --template-file infra/bicep/main.bicep `
   --parameters infra/bicep/parameters/dev.bicepparam
 
 # What-if -- preview all changes (dry run)
 az deployment group what-if `
-  --resource-group rg-devex-orchestrator-dev `
+  --resource-group rg-enterprise-devex-orchestrator-dev `
   --template-file infra/bicep/main.bicep `
   --parameters infra/bicep/parameters/dev.bicepparam
 
 # Deploy -- create/update infrastructure
 az deployment group create `
-  --resource-group rg-devex-orchestrator-dev `
+  --resource-group rg-enterprise-devex-orchestrator-dev `
   --template-file infra/bicep/main.bicep `
   --parameters infra/bicep/parameters/dev.bicepparam
 ```
@@ -120,14 +120,14 @@ az acr repository show-tags `
 ```powershell
 az containerapp update `
   --name devex-orchestrator-dev `
-  --resource-group rg-devex-orchestrator-dev `
+  --resource-group rg-enterprise-devex-orchestrator-dev `
   --image devexorchestratordevacr.azurecr.io/slhs-voice-agent:v3.0.1
 ```
 
 ### Step 5: Verify
 
 ```powershell
-$BASE = "https://devex-orchestrator-dev.greenbay-9ec52bc2.eastus2.azurecontainerapps.io"
+$BASE = "https://<container-app-fqdn>"
 
 # Health check -- must return {"status":"healthy","version":"3.0.0"}
 Invoke-RestMethod "$BASE/health"
@@ -141,7 +141,7 @@ Invoke-RestMethod "$BASE/health"
 # Check active revision
 az containerapp revision list `
   --name devex-orchestrator-dev `
-  --resource-group rg-devex-orchestrator-dev `
+  --resource-group rg-enterprise-devex-orchestrator-dev `
   -o table
 ```
 
@@ -155,19 +155,19 @@ az containerapp revision list `
 # List all revisions with traffic weights
 az containerapp revision list `
   --name devex-orchestrator-dev `
-  --resource-group rg-devex-orchestrator-dev `
+  --resource-group rg-enterprise-devex-orchestrator-dev `
   -o table
 
 # Activate previous good revision
 az containerapp revision activate `
   --name devex-orchestrator-dev `
-  --resource-group rg-devex-orchestrator-dev `
+  --resource-group rg-enterprise-devex-orchestrator-dev `
   --revision <previous-revision-name>
 
 # Shift 100% traffic to the safe revision
 az containerapp ingress traffic set `
   --name devex-orchestrator-dev `
-  --resource-group rg-devex-orchestrator-dev `
+  --resource-group rg-enterprise-devex-orchestrator-dev `
   --revision-weight <previous-revision-name>=100
 ```
 
@@ -180,7 +180,7 @@ git checkout <commit-hash> -- infra/bicep/
 
 # Redeploy previous infrastructure
 az deployment group create `
-  --resource-group rg-devex-orchestrator-dev `
+  --resource-group rg-enterprise-devex-orchestrator-dev `
   --template-file infra/bicep/main.bicep `
   --parameters infra/bicep/parameters/dev.bicepparam
 ```
@@ -216,10 +216,10 @@ az deployment group create `
 
 ```powershell
 # WARNING: Destroys ALL resources. Key Vault enters 90-day soft-delete.
-az group delete --name rg-devex-orchestrator-dev --yes --no-wait
+az group delete --name rg-enterprise-devex-orchestrator-dev --yes --no-wait
 
 # Verify deletion
-az group show --name rg-devex-orchestrator-dev 2>$null
+az group show --name rg-enterprise-devex-orchestrator-dev 2>$null
 if ($LASTEXITCODE -ne 0) { Write-Output "Resource group deleted" }
 ```
 
@@ -230,7 +230,7 @@ if ($LASTEXITCODE -ne 0) { Write-Output "Resource group deleted" }
 | Symptom | Cause | Fix |
 |---------|-------|-----|
 | `az acr build` charmap error | Windows cp1252 terminal | Add `--no-logs` flag |
-| Container CrashLoopBackOff | App startup failure | `az containerapp logs show --name devex-orchestrator-dev -g rg-devex-orchestrator-dev` |
+| Container CrashLoopBackOff | App startup failure | `az containerapp logs show --name devex-orchestrator-dev -g rg-enterprise-devex-orchestrator-dev` |
 | Key Vault 403 Forbidden | Missing RBAC role | Grant `Key Vault Secrets User` to Managed Identity |
 | Health check timeout | Port mismatch | Confirm container exposes port 8000 |
 | Voice "network error" in browser | Corporate firewall blocks Google Speech API | Expected -- app auto-retries 3x with exponential backoff |
@@ -241,3 +241,5 @@ if ($LASTEXITCODE -ne 0) { Write-Output "Resource group deleted" }
 
 *SLHS Voice Agent -- St. Luke's Health System*
 *Built with the Enterprise DevEx Orchestrator | Azure WAF Aligned*
+
+

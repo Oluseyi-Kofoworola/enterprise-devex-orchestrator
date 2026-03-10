@@ -1,6 +1,6 @@
-# Cost Estimate -- SLHS Voice Agent v3.0
+﻿# Cost Estimate -- SLHS Voice Agent v3.0
 
-> **Monthly cost estimate** for all Azure resources in `rg-devex-orchestrator-dev`
+> **Monthly cost estimate** for all Azure resources in `rg-enterprise-devex-orchestrator-dev`
 > Region: East US 2 | Environment: Development
 
 ---
@@ -115,3 +115,5 @@ No cost. User-assigned managed identities are free. RBAC role assignments are fr
 
 *Cost estimates based on Azure pricing calculator and actual dev usage patterns*
 *All resources tagged with `costCenter: IT-50100` for billing allocation*
+
+

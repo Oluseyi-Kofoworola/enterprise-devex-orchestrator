@@ -1,4 +1,4 @@
-# Security Documentation
+﻿# Security Documentation
 
 > **Enterprise DevEx Orchestrator** -- Security controls, threat model, and compliance
 > Every generated scaffold enforces enterprise security baselines
@@ -106,3 +106,5 @@ devex validate --output-dir ./my-project
 ---
 
 *Security is not a feature -- it is the baseline. Every scaffold enforces these controls by default.*
+
+

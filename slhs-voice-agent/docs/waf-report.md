@@ -1,4 +1,4 @@
-# WAF Alignment Report -- SLHS Voice Agent v3.0
+﻿# WAF Alignment Report -- SLHS Voice Agent v3.0
 
 > **Azure Well-Architected Framework Assessment**
 > Score: **26/26 principles** covered (100%) across all 5 pillars
@@ -147,3 +147,5 @@
 
 *WAF assessment by Enterprise DevEx Orchestrator WAFAssessor*
 *26 design principles across 5 pillars | STRIDE + governance integration*
+
+

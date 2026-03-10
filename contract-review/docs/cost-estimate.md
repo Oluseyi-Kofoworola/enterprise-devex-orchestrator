@@ -1,4 +1,4 @@
-# Estimated Monthly Cost
+﻿# Estimated Monthly Cost
 
 > These are **approximate baseline** costs for a dev-tier workload.
 > Actual costs vary with usage, region, and reserved pricing.
@@ -15,3 +15,4 @@
 | **Total** | | **$40.12** | |
 
 *Prices are approximate USD baseline for East US. Use the [Azure Pricing Calculator](https://azure.microsoft.com/pricing/calculator/) for detailed estimates.*
+

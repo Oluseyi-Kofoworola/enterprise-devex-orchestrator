@@ -1,4 +1,4 @@
-# Governance Report -- SLHS Voice Agent v3.0
+﻿# Governance Report -- SLHS Voice Agent v3.0
 
 > **Status: PASS_WITH_WARNINGS**
 > 25 governance checks executed | 24 passed | 1 warning
@@ -79,7 +79,7 @@
 |---|-------|--------|----------|
 | 23 | ADRs documented | PASS | 6 ADRs in plan.md |
 | 24 | STRIDE threat model | PASS | 6 categories with mitigations |
-| 25 | CAF naming compliance | WARNING | Resource group `rg-devex-orchestrator-dev` follows convention, but some resource names could improve length compliance |
+| 25 | CAF naming compliance | WARNING | Resource group `rg-enterprise-devex-orchestrator-dev` follows convention, but some resource names could improve length compliance |
 
 ---
 
@@ -89,7 +89,7 @@
 
 **Check:** All resource names follow Azure Cloud Adoption Framework naming conventions.
 
-**Finding:** The resource group name `rg-devex-orchestrator-dev` follows the
+**Finding:** The resource group name `rg-enterprise-devex-orchestrator-dev` follows the
 `rg-<project>-<env>` pattern correctly. However, the Key Vault name
 `devexorchestratordevkv` approaches the 24-character limit (22 chars).
 
@@ -134,3 +134,5 @@ portion to stay well within Azure naming limits (3-24 chars for Key Vault).
 
 *Governance assessment by Enterprise DevEx Orchestrator*
 *20-policy catalog with automated validation*
+
+
