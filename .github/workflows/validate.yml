@@ -172,7 +172,9 @@ jobs:
         id: deploy
         if: steps.azure-creds.outputs.hasAzureCreds == 'true'
         run: |
+          deploymentName="main-${{ github.run_id }}"
           result=$(az deployment group create \
+            --name "$deploymentName" \
             --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
             --template-file infra/bicep/main.bicep \
             --parameters infra/bicep/parameters/dev.parameters.json \
