@@ -251,8 +251,8 @@ jobs:
             --tag "$LATEST_IMAGE" \
             --label "org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}" \
             --label "org.opencontainers.image.revision=${{ github.sha }}" \
-            --file src/app/Dockerfile \
-            src/app/
+            --file contract-review/src/app/Dockerfile \
+            contract-review/src/app/
 
           docker push "$FULL_IMAGE"
           docker push "$LATEST_IMAGE"
