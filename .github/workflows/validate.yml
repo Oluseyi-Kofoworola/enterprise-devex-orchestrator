@@ -125,7 +125,7 @@ jobs:
   deploy-infra:
     name: Deploy Infrastructure
     needs: [validate, validate-infra]
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && github.event.inputs.skip_deploy != 'true'
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && github.event.inputs.skip_deploy != 'true' && secrets.AZURE_CLIENT_ID != '' && secrets.AZURE_TENANT_ID != '' && secrets.AZURE_SUBSCRIPTION_ID != ''
     runs-on: ubuntu-latest
     environment: ${{ github.event.inputs.environment || 'dev' }}
     outputs:
