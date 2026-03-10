@@ -23,9 +23,9 @@ permissions:
 
 env:
   AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-  AZURE_RESOURCE_GROUP: 'rg-devex-orchestrator'
-  AZURE_LOCATION: 'eastus2'
-  PROJECT_NAME: 'enterprise-grade-real-time'
+  AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP || 'rg-enterprise-grade-real-time-dev' }}
+  AZURE_LOCATION: ${{ vars.AZURE_LOCATION || 'eastus2' }}
+  PROJECT_NAME: ${{ vars.PROJECT_NAME || 'enterprise-grade-real-time' }}
 
 jobs:
   deploy-infrastructure:

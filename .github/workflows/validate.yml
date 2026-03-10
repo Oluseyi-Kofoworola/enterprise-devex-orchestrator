@@ -27,9 +27,9 @@ permissions:
   contents: read
 
 env:
-  AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP || 'rg-devex-orchestrator' }}
+  AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP || 'rg-enterprise-devex-orchestrator-dev' }}
   AZURE_LOCATION: ${{ vars.AZURE_LOCATION || 'eastus2' }}
-  PROJECT_NAME: ${{ vars.PROJECT_NAME || 'devex-orchestrator' }}
+  PROJECT_NAME: ${{ vars.PROJECT_NAME || 'enterprise-devex-orchestrator' }}
   ENVIRONMENT: ${{ github.event.inputs.environment || 'dev' }}
 
 # ──────────────────────────────────────────────

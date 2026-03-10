@@ -26,7 +26,9 @@ class AzureConfig:
     subscription_id: str = field(
         default_factory=lambda: os.getenv("AZURE_SUBSCRIPTION_ID", "")
     )
-    resource_group: str = field(default_factory=lambda: os.getenv("AZURE_RESOURCE_GROUP", "rg-devex-orchestrator"))
+    resource_group: str = field(
+        default_factory=lambda: os.getenv("AZURE_RESOURCE_GROUP", "rg-enterprise-devex-orchestrator-dev")
+    )
     location: str = field(default_factory=lambda: os.getenv("AZURE_LOCATION", "eastus2"))
 
 

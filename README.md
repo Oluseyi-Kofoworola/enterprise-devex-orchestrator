@@ -1,4 +1,4 @@
-﻿﻿# Enterprise DevEx Orchestrator
+﻿# Enterprise DevEx Orchestrator
 
 > **Transform business intent into production-ready Azure workloads**  
 > Reusable 4-agent framework | 486 tests | Zero-credential architecture
@@ -42,7 +42,7 @@ A **reusable orchestration framework** that takes natural-language business inte
 ### Install
 
 ```bash
-git clone https://github.com/okofoworola_microsoft/enterprise-devex-orchestrator.git
+git clone https://github.com/Oluseyi-Kofoworola/enterprise-devex-orchestrator.git
 cd enterprise-devex-orchestrator
 pip install -e ".[dev]"
 ```
@@ -71,6 +71,31 @@ az acr build --registry <ACR_NAME> --image my-app:v1.0.0 --no-logs my-app/src/ap
 ```
 
 **Time:** 8-12 minutes from intent to production
+
+### Configure Azure Credentials (New Repo)
+
+All workflows use OIDC + GitHub Secrets/Variables. Add these in your repository settings:
+
+Required secrets:
+- `AZURE_CLIENT_ID`
+- `AZURE_TENANT_ID`
+- `AZURE_SUBSCRIPTION_ID`
+
+Recommended variables:
+- `AZURE_RESOURCE_GROUP` (example: `rg-enterprise-devex-orchestrator-dev`)
+- `AZURE_LOCATION` (example: `eastus2`)
+- `PROJECT_NAME` (example: `enterprise-devex-orchestrator`)
+
+Create federated credentials for this repository (replace placeholders):
+
+```bash
+az ad app federated-credential create --id <APP_REGISTRATION_APP_ID> --parameters '{
+    "name": "github-main",
+    "issuer": "https://token.actions.githubusercontent.com",
+    "subject": "repo:Oluseyi-Kofoworola/enterprise-devex-orchestrator:ref:refs/heads/main",
+    "audiences": ["api://AzureADTokenExchange"]
+}'
+```
 
 ---
 
