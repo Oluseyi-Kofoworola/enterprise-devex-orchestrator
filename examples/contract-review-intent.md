@@ -1,8 +1,8 @@
-﻿# Intent: Legal Contract Review and Redlining AI
+﻿# Intent: Demo Legal Contract Review and Redlining AI
 
 ## Project Configuration
 
-- **Project Name:** contract-review
+- **Project Name:** demo-contract-review
 - **App Type:** api
 - **Data Stores:** blob, cosmos
 - **Region:** eastus2
@@ -14,7 +14,7 @@
 
 ## Problem Statement
 
-St. Luke's Hospital Network's legal team manually reviews 200+ vendor contracts annually, spending 4-8 hours per contract analyzing clauses for compliance with healthcare regulations, institutional risk tolerance, and HIPAA requirements. This manual process creates bottlenecks in vendor onboarding, increases risk of missing critical protective clauses, and consumes $120K+ annually in legal staff time. Missed or weak clauses in vendor agreements have resulted in 3 incidents in the past 18 months requiring legal intervention and additional insurance claims.
+Demo Hospital Network's legal team manually reviews 200+ vendor contracts annually, spending 4-8 hours per contract analyzing clauses for compliance with healthcare regulations, institutional risk tolerance, and HIPAA requirements. This manual process creates bottlenecks in vendor onboarding, increases risk of missing critical protective clauses, and consumes $120K+ annually in legal staff time. Missed or weak clauses in vendor agreements have resulted in 3 incidents in the past 18 months requiring legal intervention and additional insurance claims.
 
 **Affected Users:** 5 legal staff members, 12 procurement officers, 45+ department heads who engage vendors
 
@@ -191,6 +191,7 @@ St. Luke's Hospital Network's legal team manually reviews 200+ vendor contracts 
 ---
 
 *Generated for enterprise proof-of-concept use*
-*Target: St. Luke's Hospital Network -- Legal Operations Automation*
+*Target: Demo Hospital Network -- Legal Operations Automation*
+
 
 

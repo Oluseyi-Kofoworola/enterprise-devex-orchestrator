@@ -48,6 +48,7 @@ class AppGenerator:
     def _generate_python(self, spec: IntentSpec) -> dict[str, str]:
         """Generate Python/FastAPI scaffold."""
         files: dict[str, str] = {}
+        files["src/__init__.py"] = '"""Generated source package."""\n'
         files["src/app/main.py"] = self._python_main(spec)
         files["src/app/requirements.txt"] = self._python_requirements(spec)
         files["src/app/Dockerfile"] = self._python_dockerfile(spec)
@@ -215,11 +216,11 @@ async def root():
 <head>
     <title>{{APP_NAME}}</title>
     <style>
-        body {{ font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }}
-        .container {{ background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); max-width: 600px; margin: 0 auto; }}
-        h1 {{ color: #333; }}
-        a {{ display: inline-block; margin-top: 10px; padding: 10px 15px; background: #0078d4; color: white; text-decoration: none; border-radius: 4px; }}
-        a:hover {{ background: #106ebe; }}
+        body {{{{ font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }}}}
+        .container {{{{ background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); max-width: 600px; margin: 0 auto; }}}}
+        h1 {{{{ color: #333; }}}}
+        a {{{{ display: inline-block; margin-top: 10px; padding: 10px 15px; background: #0078d4; color: white; text-decoration: none; border-radius: 4px; }}}}
+        a:hover {{{{ background: #106ebe; }}}}
     </style>
 </head>
 <body>

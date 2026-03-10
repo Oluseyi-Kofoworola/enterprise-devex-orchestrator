@@ -164,22 +164,20 @@ class TestRootEndpoint:
         assert response.status_code == 200
 
     def test_root_response_structure(self, client: TestClient) -> None:
-        """Root response contains required fields."""
+        """Root response returns HTML content."""
         response = client.get("/")
-        data = response.json()
-        assert "service" in data
-        assert "version" in data
-        assert "status" in data
+        assert "<!DOCTYPE html>" in response.text
+        assert "{spec.project_name}" in response.text
 
     def test_root_status_running(self, client: TestClient) -> None:
-        """Root status is 'running'."""
+        """Root HTML includes running status indicator."""
         response = client.get("/")
-        assert response.json()["status"] == "running"
+        assert "Status: Running" in response.text
 
     def test_root_has_docs_link(self, client: TestClient) -> None:
-        """Root response includes docs URL."""
+        """Root HTML includes docs URL."""
         response = client.get("/")
-        assert response.json()["docs"] == "/docs"
+        assert 'href="/docs"' in response.text
 
 
 class TestDocsEndpoint:

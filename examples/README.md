@@ -22,13 +22,13 @@ All examples include:
 
 ---
 
-## Example 1: SLHS Voice Agent
+## Example 1: Demo Voice Agent
 
-**Path:** `../slhs-voice-agent/`  
+**Path:** `../demo-voice-agent/`  
 **Live URL:** `https://<container-app-fqdn>`
 
 ### What It Is
-Voice-enabled patient information system for St. Luke's Hospital Network. Cross-browser speech recognition with auto-retry, 5 synthetic patients with full clinical data (medications, vitals, labs), appointment scheduling with 5 doctors, multi-turn conversation context.
+Voice-enabled patient information system for Demo Hospital Network. Cross-browser speech recognition with auto-retry, 5 synthetic patients with full clinical data (medications, vitals, labs), appointment scheduling with 5 doctors, multi-turn conversation context.
 
 ### Key Features
 - Voice chat with exponential backoff retry (3 attempts)
@@ -46,7 +46,7 @@ Voice-enabled patient information system for St. Luke's Hospital Network. Cross-
 
 ### Deployment
 ```bash
-cd slhs-voice-agent
+cd demo-voice-agent
 az deployment group create --resource-group rg-voice-agent-dev --template-file infra/bicep/main.bicep
 az acr build --registry <ACR> --image voice-agent:v3.0.1 --no-logs src/app/
 ```
@@ -61,13 +61,13 @@ See `examples/intent.md` (v1) and `examples/intent.v2.md` (upgrade example)
 
 ---
 
-## Example 2: Legal Contract Review and Redlining AI â­ NEW
+## Example 2: Demo Legal Contract Review and Redlining AI â­ NEW
 
-**Path:** `../contract-review/`  
-**Deploy:** 3 steps (see contract-review/README.md)
+**Path:** `../demo-contract-review/`  
+**Deploy:** 3 steps (see demo-contract-review/README.md)
 
 ### What It Is
-AI-powered contract analysis for St. Luke's Hospital Network legal team. Upload vendor contracts (PDF/DOCX), extract text via Document Intelligence, analyze with GPT-4-1 against healthcare risk framework, generate redline suggestions with protective alternative clauses.
+AI-powered contract analysis for Demo Hospital Network legal team. Upload vendor contracts (PDF/DOCX), extract text via Document Intelligence, analyze with GPT-4-1 against healthcare risk framework, generate redline suggestions with protective alternative clauses.
 
 ### Key Features
 - Document Intelligence text extraction (50MB, 200 pages supported)
@@ -100,10 +100,10 @@ git push  # Triggers deploy.yml workflow
 
 ### Deployment (Option B: Docker + Azure CLI)
 ```bash
-az group create --name rg-contract-review-dev --location eastus2
-az deployment group create --resource-group rg-contract-review-dev --template-file contract-review/infra/bicep/main.bicep
-az acr build --registry <ACR> --image contract-review:v1.0.0 --no-logs contract-review/src/app/
-az containerapp update --name contract-review-dev --resource-group rg-contract-review-dev --image <ACR>.azurecr.io/contract-review:v1.0.0
+az group create --name rg-demo-contract-review-dev --location eastus2
+az deployment group create --resource-group rg-demo-contract-review-dev --template-file demo-contract-review/infra/bicep/main.bicep
+az acr build --registry <ACR> --image demo-contract-review:v1.0.0 --no-logs demo-contract-review/src/app/
+az containerapp update --name demo-contract-review-dev --resource-group rg-demo-contract-review-dev --image <ACR>.azurecr.io/demo-contract-review:v1.0.0
 ```
 
 ### Intent File
@@ -188,10 +188,10 @@ Both examples were generated using the same orchestrator pipeline:
 ### Option 1: Use Existing Intent Files
 ```bash
 # Voice Agent
-devex scaffold --file examples/intent.md -o ./my-voice-agent
+devex scaffold --file examples/intent.md -o ./my-demo-voice-agent
 
 # Contract Review
-devex scaffold --file examples/contract-review-intent.md -o ./my-contract-review
+devex scaffold --file examples/contract-review-intent.md -o ./my-demo-contract-review
 ```
 
 ### Option 2: Create Your Own
@@ -252,5 +252,6 @@ Want to add a new example? Follow these steps:
 
 *Enterprise DevEx Orchestrator v1.1.0 | Enterprise proof-of-concept*  
 *2 Examples | 486 Framework Tests | 25 Governance Policies | 26 WAF Principles*
+
 
 

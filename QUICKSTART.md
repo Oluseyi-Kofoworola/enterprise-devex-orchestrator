@@ -1,330 +1,245 @@
-﻿# Quick Start Guide -- Test Everything Step by Step
+﻿# Quickstart
 
-> Follow this guide to install, run, and test every feature of the
-> Enterprise DevEx Orchestrator. No Azure account needed for local testing.
+End-to-end guide: generate an enterprise scaffold from an intent file, push it to GitHub, and deploy to Azure via GitHub Actions.
 
-**Total verification time:** Under 10 minutes for Steps 1-10.
-**Azure deployment (optional):** Step 11.
+## Prerequisites
+
+- Python 3.11+
+- Git
+- PowerShell (Windows) or a Unix shell
+- GitHub account
+- Azure subscription (for deployment)
+- Azure CLI (`az`) installed
 
 ---
 
-## Step 1: Install
-
-Open a terminal in the project root directory.
+## 1. Clone and Install
 
 ```powershell
-# Create virtual environment
-python -m venv .venv
+git clone https://github.com/Oluseyi-Kofoworola/enterprise-devex-orchestrator.git
+cd enterprise-devex-orchestrator
 
-# Activate it (Windows PowerShell)
+python -m venv .venv
 .venv\Scripts\Activate.ps1
 
-# Install project + dev dependencies
 pip install -e ".[dev]"
 ```
 
-Verify the installation:
+Verify:
 
 ```powershell
 devex --help
-```
-
-You should see commands: `init`, `plan`, `scaffold`, `validate`,
-`deploy`, `upgrade`, `history`, `new-version`, `version`.
-
----
-
-## Step 2: Check Version Info
-
-```powershell
 devex version
 ```
 
-Shows orchestrator version (1.1.0), Python version, platform, and LLM backend.
-If no `.env` file exists, it shows "Config not loaded" -- that is expected.
+## 2. Preview the Architecture Plan
 
----
-
-## Step 3: Plan from the Enterprise Example (No Files Generated)
+Run a plan-only preview to see how the orchestrator interprets the intent without writing files:
 
 ```powershell
 devex plan --file examples/intent.md
 ```
 
-This runs the 4-agent chain (Intent Parser -> Architecture Planner ->
-Governance Reviewer) against the fully defined enterprise intent file:
-
-- **Requirements completeness** -- percentage of 9 enterprise sections filled
-- **Architecture plan** -- Azure services, ADRs, Mermaid diagram
-- **Governance report** -- 25 policy checks with PASS/FAIL
-- **WAF assessment** -- 5-pillar scores with 26 principle-level detail
-
-No files are written. This is a preview only.
-
-For a quick inline test:
-
-```powershell
-devex plan "Build a healthcare voice agent with Cosmos DB and Redis"
-```
-
----
-
-## Step 4: Scaffold from the Enterprise Intent File
-
-```powershell
-devex scaffold --file examples/intent.md -o ./test-enterprise
-```
-
-Generates a full production scaffold in `./test-enterprise/`. Expect ~36 files.
-The console shows requirements completeness, architecture plan, governance
-results, WAF assessment, and improvement suggestions.
-
-Explore the output:
-
-```powershell
-# List top-level directories
-Get-ChildItem ./test-enterprise -Directory
-
-# Read improvement suggestions -- what to refine for the next iteration
-Get-Content ./test-enterprise/docs/improvement-suggestions.md
-
-# Check Bicep infrastructure (main + 7 modules + parameters)
-Get-ChildItem ./test-enterprise/infra/bicep -Recurse
-
-# Check GitHub Actions workflows (4 workflows)
-Get-ChildItem ./test-enterprise/.github/workflows
-
-# Read generated FastAPI app
-Get-Content ./test-enterprise/src/app/main.py
-
-# Read architecture plan with ADRs and Mermaid diagram
-Get-Content ./test-enterprise/docs/plan.md
-
-# Check governance results (25 policies evaluated)
-Get-Content ./test-enterprise/.devex/governance.json
-
-# Check state tracking with SHA-256 file manifest
-Get-Content ./test-enterprise/.devex/state.json
-```
-
----
-
-## Step 5: Validate the Scaffold
-
-```powershell
-devex validate ./test-enterprise
-```
-
-Re-runs governance validation against the generated scaffold. Shows 25 policy
-results and WAF assessment with pillar-by-pillar scores.
-
----
-
-## Step 6: Create Your Own Enterprise Intent File
-
-The **define-then-run** workflow:
-
-```powershell
-# 6a: Generate an enterprise requirements template (9 sections)
-devex init -o ./my-test -p my-cool-api
-
-# 6b: Review the template -- note the 9 enterprise sections
-Get-Content ./my-test/intent.md
-
-# 6c: Fill in every section (problem statement, business goals,
-#     target users, functional requirements, scalability, security,
-#     performance, integration, acceptance criteria)
-
-# 6d: Scaffold from your intent file
-devex scaffold --file ./my-test/intent.md -o ./test-from-template
-
-# 6e: Review improvement suggestions for the next iteration
-Get-Content ./test-from-template/docs/improvement-suggestions.md
-```
-
-For a quick inline test (skips enterprise sections):
-
-```powershell
-devex scaffold "Build a healthcare voice agent with Cosmos DB and Redis" -o ./test-inline
-```
-
----
-
-## Step 7: Dry Run (Preview Without Writing)
-
-```powershell
-devex scaffold "Build a healthcare voice agent" --dry-run
-```
-
-Shows what files would be generated without writing to disk.
-
----
-
-## Step 8: Plan from an Intent File (JSON Output)
-
-```powershell
-devex plan --file examples/intent.md
-```
-
-Plan-only mode using the intent file. Shows architecture, governance, and WAF
-results without generating files.
-
-JSON output:
+JSON output for automation:
 
 ```powershell
 devex plan --file examples/intent.md -F json
 ```
 
----
-
-## Step 9: Versioned Upgrades (Iterative Improvement)
-
-Tests the full upgrade workflow where each version converges toward production:
+## 3. Generate the Scaffold
 
 ```powershell
-# 9a: Scaffold v1
-devex scaffold --file examples/intent.md -o ./test-upgrade
-
-# 9b: Review v1 improvement suggestions
-Get-Content ./test-upgrade/docs/improvement-suggestions.md
-
-# 9c: Check version history (shows v1 active)
-devex history ./test-upgrade
-
-# 9d: Generate v2 upgrade template (embeds v1 suggestions)
-devex new-version ./test-upgrade
-
-# 9e: Review generated template -- carries forward enterprise sections
-#     and adds "Improvement Suggestions from v1" section
-Get-Content ./test-upgrade/intent.v2.md
-
-# 9f: Or use the pre-made v2 example
-devex upgrade --file examples/intent.v2.md -o ./test-upgrade
-
-# 9g: Review v2 suggestions (should show fewer gaps)
-Get-Content ./test-upgrade/docs/improvement-suggestions.md
-
-# 9h: Check version history (v1 superseded, v2 active)
-devex history ./test-upgrade
+devex scaffold --file examples/intent.md -o ./my-first-output
 ```
 
----
+This produces a complete, deployable project:
 
-## Step 10: Run All Tests
-
-```powershell
-# Run the full test suite (486 tests)
-pytest tests/ -v
+```
+my-first-output/
+├── .devex/                    # State and metadata
+├── .github/workflows/         # CI/CD pipelines (validate, deploy, codeql, dependabot)
+├── infra/bicep/               # Azure Bicep templates (main + modules + parameters)
+├── src/app/                   # FastAPI application + Dockerfile
+├── tests/                     # Auto-generated test suite
+└── docs/                      # Plan, security, WAF, governance, deployment docs
 ```
 
-All 486 tests should pass. Key test files:
-
-| Test File | Tests | Coverage |
-|-----------|-------|---------|
-| `test_standards.py` | 67 | Azure CAF naming (20 types), tagging (7+5 tags), config |
-| `test_waf.py` | 61 | WAF 5-pillar assessment, 26 principles |
-| `test_enterprise_features.py` | 37 | Enterprise intent model, completeness tracking |
-| `test_state.py` | 37 | State management, SHA-256 manifest, drift detection |
-| `test_intent_versioning.py` | 33 | Intent files, version tracking, CI/CD promotion |
-| `test_skills_registry.py` | 26 | 9 skills, dynamic discovery, priority routing |
-| `test_superpowers.py` | 24 | Test/alert/deploy generators |
-| `test_planning.py` | 22 | 13-task DAG, checkpoints, resume |
-| `test_deploy_orchestrator.py` | 19 | 4-stage deploy, error recovery |
-| `test_prompt_generator.py` | 18 | Repo scanning, context-enriched prompts |
-| `test_subagent_dispatcher.py` | 17 | Parallel fan-out, result aggregation |
-
-Run a specific category:
+## 4. Validate Governance
 
 ```powershell
-pytest tests/test_standards.py -v      # 67 naming + tagging tests
-pytest tests/test_waf.py -v            # WAF assessment tests
-pytest tests/test_governance_validator.py -v  # 25 governance policies
+devex validate ./my-first-output
 ```
 
----
+This re-runs the 25-policy governance check and drift-aware validation against the generated scaffold.
 
-## Step 11: Lint and Type Check
+## 5. Push to a New GitHub Repository
+
+Create a new repo on GitHub (e.g., `my-first-output`), then push the scaffold:
 
 ```powershell
-# Lint (should pass clean)
-ruff check src/ tests/
-
-# Format check
-ruff format --check src/ tests/
-
-# Type check
-mypy src/orchestrator/
+cd my-first-output
+git init
+git add .
+git commit -m "Initial enterprise scaffold"
+git remote add origin https://github.com/<your-username>/my-first-output.git
+git branch -M main
+git push -u origin main
 ```
 
----
+The generated `.github/workflows/` folder contains:
 
-## Step 12: Deploy to Azure (Optional)
+| Workflow | Trigger | Purpose |
+|----------|---------|---------|
+| `validate.yml` | Pull requests | Lint, test, Bicep build, `az deployment validate` |
+| `deploy.yml` | `workflow_dispatch` | Deploy Bicep infra, build Docker image, push to ACR, update Container App |
+| `codeql.yml` | Push / schedule | Code scanning (GitHub Advanced Security) |
+| `dependabot.yml` | Schedule | Dependency updates for pip and GitHub Actions |
 
-Requires an Azure subscription and Azure CLI.
+## 6. Configure Azure OIDC for GitHub Actions
+
+The generated workflows use **OpenID Connect (OIDC)** — no stored credentials. Set up a federated identity:
+
+### a. Create an Entra ID App Registration
 
 ```powershell
-# Login to Azure
 az login
-
-# Create a resource group
-az group create --name rg-my-test --location eastus2
-
-# Deploy (staged: validate -> what-if -> deploy -> verify)
-devex deploy ./test-inline -g rg-my-test -r eastus2
-
-# Or dry-run (validate + what-if only, no actual deployment)
-devex deploy ./test-inline -g rg-my-test -r eastus2 --dry-run
+az ad app create --display-name "my-first-output-cicd"
+# Note the appId from the output
 ```
 
-**Live reference deployment:** The SLHS Voice Agent is deployed at
-`https://<container-app-fqdn>`
-in resource group `rg-enterprise-devex-orchestrator-dev` (East US 2).
-
----
-
-## Cleanup
-
-Remove test output directories:
+### b. Create a Service Principal
 
 ```powershell
-Remove-Item -Recurse -Force ./test-enterprise -ErrorAction SilentlyContinue
-Remove-Item -Recurse -Force ./test-inline -ErrorAction SilentlyContinue
-Remove-Item -Recurse -Force ./test-from-template -ErrorAction SilentlyContinue
-Remove-Item -Recurse -Force ./test-upgrade -ErrorAction SilentlyContinue
-Remove-Item -Recurse -Force ./my-test -ErrorAction SilentlyContinue
+az ad sp create --id <appId>
 ```
 
----
+### c. Add Federated Credential
 
-## All Commands Reference
+```powershell
+az ad app federated-credential create --id <appId> --parameters '{
+  "name": "github-main",
+  "issuer": "https://token.actions.githubusercontent.com",
+  "subject": "repo:<your-username>/my-first-output:ref:refs/heads/main",
+  "audiences": ["api://AzureADTokenExchange"]
+}'
+```
+
+### d. Assign Contributor Role
+
+```powershell
+az role assignment create `
+  --assignee <appId> `
+  --role Contributor `
+  --scope /subscriptions/<subscription-id>
+```
+
+### e. Set GitHub Repository Secrets
+
+In your GitHub repo, go to **Settings > Secrets and variables > Actions** and add:
+
+| Secret | Value |
+|--------|-------|
+| `AZURE_CLIENT_ID` | App registration `appId` |
+| `AZURE_TENANT_ID` | Your Entra ID tenant ID |
+| `AZURE_SUBSCRIPTION_ID` | Your Azure subscription ID |
+
+## 7. Deploy via GitHub Actions
+
+1. Go to your repo on GitHub → **Actions** tab
+2. Select the **Deploy** workflow
+3. Click **Run workflow** → choose `dev` environment → **Run workflow**
+
+The deploy pipeline:
+1. Logs in via OIDC (no secrets stored)
+2. Deploys Bicep infrastructure (Container Apps, ACR, Key Vault, Log Analytics)
+3. Builds and pushes the Docker image to ACR
+4. Updates the Container App with the new image
+5. Runs a health check against the deployed endpoint
+
+## 8. Iterate with Versioned Intents
+
+```powershell
+cd ..  # back to orchestrator root
+devex new-version ./my-first-output
+# Edit ./my-first-output/intent.v2.md with changes
+devex upgrade --file ./my-first-output/intent.v2.md -o ./my-first-output
+devex history ./my-first-output
+```
+
+For v2+ upgrades, the generator adds `promote.yml` and `rollback.yml` workflows
+that deploy as Container Apps revisions with traffic shifting.
+
+Recommended iteration loop:
+1. Review `docs/improvement-suggestions.md` in your output
+2. Update the intent version
+3. Run `devex upgrade`
+4. Push changes — `validate.yml` runs on PR, `deploy.yml` on manual dispatch
+
+## 9. Try Other Examples
+
+The [examples/](examples/) folder includes additional intent files:
+
+```powershell
+devex scaffold --file examples/contract-review-intent.md -o ./contract-review
+devex scaffold --file examples/doc-intelligence-intent.md -o ./doc-intelligence
+```
+
+Each generates a full scaffold with its own CI/CD workflows ready to push and deploy.
+
+## 10. Create Your Own Intent
+
+```powershell
+devex init -o ./my-project -p my-enterprise-api
+```
+
+Edit `./my-project/intent.md` with your business requirements, then:
+
+```powershell
+devex scaffold --file ./my-project/intent.md -o ./my-project
+```
+
+## 11. Cleanup
+
+Generated folders are disposable:
+
+```powershell
+Remove-Item -Recurse -Force ./my-first-output -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force ./contract-review -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force ./doc-intelligence -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force ./my-project -ErrorAction SilentlyContinue
+```
+
+To delete Azure resources:
+
+```powershell
+az group delete --name rg-<project-name>-dev --yes --no-wait
+```
+
+## Command Reference
 
 | Command | Purpose |
 |---------|---------|
-| `devex --help` | Show all available commands |
-| `devex version` | Show version and environment info |
-| `devex init` | Create intent.md template (9 enterprise sections) |
-| `devex plan "..."` | Preview architecture plan (no files) |
-| `devex plan --file intent.md` | Plan from intent file |
-| `devex scaffold "..." -o ./out` | Generate full scaffold from inline intent |
-| `devex scaffold --file intent.md -o ./out` | Generate scaffold from intent file |
-| `devex scaffold "..." --dry-run` | Preview without writing files |
-| `devex validate ./out` | Validate scaffold against 25 policies |
-| `devex deploy ./out -g rg -r region` | Deploy to Azure (4-stage pipeline) |
-| `devex upgrade --file v2.md -o ./out` | Upgrade scaffold to new version |
-| `devex history ./out` | View version history |
-| `devex new-version ./out` | Generate upgrade template from current version |
-
----
+| `devex init` | Create an intent.md template |
+| `devex plan` | Preview architecture plan (no files) |
+| `devex scaffold` | Generate full production scaffold |
+| `devex validate` | Validate scaffold against policies |
+| `devex deploy` | Deploy to Azure (staged) |
+| `devex upgrade` | Upgrade scaffold with new intent version |
+| `devex history` | View version history |
+| `devex new-version` | Generate upgrade intent template |
+| `devex version` | Show orchestrator version info |
 
 ## Troubleshooting
 
 | Problem | Solution |
 |---------|----------|
 | `devex` not found | Activate venv: `.venv\Scripts\Activate.ps1` |
-| "No intent provided" | Quote the intent: `devex scaffold "Build a healthcare voice agent" -o ./out` |
-| "No .devex metadata found" | Run `devex scaffold` first before `validate`/`deploy`/`upgrade` |
-| LLM connection error | Expected -- auto-falls back to template-only mode |
+| "No intent provided" | Pass `--file` or quote inline: `devex scaffold "Build an API" -o ./out` |
+| "No .devex metadata found" | Run `devex scaffold` before `validate` / `deploy` / `upgrade` |
+| LLM connection error | Expected — auto-falls back to template-only mode |
 | pip install fails | Check Python 3.11+: `python --version` |
+| GitHub Actions OIDC fails | Verify federated credential `subject` matches your repo/branch |
+| `az deployment` errors | Run `az account show` and check subscription selection |
 
 ---
 

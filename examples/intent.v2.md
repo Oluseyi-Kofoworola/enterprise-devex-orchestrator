@@ -1,13 +1,13 @@
-﻿# slhs-voice-agent
+﻿# demo-voice-agent
 
-> An enterprise-grade, real-time voice-to-voice agent system for St. Luke's
-> Health System (SLHS) healthcare operations. Built with OpenAI's GPT-4o
+> An enterprise-grade, real-time voice-to-voice agent system for Demo
+> Health System (Demo) healthcare operations. Built with OpenAI's GPT-4o
 > Realtime API for natural conversational experiences. v2 adds multi-language
 > support, advanced analytics, and blob storage for call recordings.
 
 ## Problem Statement
 
-St. Luke's Health System clinical and administrative staff spend significant
+Demo Health System clinical and administrative staff spend significant
 time on manual phone workflows -- appointment scheduling, prescription refill
 requests, post-discharge follow-ups, and insurance eligibility checks.
 v1 resolved the core automation problem; v2 addresses gaps identified in
@@ -115,4 +115,5 @@ The following were identified by the orchestrator after the v1 scaffold run:
 - **Version**: 2
 - **Based On**: 1
 - **Changes**: Add multi-language support, call recording storage, analytics endpoints, QA role, deep health endpoint
+
 
