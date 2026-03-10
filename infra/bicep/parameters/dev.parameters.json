@@ -3,7 +3,7 @@
   "contentVersion": "1.0.0.0",
   "parameters": {
     "projectName": {
-      "value": "devex-orchestrator"
+      "value": "devex-orchestrator2"
     },
     "environment": {
       "value": "dev"
