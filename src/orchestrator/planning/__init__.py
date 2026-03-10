@@ -16,12 +16,14 @@ from __future__ import annotations
 import hashlib
 import json
 import time
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 from src.orchestrator.logging import get_logger
 

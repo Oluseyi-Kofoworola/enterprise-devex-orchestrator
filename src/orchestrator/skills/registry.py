@@ -1,4 +1,4 @@
-"""Skill Registry -- dynamic discovery, registration, and routing of domain skills.
+r"""Skill Registry -- dynamic discovery, registration, and routing of domain skills.
 
 A Skill is a self-contained unit of expertise that an agent can invoke.
 Skills declare their capabilities, version, input/output types, and

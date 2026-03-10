@@ -1,4 +1,4 @@
-"""Subagent Dispatcher -- dynamic spawning and orchestration of specialized micro-agents.
+r"""Subagent Dispatcher -- dynamic spawning and orchestration of specialized micro-agents.
 
 Enables the orchestrator to decompose complex tasks and dispatch them to
 specialized subagents that run in parallel, with result aggregation.

@@ -16,6 +16,7 @@ import os
 import sys
 import time
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import click
 from rich.console import Console
@@ -37,6 +38,9 @@ from src.orchestrator.skills.registry import create_default_registry
 from src.orchestrator.standards.waf import WAFAlignmentReport
 from src.orchestrator.state import StateManager
 from src.orchestrator.versioning import VersionManager
+
+if TYPE_CHECKING:
+    from src.orchestrator.intent_file import IntentFileResult
 
 console = Console()
 logger = get_logger(__name__)
@@ -354,10 +358,8 @@ def _resolve_intent(intent: str | None, intent_file: str | None) -> str:
 
 def _resolve_intent_with_meta(
     intent: str | None, intent_file: str | None
-) -> tuple[str, "IntentFileResult | None"]:
+) -> tuple[str, IntentFileResult | None]:
     """Resolve intent and also return parsed file metadata (if from file)."""
-    from src.orchestrator.intent_file import IntentFileResult  # noqa: F811
-
     if intent_file:
         parser = IntentFileParser()
         result = parser.parse(intent_file)
@@ -1088,8 +1090,6 @@ def interactive(output: str) -> None:
         "redis": "redis",
         "none": "none",
     }
-    data_stores = [ds_map.get(d, d) for d in data_stores_raw]
-
     # -- Security ----------------------------------------------------
     auth = click.prompt(
         "Authentication model",

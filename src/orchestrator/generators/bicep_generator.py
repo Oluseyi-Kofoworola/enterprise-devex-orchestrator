@@ -193,12 +193,6 @@ module containerApp 'modules/container-app.bicep' = {{
 output containerAppFqdn string = containerApp.outputs.fqdn
 output containerAppName string = containerApp.outputs.appName
 """
-            # For non-container-apps, embed storage after keyvault
-            if compute != ComputeTarget.CONTAINER_APPS:
-                storage_after_kv = storage_module
-            else:
-                storage_after_kv = ""
-
         # For App Service and Functions, storage goes directly in main
         storage_section = ""
         if compute != ComputeTarget.CONTAINER_APPS and DataStore.BLOB_STORAGE in spec.data_stores:
@@ -905,13 +899,10 @@ output appId string = webApp.id
         lang = getattr(spec, "language", "python")
         if lang == "node":
             runtime = "node"
-            runtime_ver = "~20"
         elif lang == "dotnet":
             runtime = "dotnet-isolated"
-            runtime_ver = "~8"
         else:
             runtime = "python"
-            runtime_ver = "~3.11"
 
         return f"""// ===================================================================
 // Azure Function App Module

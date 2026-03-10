@@ -311,7 +311,7 @@ CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", 
 
         if DataStore.BLOB_STORAGE in spec.data_stores:
             storage_require = 'const { BlobServiceClient } = require("@azure/storage-blob");\n'
-            storage_route = f"""
+            storage_route = """
 // -- Storage Status --------------------------------------------------
 app.get("/storage/status", async (req, res) => {{
   try {{

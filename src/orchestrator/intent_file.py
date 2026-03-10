@@ -60,6 +60,7 @@ Supported format::
 
 from __future__ import annotations
 
+from contextlib import suppress
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -487,10 +488,8 @@ class IntentFileParser:
                     version_info.version = 1
             elif mapped == "based_on":
                 if value.lower() not in ("none", "n/a", "-", ""):
-                    try:
+                    with suppress(ValueError):
                         version_info.based_on = int(value)
-                    except ValueError:
-                        pass
             elif mapped == "changes":
                 version_info.changes = value
 
