@@ -1,108 +1,142 @@
-# Demo Script: enterprise-grade-real-time
+# Demo Script -- SLHS Voice Agent v3.0
 
-> Duration: 3 minutes | No improvisation -- follow this script exactly.
+> **3-minute live demonstration** of the St. Luke's Health System Voice Agent
+> Enterprise healthcare assistant with real-time voice interaction
 
-## Setup (Before Recording)
+---
 
-1. Ensure Azure subscription is active
-2. Ensure `.env` is configured
-3. Have a terminal open in the project root
-4. Have Azure Portal open in a browser tab
-5. (Optional) Have backup screenshots in `docs/screenshots/`
+## Pre-Demo Setup
 
-## Demo Flow
+1. Open browser (Chrome recommended for best voice support)
+2. Navigate to: `https://devex-orchestrator-dev.greenbay-9ec52bc2.eastus2.azurecontainerapps.io`
+3. Allow microphone access when prompted
+4. Verify the HIPAA badge and "SLHS Voice Agent" header are visible
 
-### Minute 0:00 -- 0:30 | Introduction
+---
 
-**Say:** "We built an Enterprise DevEx Orchestrator -- a Copilot SDK-powered
-agent that transforms plain-English business intent into production-ready,
-secure, deployable Azure workloads."
+## Demo Flow (3 Minutes)
 
-**Show:** README.md in the repo
+### Segment 1: Voice Interaction (45 seconds)
 
-### Minute 0:30 -- 1:30 | Agent in Action
+**Narration:** "This is the SLHS Voice Agent -- a production healthcare assistant
+running on Azure Container Apps with enterprise security controls."
 
-**Run:**
-```bash
-python -m src.orchestrator.main plan \
-  --intent "Build a secure API that processes documents, stores metadata, \
-  and exposes a REST endpoint. Must use managed identity, secrets in Key Vault, \
-  logging, and CI/CD."
-```
+1. Click the **microphone button** (or press `Ctrl+M`)
+2. Say: **"Hello, I need to look up a patient"**
+3. Wait for the animated voice bars and response
+4. Point out: "Notice the real-time voice transcription with interim results.
+   The UI shows animated voice bars during listening, and the response appears
+   as a rich formatted card."
 
-**Show:**
-- Intent parsing output (structured schema)
-- Architecture plan (`docs/plan.md`)
-- Mermaid diagram rendering
-- Governance validation report
+### Segment 2: Patient Lookup (45 seconds)
 
-**Say:** "The agent parsed our intent, generated an architecture plan with
-ADRs and threat model, validated it against governance policies, and produced
-deployable infrastructure."
+**Narration:** "Let me demonstrate the patient record system with rich data cards."
 
-### Minute 1:30 -- 2:15 | Generated Artifacts
+1. Type or say: **"Look up patient Maria Garcia"**
+2. Point out the **patient card** with:
+   - Demographics (name, DOB, phone)
+   - Conditions (Type 2 Diabetes, Hypertension)
+   - Allergies (Penicillin)
+   - Insurance (Blue Cross Blue Shield)
+   - Next appointment date
 
-**Show:**
-- `infra/bicep/main.bicep` -- Infrastructure as Code
-- `infra/bicep/modules/` -- Modular Bicep files
-- `.github/workflows/` -- CI/CD pipelines
-- `src/app/main.py` -- Application with health endpoint
-- `docs/security.md` -- Security controls and threat model
-- `docs/governance-report.md` -- Governance validation results
+3. Then say: **"Show me her medications"**
+4. Point out the **medication card** showing:
+   - Metformin 500mg (twice daily)
+   - Lisinopril 10mg (once daily)
 
-**Say:** "Every artifact is production-grade: private networking, managed
-identity, Key Vault secrets, Log Analytics, and CI/CD with OIDC -- all
-generated from a single sentence."
+### Segment 3: Clinical Data (45 seconds)
 
-### Minute 2:15 -- 2:45 | Live Deployment
+**Narration:** "The agent provides clinical data access with contextual follow-up."
 
-**Option A (Live):**
-```bash
-az deployment group create \
-  --resource-group rg-devex-orchestrator \
-  --template-file infra/bicep/main.bicep \
-  --parameters infra/bicep/parameters/dev.parameters.json
-```
+1. Say: **"What are her vitals?"**
+2. Point out the **vitals card**:
+   - Blood pressure: 128/82
+   - Heart rate: 72
+   - Temperature: 98.6F
+   - SpO2: 98%
 
-**Option B (Pre-deployed):**
-- Switch to Azure Portal
-- Show Resource Group with all resources
-- Click into Container App -> show health endpoint response
-- Click into Log Analytics -> run sample KQL query
+3. Say: **"Show lab results"**
+4. Point out the **lab results card**:
+   - HbA1c: 6.8% (borderline)
+   - Lipid Panel: 195 mg/dL (normal)
 
-### Minute 2:45 -- 3:00 | Wrap Up
+**Key point:** "Notice how the agent maintains conversation context -- it
+remembers we're talking about Maria Garcia across multiple turns."
 
-**Say:** "Enterprises don't need faster code. They need safe, compliant,
-repeatable architecture. We built a Copilot SDK-powered orchestrator that
-turns intent into governed infrastructure -- with security, observability,
-and CI/CD built in from the start."
+### Segment 4: Enterprise Architecture (45 seconds)
+
+**Narration:** "Let me show the enterprise architecture powering this."
+
+1. Switch to the Azure Portal or show architecture slide
+2. Highlight:
+   - **Zero secrets in code** -- Managed Identity for all auth
+   - **Key Vault** with RBAC, soft-delete, purge protection
+   - **Container Registry** -- admin disabled, MI-based pull
+   - **Log Analytics** -- structured JSON logging
+   - **Non-root container** -- defense-in-depth
+   - **486 automated tests** covering health, API, security, config, storage
+
+3. Show health endpoint: `/health` returns version info
+4. Mention: "Built with the Enterprise DevEx Orchestrator -- a 4-agent
+   chain powered by GitHub Copilot SDK that transforms business intent
+   into production-ready Azure workloads."
+
+---
+
+## Key Talking Points
+
+| Feature | Enterprise Value |
+|---------|----------------|
+| Voice interaction | Hands-free clinical workflow, accessibility |
+| Rich HTML cards | Structured data display, reducing errors |
+| Multi-turn context | Natural conversation flow, efficiency |
+| Auto-retry (voice) | Resilience against network failures |
+| Managed Identity | Zero-trust security, no credential management |
+| Container Apps | Serverless scaling, revision-based rollback |
+| 486 tests | Quality assurance, regression prevention |
+| WAF 5-pillar alignment | Enterprise governance compliance |
+
+---
 
 ## Backup Plan
 
-If live demo fails:
-1. Show pre-recorded terminal output
-2. Show Azure Portal screenshots in `docs/screenshots/`
-3. Walk through generated code in the repo
+If voice is unavailable (corporate firewall blocks Google Speech API):
+1. The app auto-retries 3 times with exponential backoff
+2. A text input field is always visible below the voice button
+3. All functionality works via text -- voice is an enhancement, not a dependency
 
-## Azure Portal Locations to Show
+If the live URL is down:
+1. Run locally: `cd slhs-voice-agent/src/app && uvicorn main:app --port 8000`
+2. Open `http://localhost:8000`
 
-| Resource | What to Click |
-|----------|--------------|
-| Resource Group | Overview -> see all resources |
-| Container App | Overview -> FQDN, Revisions |
-| Key Vault | Access policies -> RBAC |
-| Log Analytics | Logs -> run KQL query |
-| Container Registry | Repositories -> image |
+---
 
-## Sample KQL Query
+## Azure Portal Verification Points
+
+| What to Show | Where |
+|-------------|-------|
+| Container App running | Portal > Container Apps > devex-orchestrator-dev |
+| Active revision | Revisions blade > devex-orchestrator-dev--0000006 |
+| Log Analytics | Logs blade > `ContainerAppConsoleLogs_CL` |
+| Key Vault | devexorchestratordevkv > Access policies (RBAC) |
+| Managed Identity | devex-orchestrator-dev-id > Role assignments |
+| ACR | devexorchestratordevacr > Repositories > slhs-voice-agent |
+
+---
+
+## Sample KQL Query (Live Logs)
 
 ```kql
 ContainerAppConsoleLogs_CL
-| where ContainerAppName_s == "enterprise-grade-real-time"
-| project TimeGenerated, Log_s, RevisionName_s
+| where ContainerAppName_s == "devex-orchestrator-dev"
+| where Log_s contains "chat"
+| project TimeGenerated, Log_s
 | order by TimeGenerated desc
 | take 20
 ```
 
 ---
-*Generated by Enterprise DevEx Orchestrator Agent*
+
+*SLHS Voice Agent Demo -- St. Luke's Health System*
+*Enterprise DevEx Orchestrator | GitHub Copilot SDK Challenge*

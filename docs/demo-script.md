@@ -1,115 +1,149 @@
 # Demo Script
 
-> Duration: 3 minutes | No improvisation -- follow this script exactly.
+> **Enterprise DevEx Orchestrator** -- 5-minute demonstration
+> Shows the full pipeline: intent -> plan -> scaffold -> deploy
 
-## Setup (Before Recording)
+---
 
-1. Terminal open in project root
-2. `.env` configured with working credentials
-3. Azure Portal open in browser tab
-4. (Optional) Pre-deployed resources in Azure as backup
+## Setup
 
-## Demo Flow
-
-### Minute 0:00 -- 0:30 | The Problem
-
-**Say:** "Healthcare systems like St. Luke's handle thousands of patient calls
-daily -- appointment scheduling, prescription refills, follow-ups. Patients
-wait on hold, staff burn out, and HIPAA compliance requires audit trails that
-phone systems don't provide."
-
-**Show:** The README.md briefly on screen.
-
-**Say:** "We built an Enterprise DevEx Orchestrator -- a Copilot SDK-powered
-agent that transforms structured business requirements into a complete,
-governed, production-ready Azure workload. Let me show you how it works
-with a real-time voice agent for healthcare."
-
-### Minute 0:30 -- 1:30 | The Agent in Action
-
-**Run:**
 ```bash
-devex scaffold --file examples/intent.md -o ./demo-output
+# Ensure orchestrator is installed
+pip install -e .
+devex version
+
+# Verify Azure CLI
+az account show
 ```
 
-**Narrate as it runs:**
-- "The Intent Parser extracts structured requirements -- app type, data stores, compliance framework. It detects HIPAA, Cosmos DB, Redis, and the voice agent pattern."
-- "The Architecture Planner selects Azure services and generates ADRs and a STRIDE threat model tailored for healthcare PHI handling."
-- "The Governance Reviewer validates against 15 enterprise policies -- including naming and tagging standards -- and passes."
-- "The Infrastructure Generator produces all deployable artifacts."
+---
 
-**Show:** The Rich CLI output with tables and progress spinners.
+## Segment 1: Intent to Plan (1 min)
 
-### Minute 1:30 -- 2:15 | The Output
+**Narration:** "The orchestrator transforms natural language into enterprise architecture."
 
-**Run:**
 ```bash
-tree demo-output
+# Show the plan without generating files
+devex plan --intent "Build a healthcare voice agent API with patient records, voice interaction, and HIPAA compliance"
 ```
 
-**Show and narrate each category:**
+**What to highlight:**
+- IntentSpec extraction (project name, app type, data stores, auth model)
+- Component selection (Container Apps, Key Vault, Managed Identity, ACR, Log Analytics)
+- 6 Architecture Decision Records
+- STRIDE threat model (6 categories)
+- Mermaid architecture diagram
 
-1. **Bicep Infrastructure** -- `infra/bicep/main.bicep` + modules
-   - "Modular Bicep -- Key Vault with RBAC and soft delete, Managed Identity,
-     Container Apps with health probes, Cosmos DB for session history,
-     Redis for low-latency caching, Log Analytics for HIPAA audit."
+---
 
-2. **CI/CD** -- `.github/workflows/`
-   - "OIDC authentication -- no stored credentials. CodeQL and Dependabot included."
+## Segment 2: Scaffold Generation (1 min)
 
-3. **Application** -- `src/app/main.py`
-   - "FastAPI with health endpoint, non-root Docker container, ready for WebSocket integration."
+**Narration:** "One command generates a production-ready scaffold with infrastructure, application, CI/CD, tests, and documentation."
 
-4. **Documentation** -- `docs/`
-   - "Architecture plan, security docs with STRIDE threat model, RAI notes, deployment guide."
-
-5. **Governance Report** -- `docs/governance-report.md`
-   - "Every scaffold is validated. This one passed all 15 checks with HIPAA controls."
-
-6. **Enterprise Standards** -- `docs/standards.md`
-   - "Azure CAF naming conventions and a 12-tag enterprise tagging standard, auto-generated."
-
-### Minute 2:15 -- 2:45 | Proving It Works
-
-**Option A -- Live Validation:**
 ```bash
-az deployment group validate \
-  --resource-group rg-slhs-voice-agent-dev \
-  --template-file demo-output/infra/bicep/main.bicep \
-  --parameters demo-output/infra/bicep/parameters/dev.parameters.json
+# Generate full scaffold
+devex scaffold --intent "Build a healthcare voice agent API" --output-dir ./demo-output
 ```
 
-**Option B -- Pre-deployed:**
-- Switch to Azure Portal
-- Show Resource Group with Container App, Key Vault, Cosmos DB, Redis, Log Analytics, ACR, Managed Identity
-- Click Container App -> show FQDN -> hit /health endpoint
-- Click Log Analytics -> run KQL query for HIPAA audit trail
+**What to highlight:**
+- Bicep templates (main.bicep + 7 modules)
+- GitHub Actions workflows (4 files)
+- FastAPI application + Dockerfile
+- Auto-generated pytest test suite (5 test files)
+- Azure Monitor alert rules + runbook
+- 7 documentation files
+- Governance report with 25-policy validation
 
-### Minute 2:45 -- 3:00 | Close
+```bash
+# Show generated file tree
+find demo-output -type f | head -30
 
-**Say:** "Enterprises don't need faster code generation. They need safe,
-compliant, repeatable architecture. We built a Copilot SDK-powered orchestrator
-that turns structured requirements into governed infrastructure -- with Key Vault,
-Managed Identity, STRIDE threat models, HIPAA controls, and CI/CD built in
-from the first line. For St. Luke's, this means a voice agent that is
-production-ready, auditable, and HIPAA-compliant from day one."
+# Show governance passed
+cat demo-output/docs/governance-report.md | head -20
+```
+
+---
+
+## Segment 3: Enterprise Standards (1 min)
+
+**Narration:** "Every resource follows Azure CAF naming, enterprise tagging, and WAF alignment."
+
+```bash
+# Show naming conventions in Bicep
+grep "name:" demo-output/infra/bicep/main.bicep
+
+# Show tags
+grep -A 10 "tags:" demo-output/infra/bicep/main.bicep
+
+# Show WAF coverage
+cat demo-output/docs/waf-report.md | head -30
+```
+
+**What to highlight:**
+- Azure CAF naming (20 resource types, 34 region abbreviations)
+- Enterprise tagging (7 required + 5 optional tags with regex validation)
+- WAF 5-pillar assessment (26/26 principles)
+- Standards enforced via `standards.yaml` configuration
+
+---
+
+## Segment 4: Live Deployment (1.5 min)
+
+**Narration:** "This exact pipeline deployed the SLHS Voice Agent running in production."
+
+```bash
+# Show the live app
+curl https://devex-orchestrator-dev.greenbay-9ec52bc2.eastus2.azurecontainerapps.io/health
+```
+
+**Open in browser:** `https://devex-orchestrator-dev.greenbay-9ec52bc2.eastus2.azurecontainerapps.io`
+
+**Demo the app:**
+1. Click microphone -- speak "Show me Maria Garcia's information"
+2. Type "What medications is Maria taking?"
+3. Type "Show vitals for patient P-1002"
+4. Type "What lab results are available?"
+
+**What to highlight:**
+- Cross-browser voice recognition with auto-retry (3 attempts)
+- Patient lookup with clinical data (medications, vitals, lab results)
+- HTML card rendering for structured medical data
+- Multi-turn conversation context
+- Non-root container, Managed Identity, HTTPS-only
+
+---
+
+## Segment 5: Advanced Patterns (30 sec)
+
+**Narration:** "The orchestrator includes advanced enterprise patterns."
+
+| Pattern | Module | Capability |
+|---------|--------|-----------|
+| Skills Registry | `src/orchestrator/skills/` | 9 pluggable skills, 12 categories |
+| Subagent Dispatcher | `src/orchestrator/agents/` | Parallel fan-out with ThreadPoolExecutor |
+| Persistent Planning | `src/orchestrator/planning/` | 13-task DAG with checkpoint resume |
+| State Manager | `src/orchestrator/state.py` | Drift detection, SHA-256 manifests |
+| Version Manager | `src/orchestrator/versioning.py` | Track, upgrade, rollback scaffolds |
+| Deploy Orchestrator | `src/orchestrator/agents/` | 4-stage deployment with error recovery |
+
+```bash
+# Show test coverage
+pytest tests/ -v --tb=short 2>&1 | tail -5
+# 486 passed
+```
+
+---
 
 ## Backup Plan
 
-If anything fails during the live demo:
-1. Show the pre-generated `demo-output/` directory already in the repo
-2. Walk through the static Bicep files in `infra/bicep/`
-3. Show Azure Portal screenshots
+If demo environment is unavailable:
 
-## Key Talking Points
-
-- "Structured requirements in -> production scaffold out"
-- "4-agent chain with governance feedback loop"
-- "15 enterprise policies + naming and tagging standards validated before any file is written"
-- "STRIDE threat model, ADRs, and RAI notes -- generated, not afterthoughts"
-- "HIPAA compliance controls baked into every generated resource"
-- "State management with drift detection between generations"
-- "Works without LLM access via rule-based fallback -- reliability first"
+1. Run `devex plan` locally (no Azure required)
+2. Show `deploy-test/` directory as pre-generated scaffold
+3. Walk through Bicep templates and governance report
+4. Show test results: `pytest tests/ -v`
 
 ---
-*Enterprise DevEx Orchestrator Agent*
+
+*Full pipeline: intent -> parse -> plan -> govern -> generate -> deploy*
+*486 tests | 25 policies | 26 WAF principles | Live on Azure Container Apps*

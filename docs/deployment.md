@@ -1,204 +1,147 @@
 # Deployment Guide
 
+> **Enterprise DevEx Orchestrator** -- Deploy orchestrator-generated scaffolds to Azure
+
+---
+
 ## Prerequisites
 
-| Requirement | Version | Check |
-|---|---|---|
-| Azure CLI | >= 2.55 | `az version` |
-| Bicep CLI | >= 0.24 | `az bicep version` |
-| Python | >= 3.11 | `python --version` |
-| Docker | >= 24.0 | `docker --version` |
-| GitHub CLI | >= 2.40 | `gh --version` |
+| Requirement | Command to Verify |
+|------------|------------------|
+| Azure CLI | `az version` |
+| Python 3.11+ | `python --version` |
+| Bicep CLI | `az bicep version` |
+| Azure subscription | `az account show` |
 
-## Authentication
+## Deployment Architecture
 
-```bash
-# Login to Azure
-az login
+The orchestrator generates scaffolds with a standardized deployment pipeline:
 
-# Set subscription (replace with your own subscription ID)
-az account set --subscription <your-subscription-id>
-
-# Verify
-az account show --query "{name:name, id:id}" -o table
+```
+devex scaffold -> infra/bicep/ + src/app/ + .github/workflows/
+                          |
+                    az deployment group create (Bicep)
+                          |
+                    az acr build (container image)
+                          |
+                    az containerapp update (deploy revision)
 ```
 
-## Step 1 -- Create Resource Group
+## Quick Deploy (Manual)
+
+### 1. Generate Scaffold
 
 ```bash
-az group create \
-  --name rg-devex-orchestrator \
-  --location eastus2 \
-  --tags project=devex-orchestrator environment=dev costCenter=ENG-001 \
-         owner=your-team@example.com managedBy=bicep dataSensitivity=internal \
-         createdBy=devex-orchestrator
+# From intent
+devex scaffold --intent "Build a healthcare voice agent API with cosmos and redis"
+
+# From intent file
+devex scaffold --intent-file intent.md
+
+# Preview plan without generating files
+devex plan --intent "Build a patient portal API"
 ```
 
-## Step 2 -- Validate Bicep Templates
+### 2. Deploy Infrastructure
 
 ```bash
-# Syntax validation
-az bicep build --file infra/bicep/main.bicep
+# Set variables
+RG="rg-<project-name>-dev"
+LOCATION="eastus2"
 
-# Deployment validation (what-if)
-az deployment group what-if \
-  --resource-group rg-devex-orchestrator \
-  --template-file infra/bicep/main.bicep \
-  --parameters infra/bicep/parameters/dev.parameters.json
-```
+# Create resource group
+az group create --name $RG --location $LOCATION
 
-## Step 3 -- Deploy Infrastructure
-
-```bash
+# Deploy Bicep
 az deployment group create \
-  --name devex-deploy-$(date +%Y%m%d-%H%M%S) \
-  --resource-group rg-devex-orchestrator \
+  --resource-group $RG \
   --template-file infra/bicep/main.bicep \
-  --parameters infra/bicep/parameters/dev.parameters.json \
-  --verbose
+  --parameters @infra/bicep/parameters/dev.bicepparam
 ```
 
-Expected resources created:
-- Log Analytics Workspace (`law-{project}-{env}-{region}`)
-- User-assigned Managed Identity (`id-{project}-{env}-{region}`)
-- Azure Key Vault (RBAC, soft delete, purge protection) (`kv-{project}-{env}-{region}`)
-- Azure Container Registry (`cr{project}{env}{region}`)
-- Container Apps Environment + Container App (`cae-/ca-{project}-{env}-{region}`)
-
-> All resource names follow [Azure CAF naming conventions](https://learn.microsoft.com/en-us/azure/cloud-adoption-framework/ready/azure-best-practices/resource-naming).
-> All resources are tagged with 7 required enterprise tags (project, environment, costCenter, owner, managedBy, createdBy, dataSensitivity).
-
-## Step 4 -- Build and Push Container Image
+### 3. Build and Deploy Application
 
 ```bash
-# Get ACR name from deployment output
-ACR_NAME=$(az deployment group show \
-  --resource-group rg-devex-orchestrator \
-  --name <deployment-name> \
-  --query properties.outputs.containerRegistryName.value -o tsv)
+# Get ACR name from deployment outputs
+ACR_NAME=$(az deployment group show --resource-group $RG --name main --query properties.outputs.acrName.value -o tsv)
 
-# Login to ACR
-az acr login --name $ACR_NAME
+# Build in ACR (no local Docker required)
+az acr build --registry $ACR_NAME --image <project>:v1.0.0 --no-logs src/app/
 
-# Build and push
-docker build -t ${ACR_NAME}.azurecr.io/devex-orchestrator:latest .
-docker push ${ACR_NAME}.azurecr.io/devex-orchestrator:latest
-```
-
-## Step 5 -- Update Container App Image
-
-```bash
-CONTAINER_APP_NAME=$(az deployment group show \
-  --resource-group rg-devex-orchestrator \
-  --name <deployment-name> \
-  --query properties.outputs.containerAppName.value -o tsv)
-
+# Update Container App
 az containerapp update \
-  --name $CONTAINER_APP_NAME \
-  --resource-group rg-devex-orchestrator \
-  --image ${ACR_NAME}.azurecr.io/devex-orchestrator:latest
+  --name <project>-dev \
+  --resource-group $RG \
+  --image ${ACR_NAME}.azurecr.io/<project>:v1.0.0
 ```
 
-## Step 6 -- Verify Deployment
+### 4. Verify
 
 ```bash
-# Get the FQDN
-FQDN=$(az deployment group show \
-  --resource-group rg-devex-orchestrator \
-  --name <deployment-name> \
-  --query properties.outputs.containerAppFqdn.value -o tsv)
+# Get app URL
+APP_URL=$(az containerapp show --name <project>-dev --resource-group $RG --query properties.configuration.ingress.fqdn -o tsv)
 
 # Health check
-curl https://${FQDN}/health
-
-# Expected response:
-# {"status": "healthy", "version": "0.1.0"}
+curl https://$APP_URL/health
 ```
 
-## Step 7 -- Configure GitHub Actions (OIDC)
+## Staged Deploy (Orchestrator)
 
-### Create Azure AD App Registration
+The built-in deploy orchestrator runs a 4-stage pipeline:
 
 ```bash
-# Create app registration
-az ad app create --display-name devex-orchestrator-cicd
-
-# Get App ID
-APP_ID=$(az ad app list --display-name devex-orchestrator-cicd --query "[0].appId" -o tsv)
-
-# Create service principal
-az ad sp create --id $APP_ID
-
-# Get subscription ID
-SUB_ID=$(az account show --query id -o tsv)
-
-# Assign Contributor role
-az role assignment create \
-  --assignee $APP_ID \
-  --role Contributor \
-  --scope /subscriptions/$SUB_ID/resourceGroups/rg-devex-orchestrator
-
-# Add federated credential for GitHub Actions
-az ad app federated-credential create \
-  --id $APP_ID \
-  --parameters '{
-    "name": "github-actions-main",
-    "issuer": "https://token.actions.githubusercontent.com",
-    "subject": "repo:<org>/<repo>:ref:refs/heads/main",
-    "audiences": ["api://AzureADTokenExchange"]
-  }'
+devex deploy --output-dir ./my-project --resource-group $RG --region eastus2
 ```
 
-### Set GitHub Repository Secrets
+| Stage | Action | On Failure |
+|-------|--------|-----------|
+| 1. Validate | `az deployment group validate` | Stop with errors |
+| 2. What-If | `az deployment group what-if` | Show diff, continue |
+| 3. Deploy | `az deployment group create` | Retry transient, stop hard errors |
+| 4. Verify | Health probe + log check | Report status |
+
+## CI/CD (GitHub Actions)
+
+Generated scaffolds include 4 workflows:
+
+| Workflow | Trigger | Purpose |
+|----------|---------|---------|
+| `validate.yml` | PR to main | Bicep lint + what-if |
+| `deploy.yml` | Push to main | Build + deploy |
+| `dependabot.yml` | Schedule | Dependency updates |
+| `codeql.yml` | Schedule + PR | Security scanning |
+
+All workflows use **OIDC federation** -- no stored credentials.
+
+## Live Deployment Reference
+
+The SLHS Voice Agent is deployed using this exact pattern:
+
+| Resource | Value |
+|----------|-------|
+| Resource Group | `rg-devex-orchestrator-dev` |
+| Region | `eastus2` |
+| Container App | `devex-orchestrator-dev` |
+| ACR | `devexorchestratordevacr` |
+| Image | `devexorchestratordevacr.azurecr.io/devex-orchestrator:v3.0.1` |
+| URL | `https://devex-orchestrator-dev.greenbay-9ec52bc2.eastus2.azurecontainerapps.io` |
 
 ```bash
-gh secret set AZURE_CLIENT_ID --body "$APP_ID"
-gh secret set AZURE_TENANT_ID --body "$(az account show --query tenantId -o tsv)"
-gh secret set AZURE_SUBSCRIPTION_ID --body "$SUB_ID"
+# Actual deploy command used
+az acr build --registry devexorchestratordevacr --image devex-orchestrator:v3.0.1 --no-logs slhs-voice-agent/src/app/
 ```
 
 ## Rollback
 
 ```bash
-# List deployments
-az deployment group list \
-  --resource-group rg-devex-orchestrator \
-  --query "[].{name:name, timestamp:properties.timestamp, state:properties.provisioningState}" \
-  -o table
+# List revisions
+az containerapp revision list --name <app> --resource-group $RG --query "[].name" -o tsv
 
-# Redeploy previous version
-az deployment group create \
-  --resource-group rg-devex-orchestrator \
-  --template-file infra/bicep/main.bicep \
-  --parameters infra/bicep/parameters/dev.parameters.json \
-  --name rollback-$(date +%Y%m%d-%H%M%S)
+# Switch traffic to previous revision
+az containerapp ingress traffic set --name <app> --resource-group $RG \
+  --revision-weight <previous-revision>=100
 ```
-
-## Teardown
-
-```bash
-# Delete all resources
-az group delete \
-  --name rg-devex-orchestrator \
-  --yes --no-wait
-
-# Clean up app registration
-az ad app delete --id $APP_ID
-```
-
-> **Warning:** Key Vault has purge protection enabled with 90-day retention. After
-> deleting the resource group, the Key Vault will remain in a soft-deleted state.
-> To fully remove: `az keyvault purge --name <vault-name>`
-
-## Troubleshooting
-
-| Symptom | Check | Fix |
-|---|---|---|
-| Bicep build fails | `az bicep version` | `az bicep upgrade` |
-| Deployment fails with quota error | `az vm list-usage --location eastus2` | Change `location` parameter |
-| Container App not starting | `az containerapp logs show` | Check image name and ACR credentials |
-| Key Vault access denied | `az role assignment list` | Verify Managed Identity has `Key Vault Secrets User` role |
-| Health endpoint returns 503 | Container App logs | Check `AZURE_CLIENT_ID` env var is set correctly |
 
 ---
-*Enterprise DevEx Orchestrator Agent*
+
+*Deployment patterns enforce enterprise security: OIDC auth, Managed Identity, RBAC over access policies*

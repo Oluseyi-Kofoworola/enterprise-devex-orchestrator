@@ -1,87 +1,94 @@
 # Responsible AI Notes
 
-> Enterprise DevEx Orchestrator -- Responsible AI Considerations
+> **Enterprise DevEx Orchestrator** -- Responsible AI considerations for AI-powered code generation
+
+---
 
 ## Overview
 
-The Enterprise DevEx Orchestrator uses AI (GitHub Copilot SDK / Azure OpenAI)
-to parse business intent and generate architecture plans. This document
-outlines the Responsible AI considerations for this system.
+The Enterprise DevEx Orchestrator uses LLM-powered agents to transform natural language
+intent into infrastructure code. This document addresses responsible AI principles as they
+apply to automated code generation and enterprise scaffold creation.
 
-## How AI Is Used
+## RAI Principles
 
-| Feature | AI Role | Non-AI Fallback |
-|---------|---------|-----------------|
-| Intent Parsing | LLM extracts structured data from natural language | Rule-based keyword extraction |
-| Architecture Planning | LLM generates context-specific ADRs and threat descriptions | Template-based ADRs with standard content |
-| Governance Review | Policy rules are deterministic (no LLM) | N/A -- always rule-based |
-| Code Generation | Templates are deterministic (no LLM) | N/A -- always template-based |
+### 1. Fairness
 
-## Key Principle: Deterministic Where It Matters
+| Consideration | Implementation |
+|--------------|---------------|
+| Consistent output quality | Deterministic structure ensures all users get the same scaffold quality regardless of input phrasing |
+| Fallback mechanisms | Rule-based fallbacks activate when LLM is unavailable, ensuring equitable access |
+| No user profiling | No user data is stored or used to differentiate output quality |
 
-The system is designed so that **security-critical decisions are never delegated
-to the LLM**:
+### 2. Reliability and Safety
 
-- **Infrastructure structure** (which Azure services, which Bicep modules) is deterministic
-- **Security controls** (RBAC, soft delete, encryption) are hard-coded in templates
-- **Governance policies** (required components, anti-patterns) are rule-based
-- **CI/CD workflows** (OIDC, CodeQL, Dependabot) are template-generated
+| Consideration | Implementation |
+|--------------|---------------|
+| Governance validation | Every scaffold passes 25-policy automated validation before output |
+| Security baselines | Generated code enforces enterprise security controls by default |
+| Deterministic boundaries | LLM creativity is constrained to content within fixed structural templates |
+| Test generation | Auto-generated pytest suites verify scaffold correctness |
+| Fallback chain | Each agent has a deterministic fallback if the LLM fails |
 
-The LLM only influences:
-- How natural language is parsed into structured fields
-- The prose content of ADR descriptions and threat narratives
-- Project naming suggestions
+### 3. Privacy and Security
 
-## Fairness
-- The system treats all input equally regardless of source
-- No user profiling or discriminatory processing
-- Output quality depends on input specificity, not user characteristics
+| Consideration | Implementation |
+|--------------|---------------|
+| No data retention | The orchestrator processes intent locally and does not persist user input beyond the session |
+| Secret handling | Generated code uses Key Vault references, never embeds secrets |
+| State files | `.devex/state.json` contains only SHA-256 hashes, never raw data |
+| Managed Identity | Generated auth uses MI + RBAC, avoiding credential storage |
 
-## Reliability & Safety
-- Rule-based fallback ensures the system works without LLM access
-- All generated infrastructure passes governance validation
-- Health probes and auto-scaling ensure deployed workloads are resilient
-- Rollback procedures are documented for every deployment
+### 4. Inclusiveness
 
-## Privacy & Security
-- No PII is stored in logs (structlog with sanitized fields)
-- User intent text is processed in-memory, not persisted beyond the session
-- Managed Identity eliminates credential exposure
-- Key Vault for all secret management
+| Consideration | Implementation |
+|--------------|---------------|
+| Natural language input | Users describe intent in plain English, no DSL required |
+| Intent file system | Structured markdown templates guide users through comprehensive requirement definition |
+| 28 heading aliases | Intent parser accepts multiple phrasings for the same concept |
+| Documentation | Every scaffold includes deployment guide, security docs, and demo script |
 
-## Transparency
-- Every architecture decision is documented as an ADR
-- Governance validation results are surfaced with specific check IDs
-- Generated code is human-readable and auditable
-- The system never hides what it generates
+### 5. Transparency
 
-## Accountability
-- Deployment requires explicit manual trigger
-- Log Analytics provides full audit trail
-- RBAC enforces least-privilege access
-- GitHub Actions workflows are version-controlled and reviewable
+| Consideration | Implementation |
+|--------------|---------------|
+| Architecture Decision Records | 6 ADRs explain every major technical choice |
+| Governance report | Full policy-by-policy validation results with evidence |
+| WAF assessment | 26 principles scored with specific evidence per principle |
+| File preview | `preview_output` tool shows all files before writing to disk |
+| State tracking | Every generation is audited with timestamps and file manifests |
+
+### 6. Accountability
+
+| Consideration | Implementation |
+|--------------|---------------|
+| Version management | Track, upgrade, rollback every scaffold version |
+| Drift detection | State manager detects when generated files diverge from intent |
+| Audit trail | `.devex/state.json` records all generation events |
+| Governance feedback loop | Reviewer agent holds planner accountable to enterprise standards |
+
+## Generated Application RAI
+
+For the SLHS Voice Agent (the live deployment):
+
+| Aspect | Consideration |
+|--------|--------------|
+| Voice input | Speech recognition is browser-native (Web Speech API), no audio stored server-side |
+| Patient data | Synthetic data only; no real PHI in the demo |
+| Clinical suggestions | System provides information only, not clinical decision support |
+| HIPAA alignment | Data classification tags, encryption in transit, audit logging |
+| Voice errors | Auto-retry (3 attempts) with clear user feedback, never silent failure |
 
 ## Limitations
 
-1. **Not a compliance certification tool** -- governance checks provide guidance, not legal compliance
-2. **LLM outputs should be reviewed** -- ADR prose and threat descriptions are AI-generated
-3. **Template coverage is bounded** -- the system covers common Azure patterns, not all possible architectures
-4. **Intent parsing has limits** -- very ambiguous or contradictory intents may produce unexpected results
-
-## Healthcare-Specific Considerations
-
-When used with healthcare workloads (e.g., HIPAA-compliant voice agents):
-
-- **PHI Handling**: The orchestrator generates infrastructure with encryption at rest and in transit, but organisations must independently verify PHI handling meets their BAA obligations
-- **Clinical Decision Support**: Generated applications are operational tools (scheduling, routing) -- they must not be used for clinical decision-making without separate FDA/regulatory review
-- **Voice Data**: AI-generated voice transcripts may contain errors -- human review is required for any transcript used in clinical documentation
-- **Bias in Voice Recognition**: Voice-to-text accuracy may vary across accents, languages, and speech patterns -- organisations should monitor and report disparities
-- **Patient Consent**: The orchestrator does not generate consent management workflows -- organisations must implement appropriate informed consent for AI-assisted interactions
-
-## Contact
-
-For RAI concerns, contact the Enterprise DevEx team or your organization's
-Responsible AI office.
+| Limitation | Mitigation |
+|-----------|-----------|
+| LLM may generate suboptimal ADR content | Deterministic structure + governance validation catches issues |
+| Intent parsing may miss nuances | Rule-based fallback ensures basic functionality |
+| Generated code is a starting point | Tests and governance reports highlight areas needing customization |
+| No real-time model monitoring | State manager provides generation-time tracking |
 
 ---
-*Enterprise DevEx Orchestrator Agent*
+
+*Responsible AI is embedded in the architecture, not bolted on after the fact.*
+*Governance validation, deterministic boundaries, and audit trails ensure accountable AI-powered generation.*
