@@ -71,17 +71,38 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Check Azure credentials availability
+        id: azure-creds
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        run: |
+          if [ -n "$AZURE_CLIENT_ID" ] && [ -n "$AZURE_TENANT_ID" ] && [ -n "$AZURE_SUBSCRIPTION_ID" ]; then
+            echo "hasAzureCreds=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "hasAzureCreds=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Login to Azure
+        if: steps.azure-creds.outputs.hasAzureCreds == 'true'
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Skip Azure validation notice
+        if: steps.azure-creds.outputs.hasAzureCreds != 'true'
+        run: |
+          echo "Azure credentials are not configured in repository secrets."
+          echo "Skipping Azure deployment validation and continuing with local infra checks."
+
       - name: Validate Bicep syntax
         run: az bicep build --file infra/bicep/main.bicep
 
       - name: Validate deployment (preflight)
+        if: steps.azure-creds.outputs.hasAzureCreds == 'true'
         run: |
           az deployment group validate \
             --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
@@ -90,7 +111,7 @@ jobs:
             --parameters location=${{ env.AZURE_LOCATION }}
 
       - name: What-if (preview changes)
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && steps.azure-creds.outputs.hasAzureCreds == 'true'
         run: |
           az deployment group what-if \
             --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \

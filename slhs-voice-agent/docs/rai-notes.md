@@ -1,7 +1,7 @@
 ﻿# Responsible AI Notes -- SLHS Voice Agent v3.0
 
 > **Ethical AI considerations** for the St. Luke's Health System Voice Agent
-> Aligned with Microsoft Responsible AI principles
+> Aligned with standard Responsible AI principles
 
 ---
 
@@ -134,6 +134,6 @@ support system (CDSS). It:
 ---
 
 *Responsible AI assessment performed as part of Enterprise DevEx Orchestrator governance*
-*Aligned with Microsoft Responsible AI Standard v2*
+*Aligned with enterprise Responsible AI baseline standards*
 
 

@@ -3,7 +3,7 @@
 ## Overview
 
 This document outlines the Responsible AI (RAI) considerations for the
-intent-legal-contract-review workload, as required by Microsoft's Responsible AI
+intent-legal-contract-review workload, as required by enterprise Responsible AI
 Standard and enterprise governance policies.
 
 ## Principles Applied
