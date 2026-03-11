@@ -287,19 +287,25 @@ Extension points:
 
 ---
 
-## Known Issues (Fixed)
+## Troubleshooting
 
-The following issues were discovered during end-to-end testing and have been fixed:
+| Symptom | Solution |
+|---------|----------|
+| UnicodeEncodeError with Rich spinner on Windows | Set `$env:PYTHONIOENCODING="utf-8"` before running commands |
+| `devex deploy` hangs or times out | Verify `az login` session is active and subscription has quota |
 
-| # | Issue | Fix |
-|---|-------|-----|
-| 1 | `devex deploy` fails on Windows with `[WinError 2]` -- `subprocess.run(["az",...])` cannot find `az.cmd` | Use `shutil.which("az")` to resolve the full path (`deploy_orchestrator.py`) |
-| 2 | `devex deploy` defaults to `infra/main.bicep` but scaffold generates to `infra/bicep/main.bicep` | Updated default paths in `deploy()` method (`deploy_orchestrator.py`) |
-| 3 | Container Registry generated with `publicNetworkAccess: 'Enabled'` -- fails governance security scan | Changed ACR to Premium SKU with `publicNetworkAccess: 'Disabled'` (`bicep_generator.py`) |
-| 4 | Cosmos DB role assignment uses `Microsoft.Authorization/roleAssignments` with a Cosmos DB data-plane role ID | Changed to `Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments` (`bicep_generator.py`) |
-| 5 | Redis role definition `e12a1235-...` (Data Contributor Preview) does not exist in most subscriptions | Changed to `e0f68234-...` (Redis Cache Contributor) (`bicep_generator.py`) |
-| 6 | Container App name exceeds 32-character limit for long project names | Added `take(..., 32)` to `caName` and `caeName` variables (`naming.py`) |
-| 7 | Rich spinner characters cause `UnicodeEncodeError` on Windows when output is redirected | Set `$env:PYTHONIOENCODING="utf-8"` before running commands |
+---
+
+## Changelog
+
+### v1.1.1
+
+- **Fix**: `devex deploy` now works on Windows (resolves `az.cmd` via `shutil.which`)
+- **Fix**: Deploy default Bicep paths match generated scaffold structure (`infra/bicep/`)
+- **Fix**: Container Registry uses Premium SKU with public network access disabled
+- **Fix**: Cosmos DB role assignment uses correct `sqlRoleAssignments` resource type
+- **Fix**: Redis uses `Redis Cache Contributor` role (available in all subscriptions)
+- **Fix**: Container App and Environment names truncated to 32-character limit
 
 ---
 
