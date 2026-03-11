@@ -113,6 +113,14 @@ class CICDRequirements(BaseModel):
     manual_deploy: bool = Field(default=True, description="Support manual deployment trigger")
     oidc_auth: bool = Field(default=True, description="Use OIDC for Azure authentication in CI")
     artifact_upload: bool = Field(default=True, description="Upload scaffold as CI artifact")
+    environments: list[str] = Field(
+        default_factory=lambda: ["dev"],
+        description="Deployment environments (e.g. dev, staging, prod)",
+    )
+    approval_gates: bool = Field(
+        default=False,
+        description="Require manual approval for staging/prod deployments",
+    )
 
 
 class IntentSpec(BaseModel):

@@ -46,13 +46,23 @@ class AppGenerator:
     # ===============================================================
 
     def _generate_python(self, spec: IntentSpec) -> dict[str, str]:
-        """Generate Python/FastAPI scaffold."""
+        """Generate Python/FastAPI scaffold with enterprise DDD layout."""
         files: dict[str, str] = {}
         files["src/__init__.py"] = '"""Generated source package."""\n'
+        files["src/app/__init__.py"] = '"""Generated application package."""\n'
         files["src/app/main.py"] = self._python_main(spec)
         files["src/app/requirements.txt"] = self._python_requirements(spec)
         files["src/app/Dockerfile"] = self._python_dockerfile(spec)
-        files["src/app/__init__.py"] = '"""Generated application package."""\n'
+
+        # DDD layered architecture
+        files["src/app/api/__init__.py"] = '"""API layer -- versioned routers."""\n'
+        files["src/app/api/v1/__init__.py"] = '"""API v1 router package."""\n'
+        files["src/app/api/v1/router.py"] = self._python_v1_router(spec)
+        files["src/app/api/v1/schemas.py"] = self._python_v1_schemas(spec)
+        files["src/app/core/__init__.py"] = '"""Core layer -- services, config, and dependencies."""\n'
+        files["src/app/core/config.py"] = self._python_core_config(spec)
+        files["src/app/core/dependencies.py"] = self._python_core_dependencies(spec)
+        files["src/app/core/services.py"] = self._python_core_services(spec)
         return files
 
     # ===============================================================
@@ -146,6 +156,8 @@ from azure.keyvault.secrets import SecretClient
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, JSONResponse
 {storage_imports}
+from api.v1.router import router as v1_router
+
 # -- Configuration ----------------------------------------------------
 APP_NAME = "{spec.project_name}"
 VERSION = "1.0.0"
@@ -165,6 +177,9 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url=None,
 )
+
+# -- Mount versioned API router --------------------------------------
+app.include_router(v1_router, prefix="/api/v1", tags=["v1"])
 
 
 # -- Key Vault Client ------------------------------------------------
@@ -337,6 +352,220 @@ CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", 
 """
 
     # ===============================================================
+    # Python DDD architecture layer files
+    # ===============================================================
+
+    def _python_v1_router(self, spec: IntentSpec) -> str:
+        storage_routes = ""
+        if DataStore.BLOB_STORAGE in spec.data_stores:
+            storage_routes = """
+
+@router.get("/storage/containers", summary="List storage containers")
+async def list_containers(
+    storage: BlobServiceClient = Depends(get_blob_service),
+):
+    containers = [c["name"] for c in storage.list_containers(max_results=10)]
+    return {"containers": containers}
+"""
+
+        storage_import = ""
+        storage_dep = ""
+        if DataStore.BLOB_STORAGE in spec.data_stores:
+            storage_import = "\nfrom azure.storage.blob import BlobServiceClient"
+            storage_dep = "\nfrom core.dependencies import get_blob_service"
+
+        return f'''"""API v1 router -- versioned business endpoints.
+
+Mount this router in main.py under /api/v1.
+Add domain-specific routes here as the application grows.
+"""
+
+from __future__ import annotations
+
+from fastapi import APIRouter, Depends
+from api.v1.schemas import ItemCreate, ItemResponse
+from core.dependencies import get_settings
+from core.config import Settings
+from core.services import ItemService{storage_import}{storage_dep}
+
+router = APIRouter()
+
+
+@router.get("/items", response_model=list[ItemResponse], summary="List items")
+async def list_items(
+    settings: Settings = Depends(get_settings),
+):
+    """Return items from the service layer."""
+    svc = ItemService(project_name=settings.app_name)
+    return svc.list_items()
+
+
+@router.post("/items", response_model=ItemResponse, status_code=201, summary="Create item")
+async def create_item(
+    payload: ItemCreate,
+    settings: Settings = Depends(get_settings),
+):
+    """Create a new item via the service layer."""
+    svc = ItemService(project_name=settings.app_name)
+    return svc.create_item(payload.name, payload.description)
+{storage_routes}'''
+
+    def _python_v1_schemas(self, spec: IntentSpec) -> str:
+        return f'''"""API v1 request/response schemas.
+
+Keep Pydantic models here so routers stay thin.
+"""
+
+from __future__ import annotations
+
+from pydantic import BaseModel, Field
+
+
+class ItemCreate(BaseModel):
+    """Schema for creating a new item."""
+
+    name: str = Field(..., min_length=1, max_length=120, description="Item name")
+    description: str = Field(default="", max_length=500, description="Item description")
+
+
+class ItemResponse(BaseModel):
+    """Schema returned by item endpoints."""
+
+    id: str = Field(..., description="Unique item identifier")
+    name: str = Field(..., description="Item name")
+    description: str = Field(default="", description="Item description")
+    project: str = Field(..., description="Owning project name")
+'''
+
+    def _python_core_config(self, spec: IntentSpec) -> str:
+        storage_field = ""
+        if DataStore.BLOB_STORAGE in spec.data_stores:
+            storage_field = '\n    storage_account_url: str = Field(default="", description="Azure Storage account URL")'
+
+        return f'''"""Application configuration via pydantic-settings.
+
+Environment variables are automatically loaded.  Values can be
+overridden with a .env file during local development.
+"""
+
+from __future__ import annotations
+
+from pydantic import Field
+from pydantic_settings import BaseSettings
+
+
+class Settings(BaseSettings):
+    """Centralised configuration -- reads from environment variables."""
+
+    app_name: str = Field(default="{spec.project_name}", description="Application name")
+    version: str = Field(default="1.0.0", description="Application version")
+    environment: str = Field(default="{spec.environment}", description="Runtime environment")
+    port: int = Field(default=8000, description="HTTP listen port")
+
+    # Azure integration
+    azure_client_id: str = Field(default="", description="Managed identity client ID")
+    key_vault_uri: str = Field(default="", description="Key Vault URI")
+    key_vault_name: str = Field(default="", description="Key Vault name (fallback)"){storage_field}
+
+    model_config = {{"env_file": ".env", "extra": "ignore"}}
+'''
+
+    def _python_core_dependencies(self, spec: IntentSpec) -> str:
+        storage_dep = ""
+        if DataStore.BLOB_STORAGE in spec.data_stores:
+            storage_dep = """
+
+def get_blob_service() -> BlobServiceClient:
+    \"\"\"Dependency that yields an authenticated BlobServiceClient.\"\"\"
+    from azure.storage.blob import BlobServiceClient
+
+    settings = get_settings()
+    credential = DefaultAzureCredential(
+        managed_identity_client_id=settings.azure_client_id or None
+    )
+    if not settings.storage_account_url:
+        raise ValueError("STORAGE_ACCOUNT_URL not configured")
+    return BlobServiceClient(
+        account_url=settings.storage_account_url, credential=credential
+    )
+"""
+
+        return f'''"""Dependency injection helpers for FastAPI.
+
+Use these with `Depends()` in route functions to obtain
+configured clients and settings.
+"""
+
+from __future__ import annotations
+
+from functools import lru_cache
+
+from azure.identity import DefaultAzureCredential
+from azure.keyvault.secrets import SecretClient
+from core.config import Settings
+
+
+@lru_cache
+def get_settings() -> Settings:
+    """Return a cached Settings instance."""
+    return Settings()
+
+
+def get_keyvault_client() -> SecretClient:
+    \"\"\"Dependency that yields an authenticated SecretClient.\"\"\"
+    settings = get_settings()
+    credential = DefaultAzureCredential(
+        managed_identity_client_id=settings.azure_client_id or None
+    )
+    vault_uri = settings.key_vault_uri
+    if not vault_uri and settings.key_vault_name:
+        vault_uri = f"https://{{settings.key_vault_name}}.vault.azure.net"
+    if not vault_uri:
+        raise ValueError("KEY_VAULT_URI or KEY_VAULT_NAME must be set")
+    return SecretClient(vault_url=vault_uri, credential=credential)
+{storage_dep}'''
+
+    def _python_core_services(self, spec: IntentSpec) -> str:
+        return f'''"""Business service layer.
+
+Put domain logic here, not in routers.  Services are framework-agnostic
+and can be tested independently of FastAPI.
+"""
+
+from __future__ import annotations
+
+import uuid
+
+
+class ItemService:
+    """Example domain service -- replace with real business logic."""
+
+    def __init__(self, project_name: str = "{spec.project_name}") -> None:
+        self.project_name = project_name
+        # In production: inject a repository / data-access object here.
+
+    def list_items(self) -> list[dict]:
+        """Return a list of items (stub -- wire to a real data store)."""
+        return [
+            {{
+                "id": "sample-001",
+                "name": "Example Item",
+                "description": "Replace this stub with your data store query.",
+                "project": self.project_name,
+            }}
+        ]
+
+    def create_item(self, name: str, description: str = "") -> dict:
+        """Create and return a new item (stub -- wire to a real data store)."""
+        return {{
+            "id": str(uuid.uuid4()),
+            "name": name,
+            "description": description,
+            "project": self.project_name,
+        }}
+'''
+
+    # ===============================================================
     # Node.js / Express -- implementation methods
     # ===============================================================
 
@@ -393,23 +622,46 @@ app.get("/health", (req, res) => {{
   }});
 }});
 
-// -- Root Endpoint ---------------------------------------------------
+// -- Root Endpoint (HTML Landing Page) -------------------------------
 app.get("/", (req, res) => {{
-  res.json({{
-    service: APP_NAME,
-    version: VERSION,
-    status: "running",
-  }});
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+    <title>${{APP_NAME}}</title>
+    <style>
+        body {{{{ font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }}}}
+        .container {{{{ background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); max-width: 600px; margin: 0 auto; }}}}
+        h1 {{{{ color: #333; }}}}
+        a {{{{ display: inline-block; margin-top: 10px; padding: 10px 15px; background: #0078d4; color: white; text-decoration: none; border-radius: 4px; }}}}
+        a:hover {{{{ background: #106ebe; }}}}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>${{APP_NAME}}</h1>
+        <p>Version: ${{VERSION}}</p>
+        <p>Status: Running</p>
+        <a href="/health">Health Check</a>
+        <a href="/keyvault/status">Key Vault Status</a>
+    </div>
+</body>
+</html>`;
+  res.send(html);
 }});
 
 // -- Key Vault Status ------------------------------------------------
 app.get("/keyvault/status", async (req, res) => {{
   try {{
     const credential = new DefaultAzureCredential();
+    const vaultUri = process.env.KEY_VAULT_URI || "";
     const vaultName = process.env.KEY_VAULT_NAME || "";
-    if (!vaultName) throw new Error("KEY_VAULT_NAME not set");
+    let vaultUrl = vaultUri;
+    if (!vaultUrl && vaultName) {{
+      vaultUrl = `https://${{vaultName}}.vault.azure.net`;
+    }}
+    if (!vaultUrl) throw new Error("KEY_VAULT_URI or KEY_VAULT_NAME must be set");
     const client = new SecretClient(
-      `https://${{vaultName}}.vault.azure.net`,
+      vaultUrl,
       credential
     );
     const iter = client.listPropertiesOfSecrets({{ maxPageSize: 1 }});
@@ -554,9 +806,13 @@ var version = "1.0.0";
 builder.Services.AddSingleton(sp =>
 {{
     var credential = new DefaultAzureCredential();
+    var vaultUri = builder.Configuration["KEY_VAULT_URI"] ?? "";
     var vaultName = builder.Configuration["KEY_VAULT_NAME"] ?? "";
-    var vaultUri = new Uri($"https://{{vaultName}}.vault.azure.net");
-    return new SecretClient(vaultUri, credential);
+    if (string.IsNullOrEmpty(vaultUri) && !string.IsNullOrEmpty(vaultName))
+        vaultUri = $"https://{{vaultName}}.vault.azure.net";
+    if (string.IsNullOrEmpty(vaultUri))
+        throw new InvalidOperationException("KEY_VAULT_URI or KEY_VAULT_NAME must be set");
+    return new SecretClient(new Uri(vaultUri), credential);
 }});
 {storage_services}
 var app = builder.Build();
@@ -570,13 +826,33 @@ app.MapGet("/health", () => Results.Ok(new
     timestamp = DateTime.UtcNow.ToString("o"),
 }}));
 
-// -- Root Endpoint ---------------------------------------------------
-app.MapGet("/", () => Results.Ok(new
+// -- Root Endpoint (HTML Landing Page) -------------------------------
+app.MapGet("/", () =>
 {{
-    service = appName,
-    version,
-    status = "running",
-}}));
+    var html = $@"<!DOCTYPE html>
+<html>
+<head>
+    <title>{{appName}}</title>
+    <style>
+        body {{{{ font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }}}}
+        .container {{{{ background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); max-width: 600px; margin: 0 auto; }}}}
+        h1 {{{{ color: #333; }}}}
+        a {{{{ display: inline-block; margin-top: 10px; padding: 10px 15px; background: #0078d4; color: white; text-decoration: none; border-radius: 4px; }}}}
+        a:hover {{{{ background: #106ebe; }}}}
+    </style>
+</head>
+<body>
+    <div class=""container"">
+        <h1>{{appName}}</h1>
+        <p>Version: {{version}}</p>
+        <p>Status: Running</p>
+        <a href=""/health"">Health Check</a>
+        <a href=""/keyvault/status"">Key Vault Status</a>
+    </div>
+</body>
+</html>";
+    return Results.Content(html, "text/html");
+}});
 
 // -- Key Vault Status ------------------------------------------------
 app.MapGet("/keyvault/status", async (SecretClient kvClient) =>

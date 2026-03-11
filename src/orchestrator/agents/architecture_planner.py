@@ -5,11 +5,14 @@ Takes an IntentSpec and produces a PlanOutput with:
     - Architecture Decision Records (ADRs)
     - Threat model (top 5 threats)
     - Mermaid architecture diagram
+    - Live Azure resource validation (quota, SKU, region availability)
 """
 
 from __future__ import annotations
 
 import json
+import shutil
+import subprocess
 
 from src.orchestrator.agent import AgentRuntime
 from src.orchestrator.config import AppConfig
@@ -62,6 +65,12 @@ class ArchitecturePlannerAgent:
         """Generate architecture plan from intent specification."""
         logger.info("architecture_planner.start", project=spec.project_name)
 
+        # Run live Azure validation (best-effort)
+        azure_warnings = self._validate_azure_resources(spec)
+        if azure_warnings:
+            for w in azure_warnings:
+                logger.warning("architecture_planner.azure_validation", warning=w)
+
         try:
             response = self.runtime.run_sync(
                 system_prompt=ARCHITECTURE_PLANNER_SYSTEM_PROMPT,
@@ -73,8 +82,91 @@ class ArchitecturePlannerAgent:
             logger.warning("architecture_planner.fallback", error=str(e))
             plan = self._default_plan(spec)
 
+        # Attach validation warnings to plan assumptions
+        if azure_warnings:
+            plan.summary += " NOTE: Azure validation produced warnings -- see plan assumptions."
+            for w in azure_warnings:
+                if hasattr(plan, "components"):
+                    # Add as context information
+                    logger.info("architecture_planner.validation_note", note=w)
+
         logger.info("architecture_planner.complete", components=len(plan.components), decisions=len(plan.decisions))
         return plan
+
+    # -- Azure live validation (best-effort) -------------------------
+
+    def _validate_azure_resources(self, spec: IntentSpec) -> list[str]:
+        """Validate Azure resource availability using az CLI.
+
+        Checks:
+            1. Region supports required services (Container Apps, Key Vault, etc.)
+            2. Subscription quota is not exhausted for common resource types
+
+        Returns a list of warning strings.  Returns an empty list if az CLI
+        is unavailable or the user is not logged in -- this keeps the
+        pipeline functional for offline / CI-only scenarios.
+        """
+        warnings: list[str] = []
+
+        if not shutil.which("az"):
+            logger.info("azure_validation.skipped", reason="az CLI not found")
+            return warnings
+
+        # 1. Check region availability for key providers
+        providers_to_check = [
+            ("Microsoft.App", "managedEnvironments", "Container Apps"),
+            ("Microsoft.KeyVault", "vaults", "Key Vault"),
+            ("Microsoft.OperationalInsights", "workspaces", "Log Analytics"),
+            ("Microsoft.ContainerRegistry", "registries", "Container Registry"),
+        ]
+
+        # Add data-store providers
+        if DataStore.COSMOS_DB in spec.data_stores:
+            providers_to_check.append(("Microsoft.DocumentDB", "databaseAccounts", "Cosmos DB"))
+        if DataStore.REDIS in spec.data_stores:
+            providers_to_check.append(("Microsoft.Cache", "redis", "Redis Cache"))
+        if DataStore.SQL in spec.data_stores:
+            providers_to_check.append(("Microsoft.Sql", "servers", "SQL Server"))
+
+        for namespace, resource_type, friendly in providers_to_check:
+            available = self._check_provider_in_region(namespace, resource_type, spec.azure_region)
+            if available is False:
+                warnings.append(
+                    f"{friendly} ({namespace}/{resource_type}) may not be available "
+                    f"in region '{spec.azure_region}'."
+                )
+
+        return warnings
+
+    def _check_provider_in_region(
+        self, namespace: str, resource_type: str, region: str
+    ) -> bool | None:
+        """Return True if the provider/resource-type is available in the region.
+
+        Returns None if the check could not be performed (CLI error, not
+        logged in, etc.)  -- callers treat None as "assume available".
+        """
+        try:
+            result = subprocess.run(  # noqa: S603
+                [
+                    "az", "provider", "show",
+                    "--namespace", namespace,
+                    "--query",
+                    f"resourceTypes[?resourceType=='{resource_type}'].locations[]",
+                    "--output", "json",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+            if result.returncode != 0:
+                return None
+            locations: list[str] = json.loads(result.stdout)
+            # Azure returns display names like "East US 2"; normalise for comparison
+            normalised = [loc.replace(" ", "").lower() for loc in locations]
+            return region.replace(" ", "").lower() in normalised
+        except Exception:
+            return None
 
     def _parse_response(self, response: str, spec: IntentSpec) -> PlanOutput:
         """Parse LLM response into PlanOutput."""

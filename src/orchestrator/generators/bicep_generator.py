@@ -73,6 +73,9 @@ class BicepGenerator:
         # Parameters
         files["infra/bicep/parameters/dev.parameters.json"] = self._parameters(spec, "dev")
 
+        # Bicep config with AVM registry alias
+        files["infra/bicep/bicepconfig.json"] = self._bicep_avm_config()
+
         # Naming and tagging standards documentation
         files["docs/standards.md"] = self._standards_doc(spec)
 
@@ -381,8 +384,10 @@ output resourceGroupName string = resourceGroup().name
 
     def _log_analytics_module(self) -> str:
         return """// ===================================================================
-// Log Analytics Workspace Module
+// Log Analytics Workspace Module  (AVM-aligned)
 // Provides centralized logging and monitoring for all resources.
+// AVM reference: br/public:avm/res/operational-insights/workspace:<version>
+// https://github.com/Azure/bicep-registry-modules/tree/main/avm/res/operational-insights/workspace
 // ===================================================================
 
 @description('Azure region')
@@ -450,8 +455,10 @@ output identityName string = managedIdentity.name
 
     def _keyvault_module(self) -> str:
         return """// ===================================================================
-// Azure Key Vault Module
+// Azure Key Vault Module  (AVM-aligned)
 // Centralized secret, key, and certificate management.
+// AVM reference: br/public:avm/res/key-vault/vault:<version>
+// https://github.com/Azure/bicep-registry-modules/tree/main/avm/res/key-vault/vault
 // ===================================================================
 
 @description('Azure region')
@@ -469,6 +476,9 @@ param logAnalyticsWorkspaceId string
 
 @description('Resource tags')
 param tags object = {}
+
+// To switch to the AVM registry module, replace the resource block below with:
+//   module keyVault 'br/public:avm/res/key-vault/vault:0.11.0' = { ... }
 
 resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
   name: keyVaultName
@@ -531,8 +541,10 @@ output keyVaultId string = keyVault.id
 
     def _container_registry_module(self) -> str:
         return """// ===================================================================
-// Azure Container Registry Module
+// Azure Container Registry Module  (AVM-aligned)
 // Private container image registry with managed identity pull.
+// AVM reference: br/public:avm/res/container-registry/registry:<version>
+// https://github.com/Azure/bicep-registry-modules/tree/main/avm/res/container-registry/registry
 // ===================================================================
 
 @description('Azure region')
@@ -604,8 +616,10 @@ output registryId string = registry.id
 
     def _storage_module(self) -> str:
         return """// ===================================================================
-// Azure Storage Account Module
+// Azure Storage Account Module  (AVM-aligned)
 // Blob storage with managed identity access and diagnostics.
+// AVM reference: br/public:avm/res/storage/storage-account:<version>
+// https://github.com/Azure/bicep-registry-modules/tree/main/avm/res/storage/storage-account
 // ===================================================================
 
 @description('Azure region')
@@ -1460,6 +1474,35 @@ output appId string = functionApp.id
     }}
   }}
 }}
+"""
+
+    def _bicep_avm_config(self) -> str:
+        """Generate bicepconfig.json with Azure Verified Modules registry alias."""
+        return """{
+  "$schema": "https://raw.githubusercontent.com/Azure/bicep/main/src/Bicep.Core/Configuration/bicepconfig.schema.json",
+  "moduleAliases": {
+    "br": {
+      "public": {
+        "registry": "mcr.microsoft.com",
+        "modulePath": "bicep"
+      }
+    }
+  },
+  "analyzers": {
+    "core": {
+      "enabled": true,
+      "rules": {
+        "no-hardcoded-env-urls": { "level": "warning" },
+        "no-unused-params": { "level": "warning" },
+        "no-unused-vars": { "level": "warning" },
+        "prefer-interpolation": { "level": "warning" },
+        "secure-parameter-default": { "level": "error" },
+        "simplify-interpolation": { "level": "warning" },
+        "use-stable-resource-identifiers": { "level": "warning" }
+      }
+    }
+  }
+}
 """
 
     def _standards_doc(self, spec: IntentSpec) -> str:
