@@ -287,6 +287,28 @@ Extension points:
 
 ---
 
+## Troubleshooting
+
+| Symptom | Solution |
+|---------|----------|
+| UnicodeEncodeError with Rich spinner on Windows | Set `$env:PYTHONIOENCODING="utf-8"` before running commands |
+| `devex deploy` hangs or times out | Verify `az login` session is active and subscription has quota |
+
+---
+
+## Changelog
+
+### v1.1.1
+
+- **Fix**: `devex deploy` now works on Windows (resolves `az.cmd` via `shutil.which`)
+- **Fix**: Deploy default Bicep paths match generated scaffold structure (`infra/bicep/`)
+- **Fix**: Container Registry uses Premium SKU with public network access disabled
+- **Fix**: Cosmos DB role assignment uses correct `sqlRoleAssignments` resource type
+- **Fix**: Redis uses `Redis Cache Contributor` role (available in all subscriptions)
+- **Fix**: Container App and Environment names truncated to 32-character limit
+
+---
+
 ## License
 
 MIT

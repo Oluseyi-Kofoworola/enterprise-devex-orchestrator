@@ -74,3 +74,14 @@ test-intent.md
 
 # Node
 node_modules/
+
+# Run artifacts (logs, temp output)
+*.output.txt
+deploy*.txt
+plan-output.txt
+scaffold*.txt
+validate*.txt
+redeploy*.txt
+
+# Generated scaffold outputs (catch-all)
+voice-agent-output/
