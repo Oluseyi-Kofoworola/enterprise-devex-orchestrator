@@ -29,6 +29,7 @@ devex plan --intent "Build a healthcare voice agent API with patient records, vo
 
 **What to highlight:**
 - IntentSpec extraction (project name, app type, data stores, auth model)
+- **Domain auto-detection** (Healthcare, Legal, Document Processing, or Generic)
 - Component selection (Container Apps, Key Vault, Managed Identity, ACR, Log Analytics)
 - 6 Architecture Decision Records
 - STRIDE threat model (6 categories)
@@ -48,6 +49,8 @@ devex scaffold --intent "Build a healthcare voice agent API" --output-dir ./demo
 **What to highlight:**
 - Bicep templates (main.bicep + 7 modules)
 - GitHub Actions workflows (4 files)
+- **Domain-specific backend** -- real services, repositories, models, and seed data (not stubs)
+- **React + Vite + TypeScript frontend** SPA with domain dashboard
 - FastAPI application + enterprise dashboard UI + Dockerfile
 - Auto-generated pytest test suite (5 test files)
 - Azure Monitor alert rules + runbook
@@ -56,7 +59,13 @@ devex scaffold --intent "Build a healthcare voice agent API" --output-dir ./demo
 
 ```bash
 # Show generated file tree
-find demo-output -type f | head -30
+find demo-output -type f | head -40
+
+# Show domain-specific services
+cat demo-output/src/app/services/*.py | head -40
+
+# Show React frontend
+ls demo-output/frontend/src/
 
 # Show governance passed
 cat demo-output/docs/governance-report.md | head -20
@@ -110,7 +119,31 @@ curl https://$APP_URL/health
 
 ---
 
-## Segment 5: Advanced Patterns (30 sec)
+## Segment 5: Domain-Aware Generation (30 sec)
+
+**Narration:** "The orchestrator auto-detects business domains and generates real services."
+
+| Domain | Services | Endpoints | Entities |
+|--------|----------|-----------|----------|
+| Healthcare | PatientService, AppointmentService, VoiceInteractionService, ComplianceService | 11 | Patient, Appointment, VoiceSession |
+| Legal | ContractService, ClauseAnalysisService, ComplianceService | 7 | Contract, Clause, ReviewResult |
+| Document Processing | DocumentService, ExtractionService | 6 | Document, ExtractionResult |
+| Generic | ItemService (CRUD) | 5 | Item |
+
+```bash
+# Show repository pattern
+cat demo-output/src/app/repositories.py | head -30
+
+# Show seed data
+cat demo-output/src/app/seed_data.py | head -20
+
+# Show domain models
+cat demo-output/src/app/domain_models.py | head -20
+```
+
+---
+
+## Segment 6: Advanced Patterns (30 sec)
 
 **Narration:** "The orchestrator includes advanced enterprise patterns."
 
@@ -144,6 +177,8 @@ If demo environment is unavailable:
 
 *Full pipeline: intent -> parse -> plan -> govern -> generate -> deploy*
 *543 tests | 25 policies | 26 WAF principles | Live on Azure Container Apps*
-*Multi-language scaffold: Python (FastAPI) · Node.js (Express) · .NET (ASP.NET Core)*
+*Domain-aware full-stack: Healthcare · Legal · Document Processing · Generic*
+*Backend: Python (FastAPI) · Node.js (Express) · .NET (ASP.NET Core)*
+*Frontend: React 18 + Vite 5 + TypeScript*
 
 

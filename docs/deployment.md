@@ -18,13 +18,13 @@
 The orchestrator generates scaffolds with a standardized deployment pipeline:
 
 ```
-devex scaffold -> infra/bicep/ + src/app/ + .github/workflows/
+devex scaffold -> infra/bicep/ + src/app/ + frontend/ + .github/workflows/
                           |
                     az deployment group create (Bicep)
                           |
-                    az acr build (container image)
+                    az acr build (backend + frontend images)
                           |
-                    az containerapp update (deploy revision)
+                    az containerapp update (deploy revisions)
 ```
 
 ## Quick Deploy (Manual)
@@ -65,14 +65,23 @@ az deployment group create \
 # Get ACR name from deployment outputs
 ACR_NAME=$(az deployment group show --resource-group $RG --name main --query properties.outputs.acrName.value -o tsv)
 
-# Build in ACR (no local Docker required)
-az acr build --registry $ACR_NAME --image <project>:v1.0.0 --no-logs src/app/
+# Build backend in ACR (no local Docker required)
+az acr build --registry $ACR_NAME --image <project>-api:v1.0.0 --no-logs src/app/
 
-# Update Container App
+# Build frontend in ACR
+az acr build --registry $ACR_NAME --image <project>-frontend:v1.0.0 --no-logs frontend/
+
+# Update backend Container App
 az containerapp update \
   --name <project>-dev \
   --resource-group $RG \
-  --image ${ACR_NAME}.azurecr.io/<project>:v1.0.0
+  --image ${ACR_NAME}.azurecr.io/<project>-api:v1.0.0
+
+# Update frontend Container App (if deployed separately)
+az containerapp update \
+  --name <project>-frontend-dev \
+  --resource-group $RG \
+  --image ${ACR_NAME}.azurecr.io/<project>-frontend:v1.0.0
 ```
 
 ### 4. Verify
@@ -121,9 +130,11 @@ After scaffolding, your deployment resources follow this pattern:
 |----------|------------------|
 | Resource Group | `rg-<project>-<env>` |
 | Region | As specified in intent |
-| Container App | `<project>-<env>` |
+| Container App (API) | `<project>-<env>` |
+| Container App (Frontend) | `<project>-frontend-<env>` |
 | ACR | `<project><env>acr` |
-| Image | `<acr-name>.azurecr.io/<project>:<version>` |
+| API Image | `<acr-name>.azurecr.io/<project>-api:<version>` |
+| Frontend Image | `<acr-name>.azurecr.io/<project>-frontend:<version>` |
 | URL | `https://<container-app-fqdn>` |
 
 ```bash
@@ -142,8 +153,24 @@ az containerapp ingress traffic set --name <app> --resource-group $RG \
   --revision-weight <previous-revision>=100
 ```
 
+## Frontend Deployment
+
+Generated scaffolds include a React + Vite + TypeScript frontend with a multi-stage Dockerfile:
+
+```bash
+# The frontend Dockerfile uses multi-stage build:
+# Stage 1: node:18-alpine builds the React app
+# Stage 2: nginx:alpine serves the static assets
+
+# Build and deploy frontend
+az acr build --registry $ACR_NAME --image <project>-frontend:v1.0.0 --no-logs frontend/
+```
+
+The frontend connects to the backend API via the `VITE_API_URL` environment variable set at build time.
+
 ---
 
-*Deployment patterns enforce enterprise security: OIDC auth, Managed Identity, RBAC over access policies.*\n*Scaffolds support Python (FastAPI), Node.js (Express), and .NET (ASP.NET Core) with enterprise dashboard UI.*
+*Deployment patterns enforce enterprise security: OIDC auth, Managed Identity, RBAC over access policies.*
+*Full-stack scaffolds: Backend (Python/Node.js/.NET) + Frontend (React+Vite+TypeScript) + Infrastructure (Bicep).*
 
 

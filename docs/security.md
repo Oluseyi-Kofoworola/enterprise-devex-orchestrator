@@ -19,6 +19,7 @@
 | Observability | Log Analytics | Diagnostic settings on all resources |
 | CI/CD | OIDC | Federated credentials, no stored secrets |
 | Code | Pydantic | Input validation on all API boundaries |
+| Data Access | Repository Pattern | BaseRepository ABC with factory; dual-mode storage (in-memory or Azure via `STORAGE_MODE` env var) |
 
 ### STRIDE Threat Model
 
@@ -85,6 +86,29 @@ USER appuser
 # Health endpoint for probes: /health
 ```
 
+### Data Access Security
+
+Generated applications use a **repository pattern** for all data access:
+
+```python
+# Abstract base ensures consistent data access interface
+class BaseRepository(ABC):
+    @abstractmethod
+    def get(self, id: str) -> dict: ...
+    @abstractmethod
+    def list_all(self) -> list[dict]: ...
+
+# Factory switches between in-memory and Azure storage
+def get_repository(entity: str) -> BaseRepository:
+    if os.environ.get("STORAGE_MODE") == "azure":
+        return AzureRepository(entity)
+    return InMemoryRepository(entity)  # Pre-seeded with domain data
+```
+
+- Data access abstracted behind repository interface -- no direct DB calls in service layer
+- `STORAGE_MODE` environment variable controls storage backend (default: in-memory with seed data)
+- Azure mode uses Managed Identity for authentication -- no connection strings in code
+
 ## Compliance Mapping
 
 | Framework | Coverage | Evidence |
@@ -107,5 +131,6 @@ devex validate --output-dir ./my-project
 ---
 
 *Security is not a feature -- it is the baseline. Every scaffold enforces these controls by default.*
+*Repository pattern ensures consistent, auditable data access across all domains.*
 
 

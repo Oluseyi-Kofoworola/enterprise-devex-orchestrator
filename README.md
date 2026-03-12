@@ -8,8 +8,10 @@ Transform business intent into production-ready Azure infrastructure using a 4-a
 
 Give the orchestrator a business description (plain text or a structured intent file) and it generates a complete, deployable enterprise scaffold:
 
+- **Domain-aware code generation** -- auto-detects Healthcare, Legal, Document Processing, or Generic domains and generates domain-specific services, models, and seed data
 - **Azure Bicep infrastructure** (5-7 modules per scaffold)
-- **Multi-language application** scaffold (Python/FastAPI, Node.js/Express, .NET/ASP.NET Core) with enterprise dashboard UI
+- **Full-stack application** scaffold (Python/FastAPI, Node.js/Express, .NET/ASP.NET Core) with domain-specific business logic, repository pattern, and enterprise dashboard UI
+- **React + Vite + TypeScript SPA** frontend with domain dashboards, API clients, and multi-stage Dockerfile
 - **GitHub Actions CI/CD** (validate, deploy, CodeQL, Dependabot)
 - **Pytest test suite** (5 auto-generated test files per scaffold)
 - **Governance validation** (25 enterprise policies)
@@ -20,7 +22,7 @@ Give the orchestrator a business description (plain text or a structured intent 
 
 Every scaffold enforces enterprise security baselines: Managed Identity, Key Vault with RBAC, non-root containers, OIDC for CI/CD, and HTTPS-only with TLS 1.2+.
 
-Generated applications include a **production-grade enterprise dashboard** with live health monitoring, Key Vault status, architecture & compliance badges, and API endpoint directory -- all rendered dynamically from the intent specification.
+Generated applications include **domain-specific business logic** with real services, endpoints, and seed data -- not just stubs. The orchestrator detects the business domain from your intent and generates appropriate entities, repositories, and API routes. A **production-grade enterprise dashboard** with live health monitoring, Key Vault status, architecture & compliance badges, and API endpoint directory is rendered dynamically from the intent specification.
 
 ---
 
@@ -122,7 +124,8 @@ output-dir/
   .devex/                     # State, versioning, and metadata
   .github/workflows/          # CI/CD pipelines (validate, deploy, codeql, dependabot)
   infra/bicep/                # Azure Bicep templates (main + modules + parameters)
-  src/app/                    # FastAPI application + Dockerfile
+  src/app/                    # Backend application + domain services + Dockerfile
+  frontend/                   # React + Vite + TypeScript SPA + Dockerfile
   tests/                      # Auto-generated test suite (5 files)
   docs/                       # Architecture, security, WAF, governance, deployment docs
 ```
@@ -174,7 +177,8 @@ Each agent has a distinct role, instruction set, and tool access. See [`AGENTS.m
 | Subagent dispatcher | `src/orchestrator/agents/subagent_dispatcher.py` -- parallel fan-out |
 | Persistent planner | `src/orchestrator/planning/` -- 13-task DAG with checkpoints |
 | Deploy orchestrator | `src/orchestrator/agents/deploy_orchestrator.py` -- staged deployment |
-| Enterprise dashboard | `src/orchestrator/generators/app_generator.py` -- multi-language enterprise UI |
+| Domain-aware generation | `src/orchestrator/generators/app_generator.py` -- domain detection, services, repository pattern |
+| Frontend generator | `src/orchestrator/generators/frontend_generator.py` -- React + Vite + TypeScript SPA |
 
 ---
 
@@ -185,7 +189,7 @@ src/orchestrator/
   agent.py                # 4-agent chain runtime
   config.py               # Configuration management
   intent_file.py          # Markdown intent file parser (9 enterprise sections)
-  intent_schema.py        # Pydantic schemas (IntentSpec, PlanOutput, GovernanceReport)
+  intent_schema.py        # Pydantic schemas (IntentSpec, PlanOutput, GovernanceReport, DomainType, EntitySpec)
   main.py                 # CLI entry point (9 commands)
   state.py                # State management and drift detection
   versioning.py           # Version tracking, upgrade, and rollback
@@ -197,12 +201,13 @@ src/orchestrator/
     subagent_dispatcher.py
   generators/
     alert_generator.py    # Azure Monitor alert rules and runbook
-    app_generator.py      # Multi-language application (Python, Node.js, .NET) with enterprise dashboard UI
+    app_generator.py      # Domain-aware backend (Python, Node.js, .NET) with services, repositories, seed data
     bicep_generator.py    # Bicep IaC (7 modules)
     cicd_generator.py     # GitHub Actions workflows (4 files)
     cost_estimator.py     # Cost estimation
     dashboard_generator.py # Azure Monitor dashboard queries
     docs_generator.py     # Documentation (7+ files)
+    frontend_generator.py # React + Vite + TypeScript SPA with domain dashboards
     test_generator.py     # Pytest test suite (5 files)
   planning/               # Persistent planner (13-task DAG)
   prompts/                # Repo-aware prompt generation
@@ -304,6 +309,20 @@ Extension points:
 
 ## Changelog
 
+### v1.3.0
+
+- **Feature**: Domain-aware code generation with auto-detection of 4 business domains
+  - Healthcare (4 services, 11 endpoints), Legal (3 services, 7 endpoints), Document Processing (2 services, 6 endpoints), Generic (CRUD, 5 endpoints)
+  - Domain-specific entity models, repositories, seed data, and API routes
+- **Feature**: Repository pattern with dual-mode storage (in-memory or Azure via `STORAGE_MODE` env var)
+- **Feature**: React + Vite + TypeScript frontend SPA generator
+  - Domain-specific dashboards, API client, type definitions, and reusable components
+  - Multi-stage Dockerfile with nginx for production
+- **Feature**: Full-stack parity across Python, Node.js, and .NET backends
+  - Domain-specific services and seed data for all 3 language targets
+- **Feature**: DomainType, FieldSpec, EntitySpec, EndpointSpec schema models
+- **Tests**: 543 tests across 15 test files
+
 ### v1.2.0
 
 - **Feature**: Enterprise dashboard UI for all generated applications (Python, Node.js, .NET)
@@ -333,7 +352,7 @@ MIT
 
 ---
 
-*Enterprise DevEx Orchestrator v1.2.0*
+*Enterprise DevEx Orchestrator v1.3.0*
 
 
 

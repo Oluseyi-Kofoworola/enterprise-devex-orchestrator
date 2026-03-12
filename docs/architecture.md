@@ -22,6 +22,7 @@ graph TD
     I --> J[infra/bicep/]
     I --> K[.github/workflows/]
     I --> L[src/app/]
+    I --> L2[frontend/]
     I --> M[docs/]
     I --> N[tests/]
 
@@ -50,13 +51,16 @@ graph LR
         IG[Infrastructure Generator]
     end
 
-    subgraph "Generators (6)"
+    subgraph "Generators (9)"
         BG[Bicep Generator<br>7 modules]
         CG[CI/CD Generator<br>4 workflows]
-        AG[App Generator<br>Python + Node.js + .NET<br>Enterprise Dashboard UI]
+        AG[App Generator<br>Domain-Aware Backend<br>Python + Node.js + .NET]
+        FG[Frontend Generator<br>React + Vite + TypeScript]
         DG[Docs Generator<br>7 doc files]
         TG[Test Generator<br>5 test files]
         ALG[Alert Generator<br>Bicep alerts + runbook]
+        CSG[Cost Estimator]
+        DSG[Dashboard Generator]
     end
 
     subgraph "Enterprise Standards"
@@ -97,7 +101,7 @@ graph LR
     CLI --> RT
     RT --> IP --> AP --> GR --> IG
 
-    IG --> BG & CG & AG & DG & TG & ALG
+    IG --> BG & CG & AG & FG & DG & TG & ALG & CSG & DSG
 
     SC --> NE & TE
     BG --> NE & TE
@@ -115,10 +119,10 @@ graph LR
 
 | Stage | Input | Processing | Output |
 |-------|-------|-----------|--------|
-| 1. Parse | Plain-text intent or `intent.md` | LLM extraction + rule-based fallback | `IntentSpec` (Pydantic) |
+| 1. Parse | Plain-text intent or `intent.md` | LLM extraction + domain detection + rule-based fallback | `IntentSpec` (Pydantic) with `DomainType`, entities, endpoints |
 | 2. Plan | `IntentSpec` | Component selection, 6 ADRs, STRIDE threat model, Mermaid diagram | `PlanOutput` |
 | 3. Review | `IntentSpec` + `PlanOutput` | 25-policy validation, WAF 5-pillar assessment (26 principles) | `GovernanceReport` + `WAFAlignmentReport` |
-| 4. Generate | All above | 6 generators produce Bicep, workflows, app, docs, tests, alerts | `dict[str, str]` file map |
+| 4. Generate | All above | 9 generators produce Bicep, workflows, app, frontend, docs, tests, alerts, cost, dashboard | `dict[str, str]` file map |
 | 5. Record | Generated files | SHA-256 manifest, drift detection, audit trail | `.devex/state.json` |
 | 6. Deploy | Output directory | 4-stage: validate -> what-if -> deploy -> verify | Deployment result |
 
@@ -177,15 +181,17 @@ graph TD
 
 | Agent | Tools | Fallback | Key Output |
 |-------|-------|----------|-----------|
-| Intent Parser | None (pure LLM) | Rule-based keyword extraction | `IntentSpec` |
+| Intent Parser | None (pure LLM) | Rule-based keyword extraction + domain detection | `IntentSpec` with `DomainType`, entities, endpoints |
 | Architecture Planner | `check_policy`, `check_region_availability` | Template-based component builder | `PlanOutput` with ADRs + threat model |
 | Governance Reviewer | `check_policy`, `list_policies`, `validate_bicep` | Policy catalog evaluation | `GovernanceReport` + `WAFAlignmentReport` |
-| Infrastructure Generator | `render_template`, `preview_output`, `validate_bicep` | Direct file generation | Complete file tree |
+| Infrastructure Generator | `render_template`, `preview_output`, `validate_bicep` | Direct file generation | Complete file tree (backend + frontend + infra) |
 
 ---
 
-*4-agent chain | 9 MCP tools | 8 generators | 25 policies | 543 tests*
+*4-agent chain | 9 MCP tools | 9 generators | 25 policies | 543 tests*
 *Azure CAF naming + enterprise tagging + WAF 5-pillar alignment*
-*Multi-language scaffold: Python (FastAPI) · Node.js (Express) · .NET (ASP.NET Core)*
+*Domain-aware full-stack: Healthcare · Legal · Document Processing · Generic*
+*Backend: Python (FastAPI) · Node.js (Express) · .NET (ASP.NET Core)*
+*Frontend: React 18 + Vite 5 + TypeScript*
 
 
