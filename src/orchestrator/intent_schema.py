@@ -20,6 +20,15 @@ class AppType(str, Enum):
     FUNCTION = "function"
 
 
+class DomainType(str, Enum):
+    """Detected business domain for generating domain-specific logic."""
+
+    HEALTHCARE = "healthcare"
+    LEGAL = "legal"
+    DOCUMENT_PROCESSING = "document_processing"
+    GENERIC = "generic"
+
+
 class ComputeTarget(str, Enum):
     """Supported Azure compute targets."""
 
@@ -123,6 +132,33 @@ class CICDRequirements(BaseModel):
     )
 
 
+class FieldSpec(BaseModel):
+    """Specification for a single field on a domain entity."""
+
+    name: str = Field(..., description="Field name (snake_case)")
+    type: str = Field(default="str", description="Python type hint (str, int, float, bool, datetime, list[str])")
+    required: bool = Field(default=True, description="Whether the field is required")
+    description: str = Field(default="", description="Human-readable description")
+
+
+class EntitySpec(BaseModel):
+    """Specification for a domain entity / aggregate root."""
+
+    name: str = Field(..., description="Entity name (PascalCase, e.g. Session, Contract)")
+    fields: list[FieldSpec] = Field(default_factory=list, description="Entity fields")
+    description: str = Field(default="", description="What this entity represents")
+
+
+class EndpointSpec(BaseModel):
+    """Specification for an API endpoint to generate."""
+
+    method: str = Field(default="GET", description="HTTP method (GET, POST, PUT, DELETE)")
+    path: str = Field(..., description="URL path (e.g. /sessions, /contracts/{id})")
+    description: str = Field(default="", description="What this endpoint does")
+    request_schema: str = Field(default="", description="Name of request Pydantic model")
+    response_schema: str = Field(default="", description="Name of response Pydantic model")
+
+
 class IntentSpec(BaseModel):
     """Strict schema representing a parsed business intent.
 
@@ -157,6 +193,12 @@ class IntentSpec(BaseModel):
 
     # -- CI/CD -----------------------------------------------------
     cicd: CICDRequirements = Field(default_factory=CICDRequirements)
+
+    # -- Domain Detection -------------------------------------------
+    domain_type: DomainType = Field(default=DomainType.GENERIC, description="Detected business domain")
+    entities: list[EntitySpec] = Field(default_factory=list, description="Domain entities to generate")
+    endpoints: list[EndpointSpec] = Field(default_factory=list, description="Domain API endpoints to generate")
+    functional_summary: str = Field(default="", description="Parsed functional requirements summary")
 
     # -- Azure Deployment Target -----------------------------------
     azure_region: str = Field(default="eastus2", description="Azure deployment region")
