@@ -26,6 +26,150 @@ logger = get_logger(__name__)
 class AppGenerator:
     """Generates application scaffold -- multi-language support."""
 
+    # -- Enterprise Dashboard CSS (shared across all languages) ------
+    ENTERPRISE_CSS = """:root {
+            --primary: #0078d4;
+            --primary-dark: #005a9e;
+            --success: #107c10;
+            --warning: #ff8c00;
+            --danger: #d13438;
+            --bg: #f3f2f1;
+            --surface: #ffffff;
+            --surface-alt: #faf9f8;
+            --text: #323130;
+            --text-secondary: #605e5c;
+            --border: #edebe9;
+            --shadow: 0 2px 8px rgba(0,0,0,.08);
+            --shadow-lg: 0 8px 32px rgba(0,0,0,.12);
+            --radius: 8px;
+            --radius-lg: 12px;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+        .topbar { background: linear-gradient(135deg, #0078d4 0%, #005a9e 100%); color: white; padding: 0 32px; height: 48px; display: flex; align-items: center; justify-content: space-between; font-size: 13px; box-shadow: 0 1px 4px rgba(0,0,0,.15); position: sticky; top: 0; z-index: 100; }
+        .topbar-brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 14px; }
+        .topbar-brand svg { width: 20px; height: 20px; fill: white; }
+        .topbar-meta { display: flex; gap: 20px; align-items: center; }
+        .topbar-meta span { opacity: .85; }
+        .env-badge { background: rgba(255,255,255,.2); padding: 2px 10px; border-radius: 12px; font-size: 11px; text-transform: uppercase; font-weight: 600; letter-spacing: .5px; }
+        .hero { background: linear-gradient(180deg, #005a9e 0%, #0078d4 50%, var(--bg) 100%); padding: 48px 32px 64px; text-align: center; color: white; }
+        .hero h1 { font-size: 28px; font-weight: 600; margin-bottom: 8px; }
+        .hero p { font-size: 15px; opacity: .9; max-width: 640px; margin: 0 auto; line-height: 1.5; }
+        .version-pill { display: inline-block; margin-top: 12px; background: rgba(255,255,255,.15); backdrop-filter: blur(8px); padding: 4px 16px; border-radius: 20px; font-size: 12px; font-weight: 500; }
+        .dashboard { max-width: 1120px; margin: -40px auto 40px; padding: 0 24px; display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; }
+        .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow); overflow: hidden; transition: box-shadow .2s, transform .15s; }
+        .card:hover { box-shadow: var(--shadow-lg); transform: translateY(-2px); }
+        .card-header { padding: 16px 20px 12px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--border); background: var(--surface-alt); }
+        .card-header h3 { font-size: 14px; font-weight: 600; color: var(--text); }
+        .card-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+        .card-body { padding: 20px; }
+        .status-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .status-item { text-align: center; }
+        .status-item .label { font-size: 11px; text-transform: uppercase; letter-spacing: .8px; color: var(--text-secondary); margin-bottom: 4px; }
+        .status-item .value { font-size: 20px; font-weight: 700; }
+        .status-item .value.ok { color: var(--success); }
+        .status-item .value.warn { color: var(--warning); }
+        .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; animation: pulse 2s ease-in-out infinite; }
+        .status-dot.green { background: var(--success); }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }
+        .endpoint-list { list-style: none; }
+        .endpoint-list li { display: flex; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); gap: 12px; }
+        .endpoint-list li:last-child { border-bottom: none; }
+        .method-badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 4px; font-family: 'Consolas', 'Courier New', monospace; letter-spacing: .5px; min-width: 40px; text-align: center; }
+        .method-badge.get { background: #e6f4ea; color: var(--success); }
+        .method-badge.post { background: #e3f2fd; color: var(--primary); }
+        .endpoint-path { font-family: 'Consolas', 'Courier New', monospace; font-size: 13px; color: var(--text); font-weight: 500; }
+        .endpoint-desc { font-size: 12px; color: var(--text-secondary); margin-left: auto; }
+        .actions { display: flex; flex-direction: column; gap: 10px; }
+        .action-btn { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text); text-decoration: none; font-size: 13px; font-weight: 500; transition: all .15s; }
+        .action-btn:hover { background: var(--primary); color: white; border-color: var(--primary); }
+        .action-btn .icon { font-size: 18px; width: 24px; text-align: center; }
+        .arch-list { list-style: none; }
+        .arch-list li { display: flex; align-items: center; gap: 10px; padding: 8px 0; font-size: 13px; border-bottom: 1px solid var(--border); }
+        .arch-list li:last-child { border-bottom: none; }
+        .arch-badge { font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 4px; text-transform: uppercase; letter-spacing: .3px; }
+        .arch-badge.compute { background: #e3f2fd; color: #1565c0; }
+        .arch-badge.data { background: #e8f5e9; color: #2e7d32; }
+        .arch-badge.security { background: #fce4ec; color: #c62828; }
+        .arch-badge.monitor { background: #fff3e0; color: #e65100; }
+        .compliance-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+        .compliance-badge { font-size: 11px; font-weight: 600; padding: 4px 12px; border-radius: 20px; border: 1px solid; }
+        .compliance-badge.hipaa { background: #fce4ec; border-color: #ef9a9a; color: #b71c1c; }
+        .compliance-badge.soc2 { background: #e8eaf6; border-color: #9fa8da; color: #283593; }
+        .compliance-badge.rbac { background: #e0f2f1; border-color: #80cbc4; color: #00695c; }
+        .compliance-badge.pci { background: #fff8e1; border-color: #ffe082; color: #f57f17; }
+        .compliance-badge.fedramp { background: #e8eaf6; border-color: #7986cb; color: #1a237e; }
+        .compliance-badge.iso { background: #f3e5f5; border-color: #ce93d8; color: #6a1b9a; }
+        .compliance-badge.general { background: #eceff1; border-color: #b0bec5; color: #37474f; }
+        .footer { text-align: center; padding: 24px; font-size: 12px; color: var(--text-secondary); border-top: 1px solid var(--border); max-width: 1120px; margin: 0 auto; }
+        .footer a { color: var(--primary); text-decoration: none; }
+        #health-status, #kv-status { transition: all .3s; }"""
+
+    ENTERPRISE_JS = """async function checkHealth() {
+            try {
+                const r = await fetch('/health');
+                const d = await r.json();
+                const el = document.getElementById('health-status');
+                if (d.status === 'healthy') {
+                    el.innerHTML = '<span class="status-dot green"></span>Healthy';
+                    el.className = 'value ok';
+                } else {
+                    el.textContent = 'Degraded';
+                    el.className = 'value warn';
+                }
+            } catch (e) {
+                const el = document.getElementById('health-status');
+                el.textContent = 'Unreachable';
+                el.style.color = 'var(--danger)';
+            }
+        }
+        async function checkKeyVault() {
+            try {
+                const r = await fetch('/keyvault/status');
+                const d = await r.json();
+                const el = document.getElementById('kv-status');
+                if (d.status === 'connected') {
+                    el.innerHTML = '<span class="status-dot green"></span>Connected';
+                    el.className = 'value ok';
+                } else {
+                    el.textContent = 'Not configured';
+                    el.style.color = 'var(--warning)';
+                    el.style.fontSize = '14px';
+                }
+            } catch (e) {
+                const el = document.getElementById('kv-status');
+                el.textContent = 'Not configured';
+                el.style.color = 'var(--text-secondary)';
+                el.style.fontSize = '14px';
+            }
+        }
+        checkHealth();
+        checkKeyVault();
+        setInterval(checkHealth, 30000);"""
+
+    def _enterprise_data_stores(self, spec: IntentSpec) -> str:
+        """Render architecture data store line based on spec."""
+        stores = []
+        for ds in spec.data_stores:
+            stores.append(ds.value.replace("_", " ").title())
+        return " + ".join(stores) if stores else "Blob Storage"
+
+    def _enterprise_compliance_badges(self, spec: IntentSpec, esc: str = "") -> str:
+        """Render compliance badge HTML. Use esc='\\\\' for f-string escape contexts."""
+        fw = spec.security.compliance_framework.value.lower()
+        badge_map = {
+            "hipaa": ("HIPAA", "hipaa"),
+            "soc2": ("SOC2", "soc2"),
+            "pci": ("PCI-DSS", "pci"),
+            "fedramp": ("FedRAMP", "fedramp"),
+            "iso27001": ("ISO 27001", "iso"),
+            "general": ("Enterprise", "general"),
+        }
+        name, cls = badge_map.get(fw, ("Enterprise", "general"))
+        badges = f'<span class="{esc}compliance-badge {cls}{esc}">{name}</span>\n'
+        badges += f'                    <span class="{esc}compliance-badge rbac{esc}">RBAC</span>'
+        return badges
+
     def generate(self, spec: IntentSpec) -> dict[str, str]:
         """Generate application files based on spec.language."""
         logger.info("app_generator.start", project=spec.project_name, language=spec.language)
@@ -222,31 +366,90 @@ async def health():
     }}
 
 
-# -- Root Endpoint (HTML Landing Page) ------
+# -- Root Endpoint (Enterprise Dashboard) ------
 @app.get("/")
 async def root():
-    \"\"\"Root endpoint with basic HTML response.\"\"\"
+    \"\"\"Root endpoint -- enterprise dashboard.\"\"\"
+    compliance_badges = "{self._enterprise_compliance_badges(spec)}"
+    data_stores = "{self._enterprise_data_stores(spec)}"
     html = f\"\"\"<!DOCTYPE html>
-<html>
+<html lang=\"en\">
 <head>
-    <title>{{APP_NAME}}</title>
+    <meta charset=\"UTF-8\">
+    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
+    <title>{{APP_NAME}} — Enterprise Dashboard</title>
     <style>
-        body {{{{ font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }}}}
-        .container {{{{ background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); max-width: 600px; margin: 0 auto; }}}}
-        h1 {{{{ color: #333; }}}}
-        a {{{{ display: inline-block; margin-top: 10px; padding: 10px 15px; background: #0078d4; color: white; text-decoration: none; border-radius: 4px; }}}}
-        a:hover {{{{ background: #106ebe; }}}}
+        {self.ENTERPRISE_CSS}
     </style>
 </head>
 <body>
-    <div class=\"container\">
+    <nav class=\"topbar\">
+        <div class=\"topbar-brand\">
+            <svg viewBox=\"0 0 24 24\"><path d=\"M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5\"/></svg>
+            {{APP_NAME}}
+        </div>
+        <div class=\"topbar-meta\">
+            <span class=\"env-badge\">{spec.environment}</span>
+            <span>{spec.azure_region}</span>
+        </div>
+    </nav>
+    <section class=\"hero\">
         <h1>{{APP_NAME}}</h1>
-        <p>Version: {{VERSION}}</p>
-        <p>Status: Running</p>
-        <a href=\"/docs\">📚 API Documentation</a>
-        <a href=\"/health\">💚 Health Check</a>
-        <a href=\"/keyvault/status\">🔐 Key Vault Status</a>
+        <p>{spec.description}</p>
+        <div class=\"version-pill\">v{{VERSION}} · {spec.compute_target.value.replace('_', ' ').title()}</div>
+    </section>
+    <div class=\"dashboard\">
+        <div class=\"card\">
+            <div class=\"card-header\"><div class=\"card-icon\" style=\"background:#e6f4ea\">💚</div><h3>System Status</h3></div>
+            <div class=\"card-body\">
+                <div class=\"status-grid\">
+                    <div class=\"status-item\"><div class=\"label\">Health</div><div id=\"health-status\" class=\"value\">Checking…</div></div>
+                    <div class=\"status-item\"><div class=\"label\">Key Vault</div><div id=\"kv-status\" class=\"value\">Checking…</div></div>
+                    <div class=\"status-item\"><div class=\"label\">Region</div><div class=\"value\" style=\"font-size:14px\">{spec.azure_region}</div></div>
+                    <div class=\"status-item\"><div class=\"label\">Environment</div><div class=\"value\" style=\"font-size:14px;text-transform:capitalize\">{spec.environment}</div></div>
+                </div>
+            </div>
+        </div>
+        <div class=\"card\">
+            <div class=\"card-header\"><div class=\"card-icon\" style=\"background:#e3f2fd\">⚡</div><h3>Quick Actions</h3></div>
+            <div class=\"card-body\">
+                <div class=\"actions\">
+                    <a class=\"action-btn\" href=\"/docs\"><span class=\"icon\">📚</span>API Documentation</a>
+                    <a class=\"action-btn\" href=\"/health\"><span class=\"icon\">💚</span>Health Check</a>
+                    <a class=\"action-btn\" href=\"/keyvault/status\"><span class=\"icon\">🔐</span>Key Vault Status</a>
+                    <a class=\"action-btn\" href=\"/api/v1/items\"><span class=\"icon\">📦</span>API v1 Items</a>
+                </div>
+            </div>
+        </div>
+        <div class=\"card\">
+            <div class=\"card-header\"><div class=\"card-icon\" style=\"background:#fff3e0\">🔌</div><h3>API Endpoints</h3></div>
+            <div class=\"card-body\">
+                <ul class=\"endpoint-list\">
+                    <li><span class=\"method-badge get\">GET</span><span class=\"endpoint-path\">/health</span><span class=\"endpoint-desc\">Liveness probe</span></li>
+                    <li><span class=\"method-badge get\">GET</span><span class=\"endpoint-path\">/docs</span><span class=\"endpoint-desc\">OpenAPI docs</span></li>
+                    <li><span class=\"method-badge get\">GET</span><span class=\"endpoint-path\">/keyvault/status</span><span class=\"endpoint-desc\">Vault connectivity</span></li>
+                    <li><span class=\"method-badge get\">GET</span><span class=\"endpoint-path\">/api/v1/items</span><span class=\"endpoint-desc\">Resource listing</span></li>
+                    <li><span class=\"method-badge post\">POST</span><span class=\"endpoint-path\">/api/v1/items</span><span class=\"endpoint-desc\">Create resource</span></li>
+                </ul>
+            </div>
+        </div>
+        <div class=\"card\">
+            <div class=\"card-header\"><div class=\"card-icon\" style=\"background:#fce4ec\">🏗️</div><h3>Architecture &amp; Compliance</h3></div>
+            <div class=\"card-body\">
+                <ul class=\"arch-list\">
+                    <li><span class=\"arch-badge compute\">COMPUTE</span>{spec.compute_target.value.replace('_', ' ').title()}</li>
+                    <li><span class=\"arch-badge data\">DATA</span>{{data_stores}}</li>
+                    <li><span class=\"arch-badge security\">SECURITY</span>{spec.security.auth_model.value.replace('_', ' ').title()}</li>
+                    <li><span class=\"arch-badge monitor\">MONITOR</span>Log Analytics · Health Probes</li>
+                </ul>
+                <div class=\"compliance-row\">{{compliance_badges}}</div>
+            </div>
+        </div>
     </div>
+    <footer class=\"footer\">{{APP_NAME}} v{{VERSION}} · <a href=\"/docs\">API Docs</a> · Enterprise DevEx Orchestrator</footer>
+    <script>
+        {self.ENTERPRISE_JS}
+    </script>
 </body>
 </html>
 \"\"\"
@@ -300,6 +503,7 @@ uvicorn[standard]>=0.27.0
 azure-identity>=1.15.0
 azure-keyvault-secrets>=4.8.0
 pydantic>=2.5.0
+pydantic-settings>=2.5.0
 python-dotenv>=1.0.0
 """
         if DataStore.BLOB_STORAGE in spec.data_stores:
@@ -622,28 +826,83 @@ app.get("/health", (req, res) => {{
   }});
 }});
 
-// -- Root Endpoint (HTML Landing Page) -------------------------------
+// -- Root Endpoint (Enterprise Dashboard) ----------------------------
 app.get("/", (req, res) => {{
+  const complianceBadges = `{self._enterprise_compliance_badges(spec)}`;
+  const dataStores = "{self._enterprise_data_stores(spec)}";
   const html = `<!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>${{APP_NAME}}</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${{APP_NAME}} — Enterprise Dashboard</title>
     <style>
-        body {{{{ font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }}}}
-        .container {{{{ background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); max-width: 600px; margin: 0 auto; }}}}
-        h1 {{{{ color: #333; }}}}
-        a {{{{ display: inline-block; margin-top: 10px; padding: 10px 15px; background: #0078d4; color: white; text-decoration: none; border-radius: 4px; }}}}
-        a:hover {{{{ background: #106ebe; }}}}
+        {self.ENTERPRISE_CSS}
     </style>
 </head>
 <body>
-    <div class="container">
+    <nav class="topbar">
+        <div class="topbar-brand">
+            <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+            ${{APP_NAME}}
+        </div>
+        <div class="topbar-meta">
+            <span class="env-badge">{spec.environment}</span>
+            <span>{spec.azure_region}</span>
+        </div>
+    </nav>
+    <section class="hero">
         <h1>${{APP_NAME}}</h1>
-        <p>Version: ${{VERSION}}</p>
-        <p>Status: Running</p>
-        <a href="/health">Health Check</a>
-        <a href="/keyvault/status">Key Vault Status</a>
+        <p>{spec.description}</p>
+        <div class="version-pill">v${{VERSION}} · {spec.compute_target.value.replace('_', ' ').title()}</div>
+    </section>
+    <div class="dashboard">
+        <div class="card">
+            <div class="card-header"><div class="card-icon" style="background:#e6f4ea">💚</div><h3>System Status</h3></div>
+            <div class="card-body">
+                <div class="status-grid">
+                    <div class="status-item"><div class="label">Health</div><div id="health-status" class="value">Checking…</div></div>
+                    <div class="status-item"><div class="label">Key Vault</div><div id="kv-status" class="value">Checking…</div></div>
+                    <div class="status-item"><div class="label">Region</div><div class="value" style="font-size:14px">{spec.azure_region}</div></div>
+                    <div class="status-item"><div class="label">Environment</div><div class="value" style="font-size:14px;text-transform:capitalize">{spec.environment}</div></div>
+                </div>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header"><div class="card-icon" style="background:#e3f2fd">⚡</div><h3>Quick Actions</h3></div>
+            <div class="card-body">
+                <div class="actions">
+                    <a class="action-btn" href="/health"><span class="icon">💚</span>Health Check</a>
+                    <a class="action-btn" href="/keyvault/status"><span class="icon">🔐</span>Key Vault Status</a>
+                </div>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header"><div class="card-icon" style="background:#fff3e0">🔌</div><h3>API Endpoints</h3></div>
+            <div class="card-body">
+                <ul class="endpoint-list">
+                    <li><span class="method-badge get">GET</span><span class="endpoint-path">/health</span><span class="endpoint-desc">Liveness probe</span></li>
+                    <li><span class="method-badge get">GET</span><span class="endpoint-path">/keyvault/status</span><span class="endpoint-desc">Vault connectivity</span></li>
+                </ul>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header"><div class="card-icon" style="background:#fce4ec">🏗️</div><h3>Architecture &amp; Compliance</h3></div>
+            <div class="card-body">
+                <ul class="arch-list">
+                    <li><span class="arch-badge compute">COMPUTE</span>{spec.compute_target.value.replace('_', ' ').title()}</li>
+                    <li><span class="arch-badge data">DATA</span>${{dataStores}}</li>
+                    <li><span class="arch-badge security">SECURITY</span>{spec.security.auth_model.value.replace('_', ' ').title()}</li>
+                    <li><span class="arch-badge monitor">MONITOR</span>Log Analytics · Health Probes</li>
+                </ul>
+                <div class="compliance-row">${{complianceBadges}}</div>
+            </div>
+        </div>
     </div>
+    <footer class="footer">${{APP_NAME}} v${{VERSION}} · Enterprise DevEx Orchestrator</footer>
+    <script>
+        {self.ENTERPRISE_JS}
+    </script>
 </body>
 </html>`;
   res.send(html);
@@ -826,29 +1085,84 @@ app.MapGet("/health", () => Results.Ok(new
     timestamp = DateTime.UtcNow.ToString("o"),
 }}));
 
-// -- Root Endpoint (HTML Landing Page) -------------------------------
+// -- Root Endpoint (Enterprise Dashboard) ----------------------------
 app.MapGet("/", () =>
 {{
+    var complianceBadges = @"{self._enterprise_compliance_badges(spec).replace('"', '""')}";
+    var dataStores = "{self._enterprise_data_stores(spec)}";
     var html = $@"<!DOCTYPE html>
-<html>
+<html lang=""en"">
 <head>
-    <title>{{appName}}</title>
+    <meta charset=""UTF-8"">
+    <meta name=""viewport"" content=""width=device-width, initial-scale=1.0"">
+    <title>{{appName}} — Enterprise Dashboard</title>
     <style>
-        body {{{{ font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }}}}
-        .container {{{{ background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); max-width: 600px; margin: 0 auto; }}}}
-        h1 {{{{ color: #333; }}}}
-        a {{{{ display: inline-block; margin-top: 10px; padding: 10px 15px; background: #0078d4; color: white; text-decoration: none; border-radius: 4px; }}}}
-        a:hover {{{{ background: #106ebe; }}}}
+        {self.ENTERPRISE_CSS.replace('{', '{{{{').replace('}', '}}}}').replace('{{{{{{{{', '{{').replace('}}}}}}}}', '}}')}
     </style>
 </head>
 <body>
-    <div class=""container"">
+    <nav class=""topbar"">
+        <div class=""topbar-brand"">
+            <svg viewBox=""0 0 24 24""><path d=""M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5""/></svg>
+            {{appName}}
+        </div>
+        <div class=""topbar-meta"">
+            <span class=""env-badge"">{spec.environment}</span>
+            <span>{spec.azure_region}</span>
+        </div>
+    </nav>
+    <section class=""hero"">
         <h1>{{appName}}</h1>
-        <p>Version: {{version}}</p>
-        <p>Status: Running</p>
-        <a href=""/health"">Health Check</a>
-        <a href=""/keyvault/status"">Key Vault Status</a>
+        <p>{spec.description}</p>
+        <div class=""version-pill"">v{{version}} · {spec.compute_target.value.replace('_', ' ').title()}</div>
+    </section>
+    <div class=""dashboard"">
+        <div class=""card"">
+            <div class=""card-header""><div class=""card-icon"" style=""background:#e6f4ea"">💚</div><h3>System Status</h3></div>
+            <div class=""card-body"">
+                <div class=""status-grid"">
+                    <div class=""status-item""><div class=""label"">Health</div><div id=""health-status"" class=""value"">Checking…</div></div>
+                    <div class=""status-item""><div class=""label"">Key Vault</div><div id=""kv-status"" class=""value"">Checking…</div></div>
+                    <div class=""status-item""><div class=""label"">Region</div><div class=""value"" style=""font-size:14px"">{spec.azure_region}</div></div>
+                    <div class=""status-item""><div class=""label"">Environment</div><div class=""value"" style=""font-size:14px;text-transform:capitalize"">{spec.environment}</div></div>
+                </div>
+            </div>
+        </div>
+        <div class=""card"">
+            <div class=""card-header""><div class=""card-icon"" style=""background:#e3f2fd"">⚡</div><h3>Quick Actions</h3></div>
+            <div class=""card-body"">
+                <div class=""actions"">
+                    <a class=""action-btn"" href=""/health""><span class=""icon"">💚</span>Health Check</a>
+                    <a class=""action-btn"" href=""/keyvault/status""><span class=""icon"">🔐</span>Key Vault Status</a>
+                </div>
+            </div>
+        </div>
+        <div class=""card"">
+            <div class=""card-header""><div class=""card-icon"" style=""background:#fff3e0"">🔌</div><h3>API Endpoints</h3></div>
+            <div class=""card-body"">
+                <ul class=""endpoint-list"">
+                    <li><span class=""method-badge get"">GET</span><span class=""endpoint-path"">/health</span><span class=""endpoint-desc"">Liveness probe</span></li>
+                    <li><span class=""method-badge get"">GET</span><span class=""endpoint-path"">/keyvault/status</span><span class=""endpoint-desc"">Vault connectivity</span></li>
+                </ul>
+            </div>
+        </div>
+        <div class=""card"">
+            <div class=""card-header""><div class=""card-icon"" style=""background:#fce4ec"">🏗️</div><h3>Architecture &amp; Compliance</h3></div>
+            <div class=""card-body"">
+                <ul class=""arch-list"">
+                    <li><span class=""arch-badge compute"">COMPUTE</span>{spec.compute_target.value.replace('_', ' ').title()}</li>
+                    <li><span class=""arch-badge data"">DATA</span>{{dataStores}}</li>
+                    <li><span class=""arch-badge security"">SECURITY</span>{spec.security.auth_model.value.replace('_', ' ').title()}</li>
+                    <li><span class=""arch-badge monitor"">MONITOR</span>Log Analytics · Health Probes</li>
+                </ul>
+                <div class=""compliance-row"">{{complianceBadges}}</div>
+            </div>
+        </div>
     </div>
+    <footer class=""footer"">{{appName}} v{{version}} · Enterprise DevEx Orchestrator</footer>
+    <script>
+        {self.ENTERPRISE_JS}
+    </script>
 </body>
 </html>";
     return Results.Content(html, "text/html");
