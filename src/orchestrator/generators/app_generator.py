@@ -105,6 +105,39 @@ def _seed_value(field_spec, entity_name: str, row: int) -> str:
     return f'"{name}-value-{row}"'
 
 
+def _pascal_field(snake_name: str) -> str:
+    """snake_case -> PascalCase for C# field names."""
+    return "".join(w.capitalize() for w in snake_name.split("_"))
+
+
+def _camel(snake_name: str) -> str:
+    """snake_case -> camelCase for C# parameters."""
+    parts = snake_name.split("_")
+    return parts[0] + "".join(w.capitalize() for w in parts[1:])
+
+
+def _dotnet_type(field_type: str) -> str:
+    """Map field type string to C# type."""
+    mapping = {
+        "str": "string", "int": "int", "float": "double",
+        "bool": "bool", "list": "List<string>", "list[str]": "List<string>",
+        "dict": "Dictionary<string, object>", "datetime": "DateTime",
+    }
+    return mapping.get(field_type, "string")
+
+
+def _dotnet_seed_val(py_val: str, field_type: str) -> str:
+    """Convert Python seed value string to C# literal."""
+    if field_type in ("int", "float", "bool"):
+        return py_val.lower() if field_type == "bool" else py_val
+    if field_type in ("list", "list[str]"):
+        return "new()"
+    if field_type == "dict":
+        return "new()"
+    # string — already quoted
+    return py_val
+
+
 class AppGenerator:
     """Generates application scaffold -- multi-language support."""
 
@@ -256,6 +289,13 @@ class AppGenerator:
         data_stores = self._enterprise_data_stores(spec)
         quick_actions = '<a class="action-btn" href="/docs"><span class="icon">\xf0\x9f\x93\x9a</span>API Documentation</a>\\n                    <a class="action-btn" href="/health"><span class="icon">\xf0\x9f\x92\x9a</span>Health Check</a>\\n                    <a class="action-btn" href="/keyvault/status"><span class="icon">\xf0\x9f\x94\x90</span>Key Vault Status</a>\\n                    <a class="action-btn" href="/api/v1/items"><span class="icon">\xf0\x9f\x93\xa6</span>API v1 Items</a>'
         endpoint_list = '<li><span class="method-badge get">GET</span><span class="endpoint-path">/health</span><span class="endpoint-desc">Liveness probe</span></li>\\n                    <li><span class="method-badge get">GET</span><span class="endpoint-path">/docs</span><span class="endpoint-desc">OpenAPI docs</span></li>\\n                    <li><span class="method-badge get">GET</span><span class="endpoint-path">/keyvault/status</span><span class="endpoint-desc">Vault connectivity</span></li>\\n                    <li><span class="method-badge get">GET</span><span class="endpoint-path">/api/v1/items</span><span class="endpoint-desc">Resource listing</span></li>\\n                    <li><span class="method-badge post">POST</span><span class="endpoint-path">/api/v1/items</span><span class="endpoint-desc">Create resource</span></li>'
+        # Helper refs to produce single-brace {VAR} in the generated f-string
+        _an = "{APP_NAME}"
+        _ver = "{VERSION}"
+        _qa = "{quick_actions}"
+        _el = "{endpoint_list}"
+        _ds = "{data_stores}"
+        _cb = "{compliance_badges}"
 
         return f'''compliance_badges = """{compliance_badges}"""
     data_stores = "{data_stores}"
@@ -266,7 +306,7 @@ class AppGenerator:
 <head>
     <meta charset=\\"UTF-8\\">
     <meta name=\\"viewport\\" content=\\"width=device-width, initial-scale=1.0\\">
-    <title>{{{{APP_NAME}}}} \\u2014 Enterprise Dashboard</title>
+    <title>{_an} \\u2014 Enterprise Dashboard</title>
     <style>
         {self._css_for_fstring()}
     </style>
@@ -275,7 +315,7 @@ class AppGenerator:
     <nav class=\\"topbar\\">
         <div class=\\"topbar-brand\\">
             <svg viewBox=\\"0 0 24 24\\"><path d=\\"M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5\\"/></svg>
-            {{{{APP_NAME}}}}
+            {_an}
         </div>
         <div class=\\"topbar-meta\\">
             <span class=\\"env-badge\\">{spec.environment}</span>
@@ -283,9 +323,9 @@ class AppGenerator:
         </div>
     </nav>
     <section class=\\"hero\\">
-        <h1>{{{{APP_NAME}}}}</h1>
+        <h1>{_an}</h1>
         <p>{spec.description}</p>
-        <div class=\\"version-pill\\">v{{{{VERSION}}}} \\u00b7 {spec.compute_target.value.replace("_", " ").title()}</div>
+        <div class=\\"version-pill\\">v{_ver} \\u00b7 {spec.compute_target.value.replace("_", " ").title()}</div>
     </section>
     <div class=\\"dashboard\\">
         <div class=\\"card\\">
@@ -303,7 +343,7 @@ class AppGenerator:
             <div class=\\"card-header\\"><div class=\\"card-icon\\" style=\\"background:#e3f2fd\\">\\u26a1</div><h3>Quick Actions</h3></div>
             <div class=\\"card-body\\">
                 <div class=\\"actions\\">
-                    {{{{quick_actions}}}}
+                    {_qa}
                 </div>
             </div>
         </div>
@@ -311,7 +351,7 @@ class AppGenerator:
             <div class=\\"card-header\\"><div class=\\"card-icon\\" style=\\"background:#fff3e0\\">\\U0001f50c</div><h3>API Endpoints</h3></div>
             <div class=\\"card-body\\">
                 <ul class=\\"endpoint-list\\">
-                    {{{{endpoint_list}}}}
+                    {_el}
                 </ul>
             </div>
         </div>
@@ -320,15 +360,15 @@ class AppGenerator:
             <div class=\\"card-body\\">
                 <ul class=\\"arch-list\\">
                     <li><span class=\\"arch-badge compute\\">COMPUTE</span>{spec.compute_target.value.replace("_", " ").title()}</li>
-                    <li><span class=\\"arch-badge data\\">DATA</span>{{{{data_stores}}}}</li>
+                    <li><span class=\\"arch-badge data\\">DATA</span>{_ds}</li>
                     <li><span class=\\"arch-badge security\\">SECURITY</span>{spec.security.auth_model.value.replace("_", " ").title()}</li>
                     <li><span class=\\"arch-badge monitor\\">MONITOR</span>Log Analytics \\u00b7 Health Probes</li>
                 </ul>
-                <div class=\\"compliance-row\\">{{{{compliance_badges}}}}</div>
+                <div class=\\"compliance-row\\">{_cb}</div>
             </div>
         </div>
     </div>
-    <footer class=\\"footer\\">{{{{APP_NAME}}}} v{{{{VERSION}}}} \\u00b7 <a href=\\"/docs\\">API Docs</a> \\u00b7 Enterprise DevEx Orchestrator</footer>
+    <footer class=\\"footer\\">{_an} v{_ver} \\u00b7 <a href=\\"/docs\\">API Docs</a> \\u00b7 Enterprise DevEx Orchestrator</footer>
     <script>
         {self._js_for_fstring()}
     </script>
@@ -342,13 +382,16 @@ class AppGenerator:
         dashboard_css = self._business_dashboard_css()
         dashboard_js = self._business_dashboard_js(spec)
         compute = spec.compute_target.value.replace('_', ' ').title()
+        # Helper refs to produce single-brace {VAR} in the generated f-string
+        _an = "{APP_NAME}"
+        _ver = "{VERSION}"
 
         return f'''html = f\"\"\"<!DOCTYPE html>
 <html lang=\\"en\\">
 <head>
     <meta charset=\\"UTF-8\\">
     <meta name=\\"viewport\\" content=\\"width=device-width, initial-scale=1.0\\">
-    <title>{{{{APP_NAME}}}} \\u2014 Operations Dashboard</title>
+    <title>{_an} \\u2014 Operations Dashboard</title>
     <style>
         {dashboard_css}
     </style>
@@ -357,7 +400,7 @@ class AppGenerator:
     <nav class=\\"topbar\\">
         <div class=\\"topbar-brand\\">
             <svg viewBox=\\"0 0 24 24\\"><path d=\\"M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5\\"/></svg>
-            {{{{APP_NAME}}}}
+            {_an}
         </div>
         <div class=\\"topbar-meta\\">
             <div class=\\"status-live\\"><span class=\\"dot\\"></span>Live</div>
@@ -366,17 +409,17 @@ class AppGenerator:
         </div>
     </nav>
     <section class=\\"hero\\">
-        <h1>{{{{APP_NAME}}}}</h1>
+        <h1>{_an}</h1>
         <p>{spec.description}</p>
         <div class=\\"hero-pills\\">
-            <span>v{{{{VERSION}}}}</span>
+            <span>v{_ver}</span>
             <span>{compute}</span>
             <span>{spec.azure_region}</span>
         </div>
     </section>
     <div class=\\"kpi-bar\\">
         {dashboard_body}
-    <footer class=\\"footer\\">{{{{APP_NAME}}}} v{{{{VERSION}}}} \\u00b7 <a href=\\"/docs\\">API Docs</a> \\u00b7 Enterprise DevEx Orchestrator</footer>
+    <footer class=\\"footer\\">{_an} v{_ver} \\u00b7 <a href=\\"/docs\\">API Docs</a> \\u00b7 Enterprise DevEx Orchestrator</footer>
     <script>
         {dashboard_js}
     </script>
@@ -747,260 +790,7 @@ async def list_containers(
             storage_import = "\nfrom azure.storage.blob import BlobServiceClient"
             storage_dep = "\nfrom core.dependencies import get_blob_service"
 
-        if domain == DomainType.HEALTHCARE:
-            return f'''"""API v1 router -- Healthcare Voice Agent endpoints."""
-
-from __future__ import annotations
-
-from fastapi import APIRouter, Depends, HTTPException
-from api.v1.schemas import (
-    SessionCreate, SessionResponse, AppointmentCreate, AppointmentResponse,
-    RefillCreate, RefillResponse, ItemCreate, ItemResponse,
-)
-from core.dependencies import get_settings, get_repository
-from core.config import Settings
-from core.services import SessionService, AppointmentService, PrescriptionService, ItemService{storage_import}{storage_dep}
-
-router = APIRouter()
-
-
-# --- Items (backward-compatible) ---
-@router.get("/items", response_model=list[ItemResponse], summary="List items")
-async def list_items(settings: Settings = Depends(get_settings)):
-    svc = ItemService(project_name=settings.app_name)
-    return svc.list_items()
-
-
-@router.post("/items", response_model=ItemResponse, status_code=201, summary="Create item")
-async def create_item(payload: ItemCreate, settings: Settings = Depends(get_settings)):
-    svc = ItemService(project_name=settings.app_name)
-    return svc.create_item(payload.name, payload.description)
-
-
-# --- Sessions ---
-@router.get("/sessions", summary="List sessions")
-async def list_sessions(status: str | None = None, settings: Settings = Depends(get_settings)):
-    repo = get_repository("session", settings.storage_mode)
-    svc = SessionService(repo)
-    return svc.list_sessions(status)
-
-
-@router.post("/sessions", response_model=SessionResponse, status_code=201, summary="Create session")
-async def create_session(payload: SessionCreate, settings: Settings = Depends(get_settings)):
-    repo = get_repository("session", settings.storage_mode)
-    svc = SessionService(repo)
-    return svc.create_session(payload.patient_id, payload.intent)
-
-
-@router.get("/sessions/{{session_id}}", summary="Get session")
-async def get_session(session_id: str, settings: Settings = Depends(get_settings)):
-    repo = get_repository("session", settings.storage_mode)
-    svc = SessionService(repo)
-    session = svc.get_session(session_id)
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
-    return session
-
-
-@router.post("/sessions/{{session_id}}/end", summary="End session")
-async def end_session(session_id: str, settings: Settings = Depends(get_settings)):
-    repo = get_repository("session", settings.storage_mode)
-    svc = SessionService(repo)
-    session = svc.end_session(session_id)
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
-    return session
-
-
-@router.post("/sessions/{{session_id}}/escalate", summary="Escalate session")
-async def escalate_session(session_id: str, reason: str = "", settings: Settings = Depends(get_settings)):
-    repo = get_repository("session", settings.storage_mode)
-    svc = SessionService(repo)
-    try:
-        session = svc.escalate_session(session_id, reason)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
-    return session
-
-
-# --- Appointments ---
-@router.get("/appointments", summary="List appointments")
-async def list_appointments(patient_id: str | None = None, settings: Settings = Depends(get_settings)):
-    repo = get_repository("appointment", settings.storage_mode)
-    svc = AppointmentService(repo)
-    return svc.list_appointments(patient_id)
-
-
-@router.post("/appointments", response_model=AppointmentResponse, status_code=201, summary="Book appointment")
-async def book_appointment(payload: AppointmentCreate, settings: Settings = Depends(get_settings)):
-    repo = get_repository("appointment", settings.storage_mode)
-    svc = AppointmentService(repo)
-    return svc.book_appointment(payload.patient_id, payload.provider, payload.date_time, payload.reason)
-
-
-# --- Prescription Refills ---
-@router.get("/prescriptions/refills", summary="List refills")
-async def list_refills(patient_id: str | None = None, settings: Settings = Depends(get_settings)):
-    repo = get_repository("prescription", settings.storage_mode)
-    svc = PrescriptionService(repo)
-    return svc.list_refills(patient_id)
-
-
-@router.post("/prescriptions/refills", response_model=RefillResponse, status_code=201, summary="Request refill")
-async def request_refill(payload: RefillCreate, settings: Settings = Depends(get_settings)):
-    repo = get_repository("prescription", settings.storage_mode)
-    svc = PrescriptionService(repo)
-    return svc.request_refill(payload.patient_id, payload.medication, payload.pharmacy)
-{storage_routes}'''
-
-        if domain == DomainType.LEGAL:
-            return f'''"""API v1 router -- Contract Review endpoints."""
-
-from __future__ import annotations
-
-from fastapi import APIRouter, Depends, HTTPException
-from api.v1.schemas import (
-    ContractCreate, ContractResponse, ClauseResponse, RiskReportResponse,
-    ItemCreate, ItemResponse,
-)
-from core.dependencies import get_settings, get_repository
-from core.config import Settings
-from core.services import ContractService, ClauseAnalysisService, RiskAssessmentService, ItemService{storage_import}{storage_dep}
-
-router = APIRouter()
-
-
-# --- Items (backward-compatible) ---
-@router.get("/items", response_model=list[ItemResponse], summary="List items")
-async def list_items(settings: Settings = Depends(get_settings)):
-    svc = ItemService(project_name=settings.app_name)
-    return svc.list_items()
-
-
-@router.post("/items", response_model=ItemResponse, status_code=201, summary="Create item")
-async def create_item(payload: ItemCreate, settings: Settings = Depends(get_settings)):
-    svc = ItemService(project_name=settings.app_name)
-    return svc.create_item(payload.name, payload.description)
-
-
-# --- Contracts ---
-@router.get("/contracts", summary="List contracts")
-async def list_contracts(status: str | None = None, settings: Settings = Depends(get_settings)):
-    repo = get_repository("contract", settings.storage_mode)
-    svc = ContractService(repo)
-    return svc.list_contracts(status)
-
-
-@router.post("/contracts", response_model=ContractResponse, status_code=201, summary="Upload contract")
-async def upload_contract(payload: ContractCreate, settings: Settings = Depends(get_settings)):
-    repo = get_repository("contract", settings.storage_mode)
-    svc = ContractService(repo)
-    return svc.upload_contract(payload.title, payload.parties)
-
-
-@router.get("/contracts/{{contract_id}}", summary="Get contract")
-async def get_contract(contract_id: str, settings: Settings = Depends(get_settings)):
-    repo = get_repository("contract", settings.storage_mode)
-    svc = ContractService(repo)
-    contract = svc.get_contract(contract_id)
-    if not contract:
-        raise HTTPException(status_code=404, detail="Contract not found")
-    return contract
-
-
-@router.post("/contracts/{{contract_id}}/analyze", summary="Analyze contract")
-async def analyze_contract(contract_id: str, settings: Settings = Depends(get_settings)):
-    contract_repo = get_repository("contract", settings.storage_mode)
-    clause_repo = get_repository("clause", settings.storage_mode)
-    svc = ContractService(contract_repo)
-    contract = svc.start_analysis(contract_id)
-    if not contract:
-        raise HTTPException(status_code=404, detail="Contract not found")
-    clause_svc = ClauseAnalysisService(clause_repo)
-    clauses = clause_svc.extract_clauses(contract_id)
-    return {{"contract": contract, "clauses": clauses}}
-
-
-# --- Risk Assessment ---
-@router.get("/contracts/{{contract_id}}/risk", summary="Get risk assessment")
-async def get_risk(contract_id: str, settings: Settings = Depends(get_settings)):
-    clause_repo = get_repository("clause", settings.storage_mode)
-    svc = RiskAssessmentService(clause_repo)
-    return svc.generate_report(contract_id)
-{storage_routes}'''
-
-        if domain == DomainType.DOCUMENT_PROCESSING:
-            return f'''"""API v1 router -- Document Processing endpoints."""
-
-from __future__ import annotations
-
-from fastapi import APIRouter, Depends, HTTPException
-from api.v1.schemas import (
-    DocumentSubmit, AnalysisResponse, ItemCreate, ItemResponse,
-)
-from core.dependencies import get_settings, get_repository
-from core.config import Settings
-from core.services import AnalysisService, ExtractionService, ItemService{storage_import}{storage_dep}
-
-router = APIRouter()
-
-
-# --- Items (backward-compatible) ---
-@router.get("/items", response_model=list[ItemResponse], summary="List items")
-async def list_items(settings: Settings = Depends(get_settings)):
-    svc = ItemService(project_name=settings.app_name)
-    return svc.list_items()
-
-
-@router.post("/items", response_model=ItemResponse, status_code=201, summary="Create item")
-async def create_item(payload: ItemCreate, settings: Settings = Depends(get_settings)):
-    svc = ItemService(project_name=settings.app_name)
-    return svc.create_item(payload.name, payload.description)
-
-
-# --- Analyses ---
-@router.get("/analyses", summary="List document analyses")
-async def list_analyses(status: str | None = None, settings: Settings = Depends(get_settings)):
-    repo = get_repository("analysis", settings.storage_mode)
-    svc = AnalysisService(repo)
-    return svc.list_analyses(status)
-
-
-@router.post("/analyses", response_model=AnalysisResponse, status_code=201, summary="Submit document")
-async def submit_document(payload: DocumentSubmit, settings: Settings = Depends(get_settings)):
-    repo = get_repository("analysis", settings.storage_mode)
-    svc = AnalysisService(repo)
-    return svc.submit_document(payload.document_name, payload.model_id)
-
-
-@router.get("/analyses/{{analysis_id}}", summary="Get analysis result")
-async def get_analysis(analysis_id: str, settings: Settings = Depends(get_settings)):
-    repo = get_repository("analysis", settings.storage_mode)
-    svc = AnalysisService(repo)
-    result = svc.get_analysis(analysis_id)
-    if not result:
-        raise HTTPException(status_code=404, detail="Analysis not found")
-    return result
-
-
-@router.get("/analyses/{{analysis_id}}/extractions", summary="Get extracted data")
-async def get_extractions(analysis_id: str, settings: Settings = Depends(get_settings)):
-    table_repo = get_repository("table", settings.storage_mode)
-    kv_repo = get_repository("keyvalue", settings.storage_mode)
-    svc = ExtractionService(table_repo, kv_repo)
-    return svc.extract_from_analysis(analysis_id)
-
-
-@router.get("/models", summary="List available AI models")
-async def list_models(settings: Settings = Depends(get_settings)):
-    repo = get_repository("analysis", settings.storage_mode)
-    svc = AnalysisService(repo)
-    return svc.list_models()
-{storage_routes}'''
-
-        # Generic / default domain — dynamic generation from entities
+        # Dynamic generation from entities (all domains)
         if _has_custom_entities(spec):
             return self._dynamic_router(spec, storage_import, storage_dep, storage_routes)
 
@@ -1880,7 +1670,7 @@ async def {action}_{sn}({sn}_id: str, settings: Settings = Depends(get_settings)
         domain = spec.domain_type if hasattr(spec, "domain_type") else DomainType.GENERIC
 
         # Dynamic generation when entities come from intent parsing
-        if domain == DomainType.GENERIC and _has_custom_entities(spec):
+        if _has_custom_entities(spec):
             return self._dynamic_schemas(spec)
 
         # Base schemas always included for backward compatibility
@@ -1908,99 +1698,6 @@ class ItemResponse(BaseModel):
     name: str = Field(..., description="Item name")
     description: str = Field(default="", description="Item description")
     project: str = Field(..., description="Owning project name")
-'''
-
-        if domain == DomainType.HEALTHCARE:
-            base += '''
-
-class SessionCreate(BaseModel):
-    patient_id: str = Field(..., description="Patient identifier")
-    intent: str = Field(default="", description="Detected voice intent")
-
-
-class SessionResponse(BaseModel):
-    id: str
-    patient_id: str
-    status: str
-    intent_detected: str = ""
-    created_at: str = ""
-
-
-class AppointmentCreate(BaseModel):
-    patient_id: str = Field(..., description="Patient identifier")
-    provider: str = Field(..., description="Healthcare provider name")
-    date_time: str = Field(..., description="Appointment date/time ISO format")
-    reason: str = Field(default="", description="Reason for visit")
-
-
-class AppointmentResponse(BaseModel):
-    id: str
-    patient_id: str
-    provider: str
-    date_time: str
-    status: str
-    reason: str = ""
-
-
-class RefillCreate(BaseModel):
-    patient_id: str = Field(..., description="Patient identifier")
-    medication: str = Field(..., description="Medication name")
-    pharmacy: str = Field(default="", description="Preferred pharmacy")
-
-
-class RefillResponse(BaseModel):
-    id: str
-    patient_id: str
-    medication: str
-    status: str
-'''
-        elif domain == DomainType.LEGAL:
-            base += '''
-
-class ContractCreate(BaseModel):
-    title: str = Field(..., min_length=1, max_length=200, description="Contract title")
-    parties: list[str] = Field(default_factory=list, description="Contract parties")
-
-
-class ContractResponse(BaseModel):
-    id: str
-    title: str
-    parties: list[str] = []
-    status: str = ""
-    risk_score: float | None = None
-    created_at: str = ""
-
-
-class ClauseResponse(BaseModel):
-    id: str
-    contract_id: str
-    category: str
-    text: str = ""
-    risk_level: str = ""
-    recommendation: str = ""
-
-
-class RiskReportResponse(BaseModel):
-    contract_id: str
-    overall_score: float
-    clause_count: int = 0
-    summary: str = ""
-'''
-        elif domain == DomainType.DOCUMENT_PROCESSING:
-            base += '''
-
-class DocumentSubmit(BaseModel):
-    document_name: str = Field(..., description="Name of the document to analyze")
-    model_id: str = Field(default="prebuilt-invoice", description="AI model to use")
-
-
-class AnalysisResponse(BaseModel):
-    id: str
-    document_name: str
-    model_id: str
-    status: str
-    confidence: float = 0.0
-    page_count: int = 0
 '''
 
         return base
@@ -2132,406 +1829,8 @@ def get_keyvault_client() -> SecretClient:
     def _python_core_services(self, spec: IntentSpec) -> str:
         domain = spec.domain_type if hasattr(spec, "domain_type") else DomainType.GENERIC
 
-        if domain == DomainType.GENERIC and _has_custom_entities(spec):
+        if _has_custom_entities(spec):
             return self._dynamic_services(spec)
-
-        if domain == DomainType.HEALTHCARE:
-            return '''"""Business service layer -- Healthcare domain.
-
-Domain-specific services with real business logic, validation,
-and status management. Uses repository pattern for data access.
-"""
-
-from __future__ import annotations
-
-import uuid
-from datetime import datetime, timezone
-
-from domain.repositories import BaseRepository
-
-
-class SessionService:
-    """Manages healthcare voice agent sessions."""
-
-    def __init__(self, repo: BaseRepository) -> None:
-        self.repo = repo
-
-    def list_sessions(self, status: str | None = None) -> list[dict]:
-        items = self.repo.list_all()
-        if status:
-            items = [i for i in items if i.get("status") == status]
-        return items
-
-    def get_session(self, session_id: str) -> dict | None:
-        return self.repo.get(session_id)
-
-    def create_session(self, patient_id: str, intent: str = "") -> dict:
-        session = {
-            "id": str(uuid.uuid4()),
-            "patient_id": patient_id,
-            "status": "active",
-            "intent_detected": intent,
-            "transcript": [],
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-        }
-        self.repo.create(session["id"], session)
-        return session
-
-    def end_session(self, session_id: str) -> dict | None:
-        session = self.repo.get(session_id)
-        if not session:
-            return None
-        session["status"] = "completed"
-        session["updated_at"] = datetime.now(timezone.utc).isoformat()
-        self.repo.update(session_id, session)
-        return session
-
-    def escalate_session(self, session_id: str, reason: str = "") -> dict | None:
-        session = self.repo.get(session_id)
-        if not session:
-            return None
-        if session["status"] != "active":
-            raise ValueError(f"Cannot escalate session in {session['status']} state")
-        session["status"] = "escalated"
-        session["escalation_reason"] = reason
-        session["updated_at"] = datetime.now(timezone.utc).isoformat()
-        self.repo.update(session_id, session)
-        return session
-
-
-class AppointmentService:
-    """Manages medical appointments."""
-
-    def __init__(self, repo: BaseRepository) -> None:
-        self.repo = repo
-
-    def list_appointments(self, patient_id: str | None = None) -> list[dict]:
-        items = self.repo.list_all()
-        if patient_id:
-            items = [i for i in items if i.get("patient_id") == patient_id]
-        return items
-
-    def book_appointment(self, patient_id: str, provider: str, date_time: str, reason: str = "") -> dict:
-        appointment = {
-            "id": str(uuid.uuid4()),
-            "patient_id": patient_id,
-            "provider": provider,
-            "date_time": date_time,
-            "reason": reason,
-            "status": "scheduled",
-            "created_at": datetime.now(timezone.utc).isoformat(),
-        }
-        self.repo.create(appointment["id"], appointment)
-        return appointment
-
-    def cancel_appointment(self, appointment_id: str) -> dict | None:
-        appt = self.repo.get(appointment_id)
-        if not appt:
-            return None
-        if appt["status"] == "cancelled":
-            raise ValueError("Appointment is already cancelled")
-        appt["status"] = "cancelled"
-        self.repo.update(appointment_id, appt)
-        return appt
-
-
-class PrescriptionService:
-    """Manages prescription refill requests."""
-
-    def __init__(self, repo: BaseRepository) -> None:
-        self.repo = repo
-
-    def list_refills(self, patient_id: str | None = None) -> list[dict]:
-        items = self.repo.list_all()
-        if patient_id:
-            items = [i for i in items if i.get("patient_id") == patient_id]
-        return items
-
-    def request_refill(self, patient_id: str, medication: str, pharmacy: str = "") -> dict:
-        refill = {
-            "id": str(uuid.uuid4()),
-            "patient_id": patient_id,
-            "medication": medication,
-            "pharmacy": pharmacy,
-            "status": "pending",
-            "created_at": datetime.now(timezone.utc).isoformat(),
-        }
-        self.repo.create(refill["id"], refill)
-        return refill
-
-
-class AuditService:
-    """HIPAA audit trail logging."""
-
-    def __init__(self, repo: BaseRepository) -> None:
-        self.repo = repo
-
-    def log_access(self, user_id: str, action: str, resource_type: str, resource_id: str, phi_accessed: bool = False) -> dict:
-        entry = {
-            "id": str(uuid.uuid4()),
-            "user_id": user_id,
-            "action": action,
-            "resource_type": resource_type,
-            "resource_id": resource_id,
-            "phi_accessed": phi_accessed,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        }
-        self.repo.create(entry["id"], entry)
-        return entry
-
-    def query_logs(self, user_id: str | None = None, resource_type: str | None = None) -> list[dict]:
-        items = self.repo.list_all()
-        if user_id:
-            items = [i for i in items if i.get("user_id") == user_id]
-        if resource_type:
-            items = [i for i in items if i.get("resource_type") == resource_type]
-        return items
-
-
-# Keep backward-compatible alias
-class ItemService:
-    """Backward-compatible wrapper -- delegates to SessionService."""
-
-    def __init__(self, project_name: str = "") -> None:
-        self.project_name = project_name
-
-    def list_items(self) -> list[dict]:
-        return [{"id": "sample-001", "name": "HealthcareSession", "description": "See /api/v1/sessions", "project": self.project_name}]
-
-    def create_item(self, name: str, description: str = "") -> dict:
-        import uuid as _uuid
-        return {"id": str(_uuid.uuid4()), "name": name, "description": description, "project": self.project_name}
-'''
-
-        if domain == DomainType.LEGAL:
-            return '''"""Business service layer -- Legal / Contract Review domain."""
-
-from __future__ import annotations
-
-import uuid
-import random
-from datetime import datetime, timezone
-
-from domain.repositories import BaseRepository
-
-
-class ContractService:
-    """Manages legal contract lifecycle."""
-
-    def __init__(self, repo: BaseRepository) -> None:
-        self.repo = repo
-
-    def list_contracts(self, status: str | None = None) -> list[dict]:
-        items = self.repo.list_all()
-        if status:
-            items = [i for i in items if i.get("status") == status]
-        return items
-
-    def get_contract(self, contract_id: str) -> dict | None:
-        return self.repo.get(contract_id)
-
-    def upload_contract(self, title: str, parties: list[str], file_path: str = "") -> dict:
-        contract = {
-            "id": str(uuid.uuid4()),
-            "title": title,
-            "parties": parties,
-            "file_path": file_path,
-            "status": "uploaded",
-            "risk_score": None,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-        }
-        self.repo.create(contract["id"], contract)
-        return contract
-
-    def start_analysis(self, contract_id: str) -> dict | None:
-        contract = self.repo.get(contract_id)
-        if not contract:
-            return None
-        contract["status"] = "analyzed"
-        contract["risk_score"] = round(random.uniform(15, 85), 1)
-        contract["analyzed_at"] = datetime.now(timezone.utc).isoformat()
-        self.repo.update(contract_id, contract)
-        return contract
-
-
-class ClauseAnalysisService:
-    """Extracts and scores contract clauses."""
-
-    def __init__(self, repo: BaseRepository) -> None:
-        self.repo = repo
-
-    def get_clauses(self, contract_id: str) -> list[dict]:
-        return [c for c in self.repo.list_all() if c.get("contract_id") == contract_id]
-
-    def extract_clauses(self, contract_id: str) -> list[dict]:
-        """Simulate clause extraction with realistic categories."""
-        categories = [
-            ("Indemnification", "high", "Party A shall indemnify Party B against all claims..."),
-            ("Limitation of Liability", "medium", "Total liability shall not exceed the contract value..."),
-            ("Termination", "low", "Either party may terminate with 30 days written notice..."),
-            ("Confidentiality", "medium", "All proprietary information shall remain confidential..."),
-            ("Force Majeure", "low", "Neither party shall be liable for delays caused by..."),
-            ("Non-Compete", "high", "For a period of 24 months following termination..."),
-        ]
-        clauses = []
-        for cat, risk, text in categories:
-            clause = {
-                "id": str(uuid.uuid4()),
-                "contract_id": contract_id,
-                "category": cat,
-                "text": text,
-                "risk_level": risk,
-                "recommendation": f"Review {cat.lower()} terms with legal counsel",
-                "created_at": datetime.now(timezone.utc).isoformat(),
-            }
-            self.repo.create(clause["id"], clause)
-            clauses.append(clause)
-        return clauses
-
-
-class RiskAssessmentService:
-    """Generates contract risk reports."""
-
-    def __init__(self, clause_repo: BaseRepository) -> None:
-        self.clause_repo = clause_repo
-
-    def generate_report(self, contract_id: str) -> dict:
-        clauses = [c for c in self.clause_repo.list_all() if c.get("contract_id") == contract_id]
-        risk_weights = {"low": 10, "medium": 35, "high": 70, "critical": 95}
-        if not clauses:
-            return {"contract_id": contract_id, "overall_score": 0, "summary": "No clauses analyzed", "categories": {}}
-        scores = [risk_weights.get(c.get("risk_level", "low"), 10) for c in clauses]
-        overall = round(sum(scores) / len(scores), 1)
-        categories = {}
-        for c in clauses:
-            categories[c["category"]] = risk_weights.get(c.get("risk_level", "low"), 10)
-        return {
-            "contract_id": contract_id,
-            "overall_score": overall,
-            "clause_count": len(clauses),
-            "categories": categories,
-            "summary": f"Contract has {len(clauses)} clauses with average risk score {overall}",
-        }
-
-
-class ItemService:
-    """Backward-compatible wrapper."""
-
-    def __init__(self, project_name: str = "") -> None:
-        self.project_name = project_name
-
-    def list_items(self) -> list[dict]:
-        return [{"id": "sample-001", "name": "Contract", "description": "See /api/v1/contracts", "project": self.project_name}]
-
-    def create_item(self, name: str, description: str = "") -> dict:
-        import uuid as _uuid
-        return {"id": str(_uuid.uuid4()), "name": name, "description": description, "project": self.project_name}
-'''
-
-        if domain == DomainType.DOCUMENT_PROCESSING:
-            return '''"""Business service layer -- Document Processing domain."""
-
-from __future__ import annotations
-
-import uuid
-import random
-from datetime import datetime, timezone
-
-from domain.repositories import BaseRepository
-
-
-class AnalysisService:
-    """Document analysis and extraction."""
-
-    def __init__(self, repo: BaseRepository) -> None:
-        self.repo = repo
-
-    def list_analyses(self, status: str | None = None) -> list[dict]:
-        items = self.repo.list_all()
-        if status:
-            items = [i for i in items if i.get("status") == status]
-        return items
-
-    def get_analysis(self, analysis_id: str) -> dict | None:
-        return self.repo.get(analysis_id)
-
-    def submit_document(self, document_name: str, model_id: str = "prebuilt-invoice") -> dict:
-        analysis = {
-            "id": str(uuid.uuid4()),
-            "document_name": document_name,
-            "model_id": model_id,
-            "status": "completed",
-            "confidence": round(random.uniform(0.85, 0.99), 3),
-            "page_count": random.randint(1, 10),
-            "created_at": datetime.now(timezone.utc).isoformat(),
-        }
-        self.repo.create(analysis["id"], analysis)
-        return analysis
-
-    def list_models(self) -> list[dict]:
-        return [
-            {"id": "prebuilt-invoice", "name": "Invoice", "description": "Extract fields from invoices"},
-            {"id": "prebuilt-receipt", "name": "Receipt", "description": "Extract fields from receipts"},
-            {"id": "prebuilt-id-document", "name": "ID Document", "description": "Extract fields from identity documents"},
-            {"id": "prebuilt-layout", "name": "Layout", "description": "Extract text, tables, and structure"},
-        ]
-
-
-class ExtractionService:
-    """Manages extracted tables and key-value pairs."""
-
-    def __init__(self, table_repo: BaseRepository, kv_repo: BaseRepository) -> None:
-        self.table_repo = table_repo
-        self.kv_repo = kv_repo
-
-    def get_tables(self, analysis_id: str) -> list[dict]:
-        return [t for t in self.table_repo.list_all() if t.get("analysis_id") == analysis_id]
-
-    def get_key_values(self, analysis_id: str) -> list[dict]:
-        return [kv for kv in self.kv_repo.list_all() if kv.get("analysis_id") == analysis_id]
-
-    def extract_from_analysis(self, analysis_id: str) -> dict:
-        """Simulate extraction with realistic data."""
-        tables = [
-            {
-                "id": str(uuid.uuid4()),
-                "analysis_id": analysis_id,
-                "page_number": 1,
-                "column_headers": ["Item", "Quantity", "Unit Price", "Total"],
-                "rows": [
-                    ["Widget A", "10", "$5.00", "$50.00"],
-                    ["Widget B", "5", "$12.00", "$60.00"],
-                    ["Service Fee", "1", "$25.00", "$25.00"],
-                ],
-            }
-        ]
-        key_values = [
-            {"id": str(uuid.uuid4()), "analysis_id": analysis_id, "key": "Invoice Number", "value": "INV-2024-0042", "confidence": 0.97},
-            {"id": str(uuid.uuid4()), "analysis_id": analysis_id, "key": "Date", "value": "2024-03-15", "confidence": 0.95},
-            {"id": str(uuid.uuid4()), "analysis_id": analysis_id, "key": "Total Amount", "value": "$135.00", "confidence": 0.98},
-            {"id": str(uuid.uuid4()), "analysis_id": analysis_id, "key": "Vendor", "value": "Contoso Ltd", "confidence": 0.94},
-        ]
-        for t in tables:
-            self.table_repo.create(t["id"], t)
-        for kv in key_values:
-            self.kv_repo.create(kv["id"], kv)
-        return {"tables": tables, "key_values": key_values}
-
-
-class ItemService:
-    """Backward-compatible wrapper."""
-
-    def __init__(self, project_name: str = "") -> None:
-        self.project_name = project_name
-
-    def list_items(self) -> list[dict]:
-        return [{"id": "sample-001", "name": "Analysis", "description": "See /api/v1/analyses", "project": self.project_name}]
-
-    def create_item(self, name: str, description: str = "") -> dict:
-        import uuid as _uuid
-        return {"id": str(_uuid.uuid4()), "name": name, "description": description, "project": self.project_name}
-'''
 
         # Generic / default domain
         return f'''"""Business service layer.
@@ -2616,140 +1915,8 @@ class ItemService:
     def _python_domain_models(self, spec: IntentSpec) -> str:
         domain = spec.domain_type if hasattr(spec, "domain_type") else DomainType.GENERIC
 
-        if domain == DomainType.GENERIC and _has_custom_entities(spec):
+        if _has_custom_entities(spec):
             return self._dynamic_models(spec)
-
-        if domain == DomainType.HEALTHCARE:
-            return '''"""Domain models -- Healthcare."""
-
-from __future__ import annotations
-
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
-
-
-@dataclass
-class Session:
-    id: str = ""
-    patient_id: str = ""
-    status: str = "active"
-    intent_detected: str = ""
-    transcript: list[str] = field(default_factory=list)
-    escalation_reason: str = ""
-    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-    updated_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-
-
-@dataclass
-class Appointment:
-    id: str = ""
-    patient_id: str = ""
-    provider: str = ""
-    date_time: str = ""
-    reason: str = ""
-    status: str = "scheduled"
-    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-
-
-@dataclass
-class PrescriptionRefill:
-    id: str = ""
-    patient_id: str = ""
-    medication: str = ""
-    pharmacy: str = ""
-    status: str = "pending"
-    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-
-
-@dataclass
-class AuditLog:
-    id: str = ""
-    user_id: str = ""
-    action: str = ""
-    resource_type: str = ""
-    resource_id: str = ""
-    phi_accessed: bool = False
-    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-'''
-
-        if domain == DomainType.LEGAL:
-            return '''"""Domain models -- Legal / Contract Review."""
-
-from __future__ import annotations
-
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
-
-
-@dataclass
-class Contract:
-    id: str = ""
-    title: str = ""
-    parties: list[str] = field(default_factory=list)
-    file_path: str = ""
-    status: str = "uploaded"
-    risk_score: float | None = None
-    analyzed_at: str = ""
-    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-
-
-@dataclass
-class Clause:
-    id: str = ""
-    contract_id: str = ""
-    category: str = ""
-    text: str = ""
-    risk_level: str = "low"
-    recommendation: str = ""
-    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-
-
-@dataclass
-class RiskAssessment:
-    contract_id: str = ""
-    overall_score: float = 0.0
-    clause_count: int = 0
-    categories: dict = field(default_factory=dict)
-    summary: str = ""
-'''
-
-        if domain == DomainType.DOCUMENT_PROCESSING:
-            return '''"""Domain models -- Document Processing."""
-
-from __future__ import annotations
-
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
-
-
-@dataclass
-class AnalysisResult:
-    id: str = ""
-    document_name: str = ""
-    model_id: str = "prebuilt-invoice"
-    status: str = "pending"
-    confidence: float = 0.0
-    page_count: int = 0
-    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-
-
-@dataclass
-class ExtractedTable:
-    id: str = ""
-    analysis_id: str = ""
-    page_number: int = 1
-    column_headers: list[str] = field(default_factory=list)
-    rows: list[list[str]] = field(default_factory=list)
-
-
-@dataclass
-class KeyValuePair:
-    id: str = ""
-    analysis_id: str = ""
-    key: str = ""
-    value: str = ""
-    confidence: float = 0.0
-'''
 
         # Generic
         return '''"""Domain models."""
@@ -2835,97 +2002,8 @@ class InMemoryRepository(BaseRepository):
     def _python_seed_data(self, spec: IntentSpec) -> str:
         domain = spec.domain_type if hasattr(spec, "domain_type") else DomainType.GENERIC
 
-        if domain == DomainType.GENERIC and _has_custom_entities(spec):
+        if _has_custom_entities(spec):
             return self._dynamic_seed_data(spec)
-
-        if domain == DomainType.HEALTHCARE:
-            return '''"""Seed data -- Healthcare demo records.
-
-Pre-loaded into InMemoryRepository on first access
-so the API returns realistic data immediately.
-"""
-
-from __future__ import annotations
-
-_SEED: dict[str, list[dict]] = {
-    "session": [
-        {"id": "ses-001", "patient_id": "P-1001", "status": "active", "intent_detected": "appointment_booking", "transcript": ["Hello, I need to schedule a checkup"], "created_at": "2024-03-15T09:00:00Z", "updated_at": "2024-03-15T09:05:00Z"},
-        {"id": "ses-002", "patient_id": "P-1002", "status": "completed", "intent_detected": "prescription_refill", "transcript": ["I need to refill my blood pressure medication"], "created_at": "2024-03-15T10:00:00Z", "updated_at": "2024-03-15T10:12:00Z"},
-        {"id": "ses-003", "patient_id": "P-1003", "status": "escalated", "intent_detected": "symptom_report", "transcript": ["I have been experiencing chest pain"], "escalation_reason": "Urgent symptom reported", "created_at": "2024-03-15T11:00:00Z", "updated_at": "2024-03-15T11:01:00Z"},
-    ],
-    "appointment": [
-        {"id": "apt-001", "patient_id": "P-1001", "provider": "Dr. Sarah Chen", "date_time": "2024-03-20T14:00:00Z", "reason": "Annual checkup", "status": "scheduled", "created_at": "2024-03-15T09:05:00Z"},
-        {"id": "apt-002", "patient_id": "P-1004", "provider": "Dr. James Wilson", "date_time": "2024-03-21T10:30:00Z", "reason": "Follow-up consultation", "status": "scheduled", "created_at": "2024-03-14T16:00:00Z"},
-        {"id": "apt-003", "patient_id": "P-1002", "provider": "Dr. Maria Garcia", "date_time": "2024-03-18T09:00:00Z", "reason": "Lab results review", "status": "completed", "created_at": "2024-03-10T11:00:00Z"},
-    ],
-    "prescription": [
-        {"id": "rx-001", "patient_id": "P-1002", "medication": "Lisinopril 10mg", "pharmacy": "CVS Pharmacy #4521", "status": "approved", "created_at": "2024-03-15T10:10:00Z"},
-        {"id": "rx-002", "patient_id": "P-1005", "medication": "Metformin 500mg", "pharmacy": "Walgreens", "status": "pending", "created_at": "2024-03-15T13:00:00Z"},
-        {"id": "rx-003", "patient_id": "P-1001", "medication": "Atorvastatin 20mg", "pharmacy": "CVS Pharmacy #4521", "status": "pending", "created_at": "2024-03-15T14:30:00Z"},
-    ],
-    "audit": [],
-}
-
-
-def get_seed_data(entity_name: str) -> list[dict]:
-    """Return seed records for the given entity type."""
-    return _SEED.get(entity_name, [])
-'''
-
-        if domain == DomainType.LEGAL:
-            return '''"""Seed data -- Legal / Contract Review demo records."""
-
-from __future__ import annotations
-
-_SEED: dict[str, list[dict]] = {
-    "contract": [
-        {"id": "ctr-001", "title": "Cloud Services Agreement - Contoso", "parties": ["Contoso Ltd", "Fabrikam Inc"], "status": "analyzed", "risk_score": 42.5, "created_at": "2024-03-10T08:00:00Z"},
-        {"id": "ctr-002", "title": "SaaS License Agreement - Northwind", "parties": ["Northwind Traders", "Woodgrove Bank"], "status": "uploaded", "risk_score": None, "created_at": "2024-03-12T10:00:00Z"},
-        {"id": "ctr-003", "title": "Employment Contract - Senior Engineer", "parties": ["Fabrikam Inc", "Jane Smith"], "status": "analyzed", "risk_score": 28.0, "created_at": "2024-03-14T14:00:00Z"},
-    ],
-    "clause": [
-        {"id": "cls-001", "contract_id": "ctr-001", "category": "Indemnification", "text": "Party A shall indemnify Party B...", "risk_level": "high", "recommendation": "Cap indemnification liability"},
-        {"id": "cls-002", "contract_id": "ctr-001", "category": "Termination", "text": "Either party may terminate with 30 days notice...", "risk_level": "low", "recommendation": "Standard clause, acceptable"},
-        {"id": "cls-003", "contract_id": "ctr-001", "category": "Non-Compete", "text": "24-month non-compete restriction...", "risk_level": "high", "recommendation": "Reduce to 12 months"},
-        {"id": "cls-004", "contract_id": "ctr-003", "category": "Confidentiality", "text": "All proprietary information...", "risk_level": "medium", "recommendation": "Define scope of confidential info"},
-    ],
-    "risk": [],
-}
-
-
-def get_seed_data(entity_name: str) -> list[dict]:
-    """Return seed records for the given entity type."""
-    return _SEED.get(entity_name, [])
-'''
-
-        if domain == DomainType.DOCUMENT_PROCESSING:
-            return '''"""Seed data -- Document Processing demo records."""
-
-from __future__ import annotations
-
-_SEED: dict[str, list[dict]] = {
-    "analysis": [
-        {"id": "doc-001", "document_name": "invoice_contoso_2024.pdf", "model_id": "prebuilt-invoice", "status": "completed", "confidence": 0.972, "page_count": 2, "created_at": "2024-03-15T08:00:00Z"},
-        {"id": "doc-002", "document_name": "receipt_lunch_march.jpg", "model_id": "prebuilt-receipt", "status": "completed", "confidence": 0.945, "page_count": 1, "created_at": "2024-03-15T12:00:00Z"},
-        {"id": "doc-003", "document_name": "employee_id_scan.png", "model_id": "prebuilt-id-document", "status": "completed", "confidence": 0.891, "page_count": 1, "created_at": "2024-03-14T16:00:00Z"},
-    ],
-    "table": [
-        {"id": "tbl-001", "analysis_id": "doc-001", "page_number": 1, "column_headers": ["Item", "Qty", "Price", "Total"], "rows": [["Widget A", "10", "$5.00", "$50.00"], ["Widget B", "5", "$12.00", "$60.00"]]},
-    ],
-    "keyvalue": [
-        {"id": "kv-001", "analysis_id": "doc-001", "key": "Invoice Number", "value": "INV-2024-0042", "confidence": 0.97},
-        {"id": "kv-002", "analysis_id": "doc-001", "key": "Date", "value": "2024-03-15", "confidence": 0.95},
-        {"id": "kv-003", "analysis_id": "doc-001", "key": "Total Amount", "value": "$135.00", "confidence": 0.98},
-        {"id": "kv-004", "analysis_id": "doc-002", "key": "Total", "value": "$42.50", "confidence": 0.92},
-        {"id": "kv-005", "analysis_id": "doc-002", "key": "Vendor", "value": "Contoso Cafe", "confidence": 0.88},
-    ],
-}
-
-
-def get_seed_data(entity_name: str) -> list[dict]:
-    """Return seed records for the given entity type."""
-    return _SEED.get(entity_name, [])
-'''
 
         # Generic
         return '''"""Seed data -- generic demo records."""
@@ -3195,135 +2273,8 @@ CMD ["node", "index.js"]
         """Generate domain service layer for Node.js."""
         domain = spec.domain_type if hasattr(spec, "domain_type") else DomainType.GENERIC
 
-        if domain == DomainType.HEALTHCARE:
-            return """const { v4: uuid } = require("uuid");
-const { seedData } = require("./data");
-
-const db = { ...seedData };
-
-class SessionService {
-  list(status) {
-    let items = Object.values(db.sessions);
-    if (status) items = items.filter(s => s.status === status);
-    return items;
-  }
-  get(id) { return db.sessions[id] || null; }
-  create({ patient_id, intent }) {
-    const session = { id: uuid(), patient_id, status: "active", intent_detected: intent || "", transcript: [], created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
-    db.sessions[session.id] = session;
-    return session;
-  }
-  end(id) { const s = db.sessions[id]; if (s) { s.status = "completed"; s.updated_at = new Date().toISOString(); } return s; }
-  escalate(id, reason) { const s = db.sessions[id]; if (s) { s.status = "escalated"; s.escalation_reason = reason; s.updated_at = new Date().toISOString(); } return s; }
-}
-
-class AppointmentService {
-  list(patientId) {
-    let items = Object.values(db.appointments);
-    if (patientId) items = items.filter(a => a.patient_id === patientId);
-    return items;
-  }
-  create({ patient_id, provider, date_time, reason }) {
-    const appt = { id: uuid(), patient_id, provider, date_time, reason: reason || "", status: "scheduled", created_at: new Date().toISOString() };
-    db.appointments[appt.id] = appt;
-    return appt;
-  }
-}
-
-class PrescriptionService {
-  list(patientId) {
-    let items = Object.values(db.refills);
-    if (patientId) items = items.filter(r => r.patient_id === patientId);
-    return items;
-  }
-  create({ patient_id, medication, pharmacy }) {
-    const rx = { id: uuid(), patient_id, medication, pharmacy: pharmacy || "Default Pharmacy", status: "pending", created_at: new Date().toISOString() };
-    db.refills[rx.id] = rx;
-    return rx;
-  }
-}
-
-class ItemService {
-  list() { return Object.values(db.sessions).slice(0, 10); }
-}
-
-module.exports = { SessionService, AppointmentService, PrescriptionService, ItemService };
-"""
-
-        if domain == DomainType.LEGAL:
-            return """const { v4: uuid } = require("uuid");
-const { seedData } = require("./data");
-
-const db = { ...seedData };
-
-class ContractService {
-  list(status) {
-    let items = Object.values(db.contracts);
-    if (status) items = items.filter(c => c.status === status);
-    return items;
-  }
-  get(id) { return db.contracts[id] || null; }
-  create({ title, parties }) {
-    const c = { id: uuid(), title, parties, status: "uploaded", risk_score: null, created_at: new Date().toISOString() };
-    db.contracts[c.id] = c;
-    return c;
-  }
-  analyze(id) {
-    const c = db.contracts[id];
-    if (!c) return null;
-    c.status = "analyzed";
-    c.risk_score = Math.round(Math.random() * 40 + 30);
-    const clauses = Object.values(db.clauses).filter(cl => cl.contract_id === id);
-    return { contract: c, clauses, clause_count: clauses.length };
-  }
-  risk(id) {
-    const c = db.contracts[id];
-    if (!c) return null;
-    const clauses = Object.values(db.clauses).filter(cl => cl.contract_id === id);
-    const categories = {};
-    clauses.forEach(cl => { categories[cl.category] = (categories[cl.category] || 0) + 1; });
-    return { contract_id: id, overall_score: c.risk_score || 0, clause_count: clauses.length, categories, summary: `Risk assessment for ${c.title}` };
-  }
-}
-
-class ItemService {
-  list() { return Object.values(db.contracts).slice(0, 10); }
-}
-
-module.exports = { ContractService, ItemService };
-"""
-
-        if domain == DomainType.DOCUMENT_PROCESSING:
-            return """const { v4: uuid } = require("uuid");
-const { seedData } = require("./data");
-
-const db = { ...seedData };
-
-class AnalysisService {
-  list(status) {
-    let items = Object.values(db.analyses);
-    if (status) items = items.filter(a => a.status === status);
-    return items;
-  }
-  get(id) { return db.analyses[id] || null; }
-  create({ document_name, model_id }) {
-    const a = { id: uuid(), document_name, model_id: model_id || "prebuilt-invoice", status: "completed", confidence: Math.random() * 0.15 + 0.85, page_count: Math.floor(Math.random() * 5) + 1, created_at: new Date().toISOString() };
-    db.analyses[a.id] = a;
-    return a;
-  }
-  extractions(id) {
-    const tables = Object.values(db.tables).filter(t => t.analysis_id === id);
-    const keyValues = Object.values(db.keyValues).filter(kv => kv.analysis_id === id);
-    return { tables, key_values: keyValues };
-  }
-}
-
-class ItemService {
-  list() { return Object.values(db.analyses).slice(0, 10); }
-}
-
-module.exports = { AnalysisService, ItemService };
-"""
+        if _has_custom_entities(spec):
+            return self._dynamic_node_services(spec)
 
         # Generic
         return """const { v4: uuid } = require("uuid");
@@ -3356,52 +2307,8 @@ module.exports = { ItemService };
         """Generate seed data for Node.js."""
         domain = spec.domain_type if hasattr(spec, "domain_type") else DomainType.GENERIC
 
-        if domain == DomainType.HEALTHCARE:
-            return """const seedData = {
-  sessions: {
-    "s1": { id: "s1", patient_id: "P-1001", status: "active", intent_detected: "appointment_booking", transcript: ["Hello", "I need to book an appointment"], created_at: "2024-01-15T09:00:00Z", updated_at: "2024-01-15T09:05:00Z" },
-    "s2": { id: "s2", patient_id: "P-1002", status: "completed", intent_detected: "prescription_refill", transcript: ["Hi", "Refill my prescription"], created_at: "2024-01-15T10:00:00Z", updated_at: "2024-01-15T10:15:00Z" },
-  },
-  appointments: {
-    "a1": { id: "a1", patient_id: "P-1001", provider: "Dr. Smith", date_time: "2024-02-01T14:00:00Z", reason: "Annual checkup", status: "scheduled", created_at: "2024-01-15T09:05:00Z" },
-  },
-  refills: {
-    "r1": { id: "r1", patient_id: "P-1002", medication: "Lisinopril 10mg", pharmacy: "Central Pharmacy", status: "pending", created_at: "2024-01-15T10:10:00Z" },
-  },
-};
-module.exports = { seedData };
-"""
-
-        if domain == DomainType.LEGAL:
-            return """const seedData = {
-  contracts: {
-    "c1": { id: "c1", title: "SaaS Agreement - Acme Corp", parties: ["Acme Corp", "TechVendor Inc"], status: "analyzed", risk_score: 42, created_at: "2024-01-10T08:00:00Z" },
-    "c2": { id: "c2", title: "NDA - Partner Co", parties: ["Partner Co", "Our Company"], status: "uploaded", risk_score: null, created_at: "2024-01-12T09:00:00Z" },
-  },
-  clauses: {
-    "cl1": { id: "cl1", contract_id: "c1", category: "liability", text: "Limitation of liability clause", risk_level: "medium", recommendation: "Review cap amount" },
-    "cl2": { id: "cl2", contract_id: "c1", category: "termination", text: "Auto-renewal with 90-day notice", risk_level: "high", recommendation: "Negotiate shorter notice period" },
-  },
-};
-module.exports = { seedData };
-"""
-
-        if domain == DomainType.DOCUMENT_PROCESSING:
-            return """const seedData = {
-  analyses: {
-    "a1": { id: "a1", document_name: "invoice-2024-001.pdf", model_id: "prebuilt-invoice", status: "completed", confidence: 0.95, page_count: 2, created_at: "2024-01-15T08:00:00Z" },
-    "a2": { id: "a2", document_name: "receipt-jan.jpg", model_id: "prebuilt-receipt", status: "completed", confidence: 0.88, page_count: 1, created_at: "2024-01-15T09:00:00Z" },
-  },
-  tables: {
-    "t1": { id: "t1", analysis_id: "a1", page_number: 1, column_headers: ["Item", "Qty", "Price"], rows: [["Widget A", "10", "$50.00"], ["Widget B", "5", "$30.00"]] },
-  },
-  keyValues: {
-    "kv1": { id: "kv1", analysis_id: "a1", key: "Invoice Number", value: "INV-2024-001", confidence: 0.98 },
-    "kv2": { id: "kv2", analysis_id: "a1", key: "Total Amount", value: "$650.00", confidence: 0.96 },
-  },
-};
-module.exports = { seedData };
-"""
+        if _has_custom_entities(spec):
+            return self._dynamic_node_seed_data(spec)
 
         return """const seedData = {
   items: {
@@ -3412,6 +2319,70 @@ module.exports = { seedData };
 };
 module.exports = { seedData };
 """
+
+    def _dynamic_node_services(self, spec: IntentSpec) -> str:
+        """Generate Node.js service classes from spec.entities."""
+        lines = ['const { v4: uuid } = require("uuid");',
+                 'const { seedData } = require("./data");',
+                 '',
+                 'const db = { ...seedData };',
+                 '']
+        class_names = []
+        for ent in spec.entities:
+            sn = _snake(ent.name)
+            plural = _snake(_plural(ent.name))
+            cls = f'{ent.name}Service'
+            class_names.append(cls)
+
+            lines.append(f'class {cls} {{')
+            lines.append(f'  list(status) {{')
+            lines.append(f'    let items = Object.values(db.{plural} || {{}});')
+            lines.append(f'    if (status) items = items.filter(i => i.status === status);')
+            lines.append(f'    return items;')
+            lines.append(f'  }}')
+            lines.append(f'  get(id) {{ return (db.{plural} || {{}})[id] || null; }}')
+            # build create fields
+            field_names = [f.name for f in ent.fields if f.name != 'status']
+            create_destructure = ', '.join(field_names) if field_names else 'name'
+            lines.append(f'  create({{ {create_destructure} }}) {{')
+            lines.append(f'    const record = {{ id: uuid(), {", ".join(f"{fn}: {fn} || \"\"" for fn in field_names) if field_names else "name: name || \"\""}, status: "pending", created_at: new Date().toISOString() }};')
+            lines.append(f'    if (!db.{plural}) db.{plural} = {{}};')
+            lines.append(f'    db.{plural}[record.id] = record;')
+            lines.append(f'    return record;')
+            lines.append(f'  }}')
+            lines.append(f'  update(id, data) {{')
+            lines.append(f'    const item = (db.{plural} || {{}})[id];')
+            lines.append(f'    if (!item) return null;')
+            lines.append(f'    Object.assign(item, data, {{ updated_at: new Date().toISOString() }});')
+            lines.append(f'    return item;')
+            lines.append(f'  }}')
+            lines.append(f'  delete(id) {{ const existed = !!(db.{plural} || {{}})[id]; if (db.{plural}) delete db.{plural}[id]; return existed; }}')
+            lines.append(f'}}')
+            lines.append('')
+
+        lines.append(f'module.exports = {{ {", ".join(class_names)} }};')
+        lines.append('')
+        return "\n".join(lines)
+
+    def _dynamic_node_seed_data(self, spec: IntentSpec) -> str:
+        """Generate Node.js seed data from spec.entities."""
+        lines = ['const seedData = {']
+        for ent in spec.entities:
+            sn = _snake(ent.name)
+            plural = _snake(_plural(ent.name))
+            lines.append(f'  {plural}: {{')
+            for rid in range(1, 4):
+                parts = [f'id: "{sn}-{rid:03d}"']
+                for f in ent.fields:
+                    val = _seed_value(f, ent.name, rid)
+                    parts.append(f'{f.name}: {val}')
+                parts.append(f'created_at: "2024-03-{10+rid}T0{8+rid}:00:00Z"')
+                lines.append(f'    "{sn}-{rid:03d}": {{ {", ".join(parts)} }},')
+            lines.append(f'  }},')
+        lines.append('};')
+        lines.append('module.exports = { seedData };')
+        lines.append('')
+        return "\n".join(lines)
 
     # ===============================================================
     # .NET / ASP.NET Core -- implementation methods
@@ -3650,133 +2621,8 @@ CMD ["dotnet", "{spec.project_name}.dll"]
         """Generate domain services for .NET."""
         domain = spec.domain_type if hasattr(spec, "domain_type") else DomainType.GENERIC
 
-        if domain == DomainType.HEALTHCARE:
-            return """// Domain Services -- Healthcare Voice Agent
-using System.Collections.Concurrent;
-
-namespace App.Services;
-
-public record Session(string Id, string PatientId, string Status, string IntentDetected, List<string> Transcript, string? EscalationReason, DateTime CreatedAt, DateTime UpdatedAt);
-public record Appointment(string Id, string PatientId, string Provider, DateTime DateTime, string Reason, string Status, DateTime CreatedAt);
-public record PrescriptionRefill(string Id, string PatientId, string Medication, string Pharmacy, string Status, DateTime CreatedAt);
-
-public class SessionService
-{
-    private readonly ConcurrentDictionary<string, Session> _sessions = new();
-
-    public SessionService(SeedData seed) { foreach (var s in seed.Sessions) _sessions[s.Id] = s; }
-    public IEnumerable<Session> List(string? status = null) => status is null ? _sessions.Values : _sessions.Values.Where(s => s.Status == status);
-    public Session? Get(string id) => _sessions.GetValueOrDefault(id);
-    public Session Create(string patientId, string? intent = null) { var s = new Session(Guid.NewGuid().ToString(), patientId, "active", intent ?? "", new(), null, DateTime.UtcNow, DateTime.UtcNow); _sessions[s.Id] = s; return s; }
-    public Session? End(string id) { if (_sessions.TryGetValue(id, out var s)) { var u = s with { Status = "completed", UpdatedAt = DateTime.UtcNow }; _sessions[id] = u; return u; } return null; }
-    public Session? Escalate(string id, string reason) { if (_sessions.TryGetValue(id, out var s)) { var u = s with { Status = "escalated", EscalationReason = reason, UpdatedAt = DateTime.UtcNow }; _sessions[id] = u; return u; } return null; }
-}
-
-public class AppointmentService
-{
-    private readonly ConcurrentDictionary<string, Appointment> _appts = new();
-    public AppointmentService(SeedData seed) { foreach (var a in seed.Appointments) _appts[a.Id] = a; }
-    public IEnumerable<Appointment> List(string? patientId = null) => patientId is null ? _appts.Values : _appts.Values.Where(a => a.PatientId == patientId);
-    public Appointment Create(string patientId, string provider, DateTime dateTime, string? reason = null) { var a = new Appointment(Guid.NewGuid().ToString(), patientId, provider, dateTime, reason ?? "", "scheduled", DateTime.UtcNow); _appts[a.Id] = a; return a; }
-}
-
-public class PrescriptionService
-{
-    private readonly ConcurrentDictionary<string, PrescriptionRefill> _refills = new();
-    public PrescriptionService(SeedData seed) { foreach (var r in seed.Refills) _refills[r.Id] = r; }
-    public IEnumerable<PrescriptionRefill> List(string? patientId = null) => patientId is null ? _refills.Values : _refills.Values.Where(r => r.PatientId == patientId);
-    public PrescriptionRefill Create(string patientId, string medication, string? pharmacy = null) { var r = new PrescriptionRefill(Guid.NewGuid().ToString(), patientId, medication, pharmacy ?? "Default Pharmacy", "pending", DateTime.UtcNow); _refills[r.Id] = r; return r; }
-}
-
-public class ItemService
-{
-    private readonly SessionService _sessions;
-    public ItemService(SessionService sessions) { _sessions = sessions; }
-    public IEnumerable<object> List() => _sessions.List().Take(10).Select(s => new { s.Id, Name = s.PatientId, Description = s.IntentDetected, Project = "healthcare" });
-}
-"""
-
-        if domain == DomainType.LEGAL:
-            return """// Domain Services -- Legal Contract Review
-using System.Collections.Concurrent;
-
-namespace App.Services;
-
-public record Contract(string Id, string Title, List<string> Parties, string Status, int? RiskScore, DateTime CreatedAt);
-public record Clause(string Id, string ContractId, string Category, string Text, string RiskLevel, string Recommendation);
-
-public class ContractService
-{
-    private readonly ConcurrentDictionary<string, Contract> _contracts = new();
-    private readonly ConcurrentDictionary<string, Clause> _clauses = new();
-
-    public ContractService(SeedData seed)
-    {
-        foreach (var c in seed.Contracts) _contracts[c.Id] = c;
-        foreach (var cl in seed.Clauses) _clauses[cl.Id] = cl;
-    }
-    public IEnumerable<Contract> List(string? status = null) => status is null ? _contracts.Values : _contracts.Values.Where(c => c.Status == status);
-    public Contract? Get(string id) => _contracts.GetValueOrDefault(id);
-    public Contract Create(string title, List<string> parties) { var c = new Contract(Guid.NewGuid().ToString(), title, parties, "uploaded", null, DateTime.UtcNow); _contracts[c.Id] = c; return c; }
-    public object? Analyze(string id) {
-        if (!_contracts.TryGetValue(id, out var c)) return null;
-        var score = new Random().Next(30, 70);
-        var updated = c with { Status = "analyzed", RiskScore = score };
-        _contracts[id] = updated;
-        var clauses = _clauses.Values.Where(cl => cl.ContractId == id).ToList();
-        return new { Contract = updated, Clauses = clauses, ClauseCount = clauses.Count };
-    }
-    public object? Risk(string id) {
-        if (!_contracts.TryGetValue(id, out var c)) return null;
-        var clauses = _clauses.Values.Where(cl => cl.ContractId == id).ToList();
-        var categories = clauses.GroupBy(cl => cl.Category).ToDictionary(g => g.Key, g => g.Count());
-        return new { ContractId = id, OverallScore = c.RiskScore ?? 0, ClauseCount = clauses.Count, Categories = categories, Summary = $"Risk assessment for {c.Title}" };
-    }
-}
-
-public class ItemService
-{
-    private readonly ContractService _contracts;
-    public ItemService(ContractService contracts) { _contracts = contracts; }
-    public IEnumerable<object> List() => _contracts.List().Take(10).Select(c => new { c.Id, Name = c.Title, Description = string.Join(", ", c.Parties), Project = "legal" });
-}
-"""
-
-        if domain == DomainType.DOCUMENT_PROCESSING:
-            return """// Domain Services -- Document Processing
-using System.Collections.Concurrent;
-
-namespace App.Services;
-
-public record AnalysisResult(string Id, string DocumentName, string ModelId, string Status, double Confidence, int PageCount, DateTime CreatedAt);
-public record ExtractedTable(string Id, string AnalysisId, int PageNumber, List<string> ColumnHeaders, List<List<string>> Rows);
-public record KeyValuePair(string Id, string AnalysisId, string Key, string Value, double Confidence);
-
-public class AnalysisService
-{
-    private readonly ConcurrentDictionary<string, AnalysisResult> _analyses = new();
-    private readonly ConcurrentDictionary<string, ExtractedTable> _tables = new();
-    private readonly ConcurrentDictionary<string, KeyValuePair> _kvs = new();
-
-    public AnalysisService(SeedData seed)
-    {
-        foreach (var a in seed.Analyses) _analyses[a.Id] = a;
-        foreach (var t in seed.Tables) _tables[t.Id] = t;
-        foreach (var kv in seed.KeyValues) _kvs[kv.Id] = kv;
-    }
-    public IEnumerable<AnalysisResult> List(string? status = null) => status is null ? _analyses.Values : _analyses.Values.Where(a => a.Status == status);
-    public AnalysisResult? Get(string id) => _analyses.GetValueOrDefault(id);
-    public AnalysisResult Create(string documentName, string? modelId = null) { var a = new AnalysisResult(Guid.NewGuid().ToString(), documentName, modelId ?? "prebuilt-invoice", "completed", new Random().NextDouble() * 0.15 + 0.85, new Random().Next(1, 6), DateTime.UtcNow); _analyses[a.Id] = a; return a; }
-    public object Extractions(string id) { var tables = _tables.Values.Where(t => t.AnalysisId == id).ToList(); var kvs = _kvs.Values.Where(kv => kv.AnalysisId == id).ToList(); return new { Tables = tables, KeyValues = kvs }; }
-}
-
-public class ItemService
-{
-    private readonly AnalysisService _analyses;
-    public ItemService(AnalysisService analyses) { _analyses = analyses; }
-    public IEnumerable<object> List() => _analyses.List().Take(10).Select(a => new { a.Id, Name = a.DocumentName, Description = a.ModelId, Project = "docproc" });
-}
-"""
+        if _has_custom_entities(spec):
+            return self._dynamic_dotnet_services(spec)
 
         # Generic
         return """// Domain Services -- Generic CRUD
@@ -3803,69 +2649,8 @@ public class ItemService
         """Generate seed data for .NET."""
         domain = spec.domain_type if hasattr(spec, "domain_type") else DomainType.GENERIC
 
-        if domain == DomainType.HEALTHCARE:
-            return """// Seed Data -- Healthcare
-namespace App.Services;
-
-public class SeedData
-{
-    public List<Session> Sessions { get; } = new()
-    {
-        new("s1", "P-1001", "active", "appointment_booking", new() { "Hello", "I need to book" }, null, DateTime.Parse("2024-01-15T09:00:00Z"), DateTime.Parse("2024-01-15T09:05:00Z")),
-        new("s2", "P-1002", "completed", "prescription_refill", new() { "Hi", "Refill please" }, null, DateTime.Parse("2024-01-15T10:00:00Z"), DateTime.Parse("2024-01-15T10:15:00Z")),
-    };
-    public List<Appointment> Appointments { get; } = new()
-    {
-        new("a1", "P-1001", "Dr. Smith", DateTime.Parse("2024-02-01T14:00:00Z"), "Annual checkup", "scheduled", DateTime.Parse("2024-01-15T09:05:00Z")),
-    };
-    public List<PrescriptionRefill> Refills { get; } = new()
-    {
-        new("r1", "P-1002", "Lisinopril 10mg", "Central Pharmacy", "pending", DateTime.Parse("2024-01-15T10:10:00Z")),
-    };
-}
-"""
-
-        if domain == DomainType.LEGAL:
-            return """// Seed Data -- Legal
-namespace App.Services;
-
-public class SeedData
-{
-    public List<Contract> Contracts { get; } = new()
-    {
-        new("c1", "SaaS Agreement - Acme Corp", new() { "Acme Corp", "TechVendor Inc" }, "analyzed", 42, DateTime.Parse("2024-01-10T08:00:00Z")),
-        new("c2", "NDA - Partner Co", new() { "Partner Co", "Our Company" }, "uploaded", null, DateTime.Parse("2024-01-12T09:00:00Z")),
-    };
-    public List<Clause> Clauses { get; } = new()
-    {
-        new("cl1", "c1", "liability", "Limitation of liability clause", "medium", "Review cap amount"),
-        new("cl2", "c1", "termination", "Auto-renewal with 90-day notice", "high", "Negotiate shorter notice"),
-    };
-}
-"""
-
-        if domain == DomainType.DOCUMENT_PROCESSING:
-            return """// Seed Data -- Document Processing
-namespace App.Services;
-
-public class SeedData
-{
-    public List<AnalysisResult> Analyses { get; } = new()
-    {
-        new("a1", "invoice-2024-001.pdf", "prebuilt-invoice", "completed", 0.95, 2, DateTime.Parse("2024-01-15T08:00:00Z")),
-        new("a2", "receipt-jan.jpg", "prebuilt-receipt", "completed", 0.88, 1, DateTime.Parse("2024-01-15T09:00:00Z")),
-    };
-    public List<ExtractedTable> Tables { get; } = new()
-    {
-        new("t1", "a1", 1, new() { "Item", "Qty", "Price" }, new() { new() { "Widget A", "10", "$50.00" }, new() { "Widget B", "5", "$30.00" } }),
-    };
-    public List<KeyValuePair> KeyValues { get; } = new()
-    {
-        new("kv1", "a1", "Invoice Number", "INV-2024-001", 0.98),
-        new("kv2", "a1", "Total Amount", "$650.00", 0.96),
-    };
-}
-"""
+        if _has_custom_entities(spec):
+            return self._dynamic_dotnet_seed_data(spec)
 
         return """// Seed Data -- Generic
 namespace App.Services;
@@ -3880,3 +2665,73 @@ public class SeedData
     };
 }
 """
+
+    def _dynamic_dotnet_services(self, spec: IntentSpec) -> str:
+        """Generate .NET service classes from spec.entities."""
+        lines = ['// Domain Services — auto-generated from intent specification',
+                 'using System.Collections.Concurrent;',
+                 '',
+                 'namespace App.Services;',
+                 '']
+        # Record definitions
+        for ent in spec.entities:
+            fields = ', '.join(
+                f'{_dotnet_type(f.type)} {_pascal_field(f.name)}'
+                for f in ent.fields
+            )
+            lines.append(f'public record {ent.name}(string Id, {fields}, string Status, DateTime CreatedAt);')
+        lines.append('')
+        # Service classes
+        for ent in spec.entities:
+            sn = _snake(ent.name)
+            plural = _plural(ent.name)
+            store_name = f'_{sn}s'
+            cls = f'{ent.name}Service'
+            lines.append(f'public class {cls}')
+            lines.append('{')
+            lines.append(f'    private readonly ConcurrentDictionary<string, {ent.name}> {store_name} = new();')
+            lines.append('')
+            lines.append(f'    public {cls}(SeedData seed) {{ foreach (var e in seed.{plural}) {store_name}[e.Id] = e; }}')
+            lines.append(f'    public IEnumerable<{ent.name}> List(string? status = null) => status is null ? {store_name}.Values : {store_name}.Values.Where(e => e.Status == status);')
+            lines.append(f'    public {ent.name}? Get(string id) => {store_name}.GetValueOrDefault(id);')
+            # Create method
+            create_params = ', '.join(
+                f'{_dotnet_type(f.type)} {_camel(f.name)}'
+                for f in ent.fields if f.name != 'status'
+            )
+            create_args = ', '.join(
+                [f'Guid.NewGuid().ToString()'] +
+                [_camel(f.name) for f in ent.fields if f.name != 'status'] +
+                ['"pending"', 'DateTime.UtcNow']
+            )
+            lines.append(f'    public {ent.name} Create({create_params}) {{ var e = new {ent.name}({create_args}); {store_name}[e.Id] = e; return e; }}')
+            lines.append(f'    public bool Delete(string id) => {store_name}.TryRemove(id, out _);')
+            lines.append('}')
+            lines.append('')
+        return "\n".join(lines)
+
+    def _dynamic_dotnet_seed_data(self, spec: IntentSpec) -> str:
+        """Generate .NET seed data from spec.entities."""
+        lines = ['// Seed Data — auto-generated from intent specification',
+                 'namespace App.Services;',
+                 '',
+                 'public class SeedData',
+                 '{']
+        for ent in spec.entities:
+            plural = _plural(ent.name)
+            lines.append(f'    public List<{ent.name}> {plural} {{ get; }} = new()')
+            lines.append('    {')
+            for rid in range(1, 4):
+                parts = [f'"{_snake(ent.name)}-{rid:03d}"']
+                for f in ent.fields:
+                    val = _seed_value(f, ent.name, rid)
+                    # Convert Python-style value to C# style
+                    cval = _dotnet_seed_val(val, f.type)
+                    parts.append(cval)
+                parts.append('"pending"')
+                parts.append(f'DateTime.Parse("2024-03-{10+rid}T0{8+rid}:00:00Z")')
+                lines.append(f'        new({", ".join(parts)}),')
+            lines.append('    };')
+        lines.append('}')
+        lines.append('')
+        return "\n".join(lines)
