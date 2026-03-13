@@ -125,7 +125,7 @@ curl https://$APP_URL/health
 The built-in deploy orchestrator runs a 4-stage pipeline:
 
 ```bash
-devex deploy --output-dir ./my-project --resource-group $RG --region eastus2
+devex deploy ./my-project -g $RG -r eastus2
 ```
 
 | Stage | Action | On Failure |

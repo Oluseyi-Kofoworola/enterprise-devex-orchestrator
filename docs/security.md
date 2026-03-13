@@ -143,7 +143,7 @@ The orchestrator supports 4 LLM providers with **GitHub Copilot SDK as the defau
 pytest tests/test_security.py -v
 
 # Governance validation on existing scaffold
-devex validate --output-dir ./my-project
+devex validate ./my-project
 ```
 
 ---

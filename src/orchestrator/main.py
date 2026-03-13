@@ -941,11 +941,11 @@ def init(output: str, project: str) -> None:
     """Create an intent.md template to describe your project.
 
     Generates a starter intent.md file that you can fill in.
-    Then run `devex scaffold --file intent.md -o ./my-project` to generate.
+    Then run `devex scaffold --file <dir>/intent.md -o ./<project>` to generate.
 
     Example:
         devex init
-        devex init -o ./my-project -p my-cool-api
+        devex init -o ./my-api -p my-api
     """
     _banner()
     out_dir = Path(output)
@@ -964,7 +964,7 @@ def init(output: str, project: str) -> None:
     console.print(f"\n[green bold][ok] Created {intent_path}[/]\n")
     console.print("  Next steps:")
     console.print(f"  1. Edit [cyan]{intent_path}[/] -- describe what you want to build")
-    console.print(f"  2. Run: [bold]devex scaffold --file {intent_path} -o ./my-project[/]")
+    console.print(f"  2. Run: [bold]devex scaffold --file {intent_path} -o ./{project}[/]")
     console.print("  3. Your entire infrastructure is generated and ready!\n")
 
 
@@ -998,7 +998,7 @@ def upgrade(intent_file: str, output: str, dry_run: bool) -> None:
     for safe, revision-based deployment.
 
     Example:
-        devex upgrade --file intent.v2.md -o ./my-project
+        devex upgrade --file intent.v2.md -o ./<project>
     """
     _banner()
     config = _load_config()
