@@ -74,19 +74,29 @@ A propane delivery logistics platform for managing deliveries, tank monitoring, 
 devex scaffold --file examples/propane-delivery-intent.md -o ./propane-delivery-output
 ```
 
+### 6. Pet Adoption Shelter Management
+
+**File:** [`pet-adoption-intent.md`](pet-adoption-intent.md)
+
+A pet adoption shelter management platform for tracking animals, adoption applications, medical records, foster placements, volunteers, and donations. Demonstrates semantic extraction across 6 entity domains with Cosmos DB and Blob storage.
+
+```powershell
+devex scaffold --file examples/pet-adoption-intent.md -o ./pet-adoption-output
+```
+
 ---
 
 ## Comparison
 
-| Feature | Voice Agent | Contract Review | Doc Intelligence | Propane Delivery |
-|---------|-------------|-----------------|------------------|------------------|
-| Industry | Healthcare Ops | Legal Ops | Document Processing | Logistics |
-| Primary User | Clinical staff | Legal team | Back-office staff | Delivery operations |
-| Data Stores | None (in-memory) | Blob, Cosmos DB | Blob | Cosmos DB |
-| AI/ML | Pattern matching | GPT-4, clause extraction | Document Intelligence | Route optimization |
-| Compliance | HIPAA | HIPAA, SOC2 | SOC2 | SOC2 |
-| Auth | Entra ID | Entra ID + RBAC | Managed Identity | Managed Identity |
-| Entity Discovery | Semantic NLP | Semantic NLP | Semantic NLP | Semantic NLP |
+| Feature | Voice Agent | Contract Review | Doc Intelligence | Propane Delivery | Pet Adoption |
+|---------|-------------|-----------------|------------------|------------------|--------------|
+| Industry | Healthcare Ops | Legal Ops | Document Processing | Logistics | Animal Welfare |
+| Primary User | Clinical staff | Legal team | Back-office staff | Delivery operations | Shelter staff |
+| Data Stores | None (in-memory) | Blob, Cosmos DB | Blob | Cosmos DB | Cosmos DB, Blob |
+| AI/ML | Pattern matching | GPT-4, clause extraction | Document Intelligence | Route optimization | Matching algorithms |
+| Compliance | HIPAA | HIPAA, SOC2 | SOC2 | SOC2 | SOC2 |
+| Auth | Entra ID | Entra ID + RBAC | Managed Identity | Managed Identity | Entra ID |
+| Entity Discovery | Semantic NLP | Semantic NLP | Semantic NLP | Semantic NLP | Semantic NLP |
 
 ---
 
