@@ -108,13 +108,13 @@ Runs 25 governance policy checks and drift-aware validation against the generate
 ## 7. Create Your Own Intent
 
 ```powershell
-devex init -o ./my-api -p my-api
+devex init -o ./my-first-output -p my-first-output
 ```
 
-Edit `./my-api/intent.md` with your business requirements, then:
+Edit `./my-first-output/intent.md` with your business requirements, then:
 
 ```powershell
-devex scaffold --file ./my-api/intent.md -o ./my-api
+devex scaffold --file ./my-first-output/intent.md -o ./my-first-output
 ```
 
 ---
@@ -242,7 +242,6 @@ Generated folders are disposable:
 Remove-Item -Recurse -Force ./my-first-output -ErrorAction SilentlyContinue
 Remove-Item -Recurse -Force ./contract-review -ErrorAction SilentlyContinue
 Remove-Item -Recurse -Force ./doc-intelligence -ErrorAction SilentlyContinue
-Remove-Item -Recurse -Force ./my-api -ErrorAction SilentlyContinue
 ```
 
 To delete Azure resources:
