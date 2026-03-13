@@ -127,7 +127,7 @@ class IntentParserAgent:
             )
             spec = self._parse_response(response, raw_intent)
         except Exception as e:
-            logger.warning("intent_parser.llm_fallback", error=str(e))
+            logger.debug("intent_parser.llm_fallback", error=str(e))
             spec = self._rule_based_parse(raw_intent)
 
         logger.info(

@@ -110,6 +110,7 @@
 | 19 | Live deployment | Done | Azure Container Apps (eastus2) |
 | 20 | Domain-aware generation | Done | 4 domains: Healthcare, Legal, Document Processing, Generic |
 | 21 | Frontend SPA generator | Done | React 18 + Vite 5 + TypeScript with domain dashboards |
+| 22 | Multi-provider LLM | Done | GitHub Copilot SDK (default), Azure OpenAI, OpenAI, Anthropic (Claude) |
 
 ---
 
@@ -125,11 +126,13 @@
 8. **9 generators** -- Bicep, CI/CD, App, Frontend, Docs, Tests, Alerts, Cost, Dashboard
 9. **Standards engine** -- Azure CAF naming + enterprise tagging enforced programmatically
 10. **Advanced patterns** -- Skills, subagents, persistent planning, deploy orchestrator
-11. **Intent-to-production** -- Single command generates and deploys enterprise-grade infrastructure
+11. **Multi-provider LLM** -- GitHub Copilot SDK (default), Azure OpenAI, OpenAI, Anthropic with auto-detection
+12. **Intent-to-production** -- Single command generates and deploys enterprise-grade infrastructure
 
 ---
 
 *135/135 | Enterprise Architecture + Azure WAF + Security + Operations + Advanced Patterns*
-*9 generators | 4 business domains | Full-stack: Backend + Frontend + Infrastructure*
+*9 generators | 4 business domains | Multi-provider LLM (GitHub Copilot SDK default)*
+*Full-stack: Backend + Frontend + Infrastructure*
 
 

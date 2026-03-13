@@ -147,6 +147,16 @@ class AppGenerator:
         checkKeyVault();
         setInterval(checkHealth, 30000);"""
 
+    def _css_for_fstring(self) -> str:
+        """Return CSS with braces escaped for embedding inside a Python f-string."""
+        lb, rb = chr(123), chr(125)
+        return self.ENTERPRISE_CSS.replace(lb, lb * 2).replace(rb, rb * 2)
+
+    def _js_for_fstring(self) -> str:
+        """Return dashboard JS with braces escaped for embedding inside a Python f-string."""
+        lb, rb = chr(123), chr(125)
+        return self.ENTERPRISE_JS.replace(lb, lb * 2).replace(rb, rb * 2)
+
     def _enterprise_data_stores(self, spec: IntentSpec) -> str:
         """Render architecture data store line based on spec."""
         stores = []
@@ -382,7 +392,7 @@ async def health():
 @app.get("/")
 async def root():
     \"\"\"Root endpoint -- enterprise dashboard.\"\"\"
-    compliance_badges = "{self._enterprise_compliance_badges(spec)}"
+    compliance_badges = \"\"\"{self._enterprise_compliance_badges(spec)}\"\"\"
     data_stores = "{self._enterprise_data_stores(spec)}"
     html = f\"\"\"<!DOCTYPE html>
 <html lang=\"en\">
@@ -391,7 +401,7 @@ async def root():
     <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
     <title>{{APP_NAME}} — Enterprise Dashboard</title>
     <style>
-        {self.ENTERPRISE_CSS}
+        {self._css_for_fstring()}
     </style>
 </head>
 <body>
@@ -460,7 +470,7 @@ async def root():
     </div>
     <footer class=\"footer\">{{APP_NAME}} v{{VERSION}} · <a href=\"/docs\">API Docs</a> · Enterprise DevEx Orchestrator</footer>
     <script>
-        {self.ENTERPRISE_JS}
+        {self._js_for_fstring()}
     </script>
 </body>
 </html>

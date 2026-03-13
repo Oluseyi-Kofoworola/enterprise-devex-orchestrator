@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 
 
 # Orchestrator version
-__version__ = "1.3.0"
+__version__ = "1.4.0"
 
 # Supported LLM providers
 SUPPORTED_PROVIDERS = ["azure_openai", "openai", "anthropic", "copilot_sdk", "template-only"]
@@ -60,7 +60,8 @@ def _resolve_provider() -> str:
         return "openai"
     if os.getenv("GITHUB_TOKEN"):
         return "copilot_sdk"
-    return "template-only"
+    # Default to GitHub Copilot SDK -- always available in Copilot-enabled environments
+    return "copilot_sdk"
 
 
 def _resolve_model(provider: str) -> str:
@@ -142,7 +143,7 @@ class AppConfig:
     azure: AzureConfig = field(default_factory=AzureConfig)
     copilot: CopilotConfig = field(default_factory=CopilotConfig)
     llm: LLMConfig = field(default_factory=LLMConfig)
-    log_level: str = field(default_factory=lambda: os.getenv("LOG_LEVEL", "INFO"))
+    log_level: str = field(default_factory=lambda: os.getenv("LOG_LEVEL", "ERROR"))
     log_format: str = field(default_factory=lambda: os.getenv("LOG_FORMAT", "json"))
     output_base: Path = field(default_factory=lambda: Path(os.getenv("OUTPUT_DIR", "out")))
 

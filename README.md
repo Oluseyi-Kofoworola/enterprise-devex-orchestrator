@@ -61,6 +61,31 @@ pytest tests/ -v
 
 ---
 
+## LLM Providers
+
+The orchestrator supports multiple LLM backends. **GitHub Copilot SDK** is the default provider and requires no additional configuration in Copilot-enabled environments.
+
+| Provider | Default Model | Env Vars Required |
+|----------|--------------|-------------------|
+| **GitHub Copilot SDK** (default) | `gpt-4o` | `GITHUB_TOKEN` (auto-detected) |
+| Azure OpenAI | `gpt-4o` | `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY` |
+| OpenAI | `gpt-4o` | `OPENAI_API_KEY` |
+| Anthropic (Claude) | `claude-opus-4-20250514` | `ANTHROPIC_API_KEY` |
+
+```powershell
+# Check current provider and available providers
+devex version
+devex providers
+
+# Switch provider via environment variable
+$env:LLM_PROVIDER = "anthropic"
+$env:ANTHROPIC_API_KEY = "sk-ant-..."
+```
+
+The orchestrator auto-detects the provider from available credentials. When no credentials are found, it defaults to GitHub Copilot SDK. Set `LLM_PROVIDER` explicitly to override auto-detection.
+
+---
+
 ## Usage
 
 ### Preview a plan (no files written)
@@ -145,6 +170,7 @@ output-dir/
 | `devex history` | Show scaffold version history |
 | `devex new-version` | Create next intent template from existing output |
 | `devex version` | Show CLI and runtime details |
+| `devex providers` | List supported LLM providers and models |
 
 ---
 
@@ -187,10 +213,11 @@ Each agent has a distinct role, instruction set, and tool access. See [`AGENTS.m
 ```
 src/orchestrator/
   agent.py                # 4-agent chain runtime
-  config.py               # Configuration management
+  config.py               # Configuration management (multi-provider LLM)
   intent_file.py          # Markdown intent file parser (9 enterprise sections)
   intent_schema.py        # Pydantic schemas (IntentSpec, PlanOutput, GovernanceReport, DomainType, EntitySpec)
-  main.py                 # CLI entry point (9 commands)
+  llm_client.py           # Multi-provider LLM client abstraction
+  main.py                 # CLI entry point (10 commands)
   state.py                # State management and drift detection
   versioning.py           # Version tracking, upgrade, and rollback
   agents/
@@ -309,6 +336,15 @@ Extension points:
 
 ## Changelog
 
+### v1.4.0
+
+- **Feature**: Multi-provider LLM support -- GitHub Copilot SDK (default), Azure OpenAI, OpenAI, Anthropic (Claude)
+- **Feature**: GitHub Copilot SDK is now the default provider (no configuration required)
+- **Feature**: `devex providers` command lists all supported providers and models
+- **Feature**: `devex version` shows active provider and model
+- **Feature**: Auto-detection from available credentials with copilot_sdk fallback
+- **Docs**: Updated all documentation with multi-provider LLM configuration
+
 ### v1.3.0
 
 - **Feature**: Domain-aware code generation with auto-detection of 4 business domains
@@ -352,7 +388,7 @@ MIT
 
 ---
 
-*Enterprise DevEx Orchestrator v1.3.0*
+*Enterprise DevEx Orchestrator v1.4.0*
 
 
 

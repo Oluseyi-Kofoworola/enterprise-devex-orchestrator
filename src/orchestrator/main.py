@@ -18,6 +18,15 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+# Ensure UTF-8 output on Windows to prevent UnicodeEncodeError with Rich
+# spinner characters (Braille patterns) on legacy cp1252 consoles.
+if sys.platform == "win32" and hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 import click
 from rich.console import Console
 from rich.panel import Panel
@@ -516,14 +525,16 @@ def _resolve_intent_with_meta(intent: str | None, intent_file: str | None) -> tu
 
 
 @click.group()
-@click.version_option(version="1.3.0", prog_name="Enterprise DevEx Orchestrator")
-def cli() -> None:
+@click.version_option(version=__version__, prog_name="Enterprise DevEx Orchestrator")
+@click.option("--verbose", "-v", is_flag=True, default=False, help="Enable verbose (INFO-level) logging output.")
+def cli(verbose: bool) -> None:
     """Enterprise DevEx Orchestrator Agent.
 
     Transform business intent into production-ready, secure, deployable
     Azure workloads -- powered by GitHub Copilot SDK.
     """
-    pass
+    if verbose:
+        os.environ["LOG_LEVEL"] = "INFO"
 
 
 @cli.command()

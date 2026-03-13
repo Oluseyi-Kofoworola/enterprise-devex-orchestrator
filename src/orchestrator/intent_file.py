@@ -401,6 +401,8 @@ class IntentFileParser:
             _body: Text between H1 and first H2/H3
         """
         sections: dict[str, str] = {}
+        # Strip BOM (U+FEFF) that some editors add to UTF-8 files
+        content = content.lstrip("\ufeff")
         lines = content.split("\n")
 
         current_section: str | None = None

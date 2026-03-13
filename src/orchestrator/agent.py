@@ -108,6 +108,10 @@ class AgentRuntime:
         Returns:
             The agent's final text response.
         """
+        # Short-circuit in template-only mode to avoid HTTP timeouts
+        if self.config.llm.provider == "template-only":
+            return self._fallback_response(user_message)
+
         # Merge run-specific tools with registered tools
         all_tools = dict(self._tool_registry)
         if tools:
@@ -132,7 +136,7 @@ class AgentRuntime:
                     temperature=self.config.llm.temperature,
                 )
             except Exception as e:
-                logger.error("agent.api_error", error=str(e), iteration=iteration)
+                logger.debug("agent.api_error", error=str(e), iteration=iteration)
                 # Fall back to template-only mode
                 return self._fallback_response(user_message)
 

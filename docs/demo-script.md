@@ -10,7 +10,8 @@
 ```bash
 # Ensure orchestrator is installed
 pip install -e .
-devex version
+devex version        # Shows provider: GitHub Copilot SDK (default)
+devex providers      # Lists all supported providers and models
 
 # Verify Azure CLI
 az account show
@@ -24,7 +25,7 @@ az account show
 
 ```bash
 # Show the plan without generating files
-devex plan --intent "Build a healthcare voice agent API with patient records, voice interaction, and HIPAA compliance"
+devex plan "Build a healthcare voice agent API with patient records, voice interaction, and HIPAA compliance"
 ```
 
 **What to highlight:**
@@ -43,7 +44,7 @@ devex plan --intent "Build a healthcare voice agent API with patient records, vo
 
 ```bash
 # Generate full scaffold
-devex scaffold --intent "Build a healthcare voice agent API" --output-dir ./demo-output
+devex scaffold "Build a healthcare voice agent API" --output ./demo-output
 ```
 
 **What to highlight:**
@@ -102,7 +103,7 @@ cat demo-output/docs/waf-report.md | head -30
 
 ```bash
 # Deploy the generated scaffold
-devex deploy --output-dir ./demo-output --resource-group $RG --region eastus2
+devex deploy ./demo-output -g $RG -r eastus2
 
 # Show the live app
 APP_URL=$(az containerapp show --name <project>-dev --resource-group $RG --query properties.configuration.ingress.fqdn -o tsv)
@@ -164,6 +165,31 @@ pytest tests/ -v --tb=short 2>&1 | tail -5
 
 ---
 
+## Segment 7: Multi-Provider LLM (30 sec)
+
+**Narration:** "The orchestrator supports multiple LLM providers with GitHub Copilot SDK as the default."
+
+```bash
+# Show current provider (defaults to GitHub Copilot SDK)
+devex version
+
+# List all supported providers
+devex providers
+
+# Switch provider on-the-fly
+export LLM_PROVIDER=anthropic
+export ANTHROPIC_API_KEY=sk-ant-...
+devex version   # Now shows Anthropic (Claude)
+```
+
+**What to highlight:**
+- GitHub Copilot SDK is the default -- zero configuration needed
+- 4 providers supported: Copilot SDK, Azure OpenAI, OpenAI, Anthropic (Claude)
+- Auto-detection from available credentials
+- Switch providers without code changes
+
+---
+
 ## Backup Plan
 
 If demo environment is unavailable:
@@ -177,6 +203,7 @@ If demo environment is unavailable:
 
 *Full pipeline: intent -> parse -> plan -> govern -> generate -> deploy*
 *543 tests | 25 policies | 26 WAF principles | Live on Azure Container Apps*
+*Multi-provider LLM: GitHub Copilot SDK (default) · Azure OpenAI · OpenAI · Anthropic (Claude)*
 *Domain-aware full-stack: Healthcare · Legal · Document Processing · Generic*
 *Backend: Python (FastAPI) · Node.js (Express) · .NET (ASP.NET Core)*
 *Frontend: React 18 + Vite 5 + TypeScript*

@@ -13,6 +13,32 @@
 | Bicep CLI | `az bicep version` |
 | Azure subscription | `az account show` |
 
+## LLM Provider Configuration
+
+The orchestrator defaults to **GitHub Copilot SDK** -- no additional setup required in Copilot-enabled environments.
+
+To use a different LLM provider, set the `LLM_PROVIDER` environment variable before running commands:
+
+```powershell
+# Default -- GitHub Copilot SDK (no config needed)
+devex scaffold --file intent.md -o ./output
+
+# Use Azure OpenAI
+$env:LLM_PROVIDER = "azure_openai"
+$env:AZURE_OPENAI_ENDPOINT = "https://my-endpoint.openai.azure.com/"
+$env:AZURE_OPENAI_API_KEY = "..."
+
+# Use Anthropic Claude
+$env:LLM_PROVIDER = "anthropic"
+$env:ANTHROPIC_API_KEY = "sk-ant-..."
+
+# Check active provider
+devex version
+devex providers
+```
+
+See [`.env.example`](../.env.example) for all configuration options.
+
 ## Deployment Architecture
 
 The orchestrator generates scaffolds with a standardized deployment pipeline:
@@ -172,5 +198,6 @@ The frontend connects to the backend API via the `VITE_API_URL` environment vari
 
 *Deployment patterns enforce enterprise security: OIDC auth, Managed Identity, RBAC over access policies.*
 *Full-stack scaffolds: Backend (Python/Node.js/.NET) + Frontend (React+Vite+TypeScript) + Infrastructure (Bicep).*
+*Default LLM: GitHub Copilot SDK -- zero-configuration in Copilot-enabled environments.*
 
 

@@ -20,12 +20,32 @@ Verify the installation:
 
 ```powershell
 devex --help
-devex version
+devex version      # Shows provider: GitHub Copilot SDK (default)
 ```
 
 ---
 
-## 2. Run the Tests
+## 2. LLM Provider (Optional)
+
+The orchestrator defaults to **GitHub Copilot SDK** -- no configuration needed. To use a different provider:
+
+```powershell
+# List supported providers
+devex providers
+
+# Switch to Azure OpenAI
+$env:LLM_PROVIDER = "azure_openai"
+$env:AZURE_OPENAI_ENDPOINT = "https://my-endpoint.openai.azure.com/"
+$env:AZURE_OPENAI_API_KEY = "..."
+
+# Or use a .env file (copy from .env.example)
+copy .env.example .env
+# Edit .env with your provider settings
+```
+
+---
+
+## 3. Run the Tests
 
 Confirm everything works before generating scaffolds:
 
@@ -35,7 +55,7 @@ pytest tests/ -v
 
 ---
 
-## 3. Preview an Architecture Plan
+## 4. Preview an Architecture Plan
 
 See how the orchestrator interprets an intent file without writing any files:
 
@@ -51,7 +71,7 @@ devex plan --file examples/intent.md -F json
 
 ---
 
-## 4. Generate a Scaffold
+## 5. Generate a Scaffold
 
 ```powershell
 devex scaffold --file examples/intent.md -o ./my-first-output
@@ -75,7 +95,7 @@ my-first-output/
 
 ---
 
-## 5. Validate Governance
+## 6. Validate Governance
 
 ```powershell
 devex validate ./my-first-output
@@ -85,7 +105,7 @@ Runs 25 governance policy checks and drift-aware validation against the generate
 
 ---
 
-## 6. Create Your Own Intent
+## 7. Create Your Own Intent
 
 ```powershell
 devex init -o ./my-project -p my-enterprise-api
@@ -99,7 +119,7 @@ devex scaffold --file ./my-project/intent.md -o ./my-project
 
 ---
 
-## 7. Try Other Examples
+## 8. Try Other Examples
 
 The [`examples/`](examples/) folder includes additional intent files:
 
@@ -112,7 +132,7 @@ Each generates a full scaffold with CI/CD workflows ready to push and deploy.
 
 ---
 
-## 8. Iterate with Versioned Intents
+## 9. Iterate with Versioned Intents
 
 ```powershell
 devex new-version ./my-first-output
@@ -130,7 +150,7 @@ Recommended iteration loop:
 
 ---
 
-## 9. Push to GitHub
+## 10. Push to GitHub
 
 Create a new repo on GitHub, then push the scaffold:
 
@@ -155,7 +175,7 @@ The generated `.github/workflows/` folder contains:
 
 ---
 
-## 10. Deploy to Azure (Optional)
+## 11. Deploy to Azure (Optional)
 
 Deployment requires Azure CLI (`az`) and an active Azure subscription.
 
@@ -214,7 +234,7 @@ The deploy pipeline:
 
 ---
 
-## 11. Cleanup
+## 12. Cleanup
 
 Generated folders are disposable:
 
@@ -246,8 +266,7 @@ az group delete --name rg-<project-name>-dev --yes --no-wait
 | `devex history` | View version history |
 | `devex new-version` | Generate upgrade intent template |
 | `devex version` | Show orchestrator version info |
-
----
+| `devex providers` | List supported LLM providers and models |
 
 ## Troubleshooting
 

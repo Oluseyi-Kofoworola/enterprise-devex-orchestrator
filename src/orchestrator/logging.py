@@ -46,13 +46,17 @@ def setup_logging(level: str = "INFO", fmt: str = "json") -> None:
         ],
     )
 
-    handler = logging.StreamHandler(sys.stdout)
+    handler = logging.StreamHandler(sys.stderr)
     handler.setFormatter(formatter)
 
     root = logging.getLogger()
     root.handlers.clear()
     root.addHandler(handler)
     root.setLevel(getattr(logging, level.upper(), logging.INFO))
+
+    # Suppress noisy HTTP client logs (httpx, urllib3)
+    for noisy_logger in ("httpx", "urllib3", "httpcore"):
+        logging.getLogger(noisy_logger).setLevel(logging.CRITICAL)
 
 
 def get_logger(name: str) -> structlog.stdlib.BoundLogger:

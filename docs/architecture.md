@@ -179,16 +179,52 @@ graph TD
 
 ## Agent Capabilities Summary
 
-| Agent | Tools | Fallback | Key Output |
-|-------|-------|----------|-----------|
-| Intent Parser | None (pure LLM) | Rule-based keyword extraction + domain detection | `IntentSpec` with `DomainType`, entities, endpoints |
-| Architecture Planner | `check_policy`, `check_region_availability` | Template-based component builder | `PlanOutput` with ADRs + threat model |
-| Governance Reviewer | `check_policy`, `list_policies`, `validate_bicep` | Policy catalog evaluation | `GovernanceReport` + `WAFAlignmentReport` |
-| Infrastructure Generator | `render_template`, `preview_output`, `validate_bicep` | Direct file generation | Complete file tree (backend + frontend + infra) |
+| Agent | Tools | LLM Provider | Fallback | Key Output |
+|-------|-------|-------------|----------|-----------|
+| Intent Parser | None (pure LLM) | GitHub Copilot SDK (default) | Rule-based keyword extraction + domain detection | `IntentSpec` with `DomainType`, entities, endpoints |
+| Architecture Planner | `check_policy`, `check_region_availability` | GitHub Copilot SDK (default) | Template-based component builder | `PlanOutput` with ADRs + threat model |
+| Governance Reviewer | `check_policy`, `list_policies`, `validate_bicep` | GitHub Copilot SDK (default) | Policy catalog evaluation | `GovernanceReport` + `WAFAlignmentReport` |
+| Infrastructure Generator | `render_template`, `preview_output`, `validate_bicep` | GitHub Copilot SDK (default) | Direct file generation | Complete file tree (backend + frontend + infra) |
+
+## LLM Provider Architecture
+
+The orchestrator supports multiple LLM backends with **GitHub Copilot SDK as the default**:
+
+```mermaid
+graph TD
+    subgraph "LLM Provider Layer"
+        CFG[LLMConfig<br>Auto-detect + Copilot SDK default]
+        CL[LLM Client Factory]
+        
+        CS[GitHub Copilot SDK<br>DEFAULT]
+        AO[Azure OpenAI]
+        OA[OpenAI]
+        AN[Anthropic / Claude]
+        TO[Template-Only<br>No LLM]
+    end
+
+    CFG --> CL
+    CL --> CS
+    CL --> AO
+    CL --> OA
+    CL --> AN
+    CL --> TO
+```
+
+| Provider | Default Model | Auto-Detect Env Var | Priority |
+|----------|--------------|---------------------|----------|
+| Azure OpenAI | `gpt-4o` | `AZURE_OPENAI_ENDPOINT` | 1 (highest) |
+| Anthropic | `claude-opus-4-20250514` | `ANTHROPIC_API_KEY` | 2 |
+| OpenAI | `gpt-4o` | `OPENAI_API_KEY` | 3 |
+| GitHub Copilot SDK | `gpt-4o` | `GITHUB_TOKEN` | 4 |
+| GitHub Copilot SDK | `gpt-4o` | (none — default fallback) | 5 (always) |
+
+**Key modules:** `config.py` (LLMConfig, auto-detection), `llm_client.py` (provider adapters), `agent.py` (AgentRuntime integration).
 
 ---
 
 *4-agent chain | 9 MCP tools | 9 generators | 25 policies | 543 tests*
+*Multi-provider LLM: GitHub Copilot SDK (default) · Azure OpenAI · OpenAI · Anthropic (Claude)*
 *Azure CAF naming + enterprise tagging + WAF 5-pillar alignment*
 *Domain-aware full-stack: Healthcare · Legal · Document Processing · Generic*
 *Backend: Python (FastAPI) · Node.js (Express) · .NET (ASP.NET Core)*

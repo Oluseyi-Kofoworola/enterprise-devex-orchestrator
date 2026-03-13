@@ -109,6 +109,24 @@ def get_repository(entity: str) -> BaseRepository:
 - `STORAGE_MODE` environment variable controls storage backend (default: in-memory with seed data)
 - Azure mode uses Managed Identity for authentication -- no connection strings in code
 
+### LLM Provider Credential Security
+
+The orchestrator supports 4 LLM providers with **GitHub Copilot SDK as the default**:
+
+| Provider | Credential | Storage | Recommendation |
+|----------|-----------|---------|---------------|
+| GitHub Copilot SDK (default) | `GITHUB_TOKEN` | Environment variable | Uses existing Copilot session -- no extra secrets |
+| Azure OpenAI | `AZURE_OPENAI_API_KEY` | Environment variable | Prefer Managed Identity in production |
+| OpenAI | `OPENAI_API_KEY` | Environment variable | Rotate regularly, restrict to required scopes |
+| Anthropic | `ANTHROPIC_API_KEY` | Environment variable | Rotate regularly, restrict to required scopes |
+
+**Security controls for LLM credentials:**
+- API keys are read from environment variables only, never hardcoded
+- `.env` files are excluded from version control via `.gitignore`
+- No credentials are embedded in generated scaffolds
+- Auto-detection checks credentials in secure priority order
+- Default to GitHub Copilot SDK eliminates need for external API keys in most environments
+
 ## Compliance Mapping
 
 | Framework | Coverage | Evidence |
@@ -132,5 +150,6 @@ devex validate --output-dir ./my-project
 
 *Security is not a feature -- it is the baseline. Every scaffold enforces these controls by default.*
 *Repository pattern ensures consistent, auditable data access across all domains.*
+*LLM credentials handled securely -- GitHub Copilot SDK default eliminates external API key requirements.*
 
 
