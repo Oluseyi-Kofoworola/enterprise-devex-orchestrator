@@ -1,0 +1,130 @@
+# Demo Script: ecommerce-returns-refund-management-pla
+
+> Duration: 3 minutes | No improvisation -- follow this script exactly.
+
+## Project Overview
+
+- **Description:** Build an enterprise-grade ecommerce returns and refund management API that automates the full lifecycle of product returns, refund processing, and customer communication for a mid-to-large online reta
+- **Domain Entities:** Refund, Return, Policy, Eligibility, Order
+- **Data Stores:** Cosmos Db, Redis
+- **Compute:** Container Apps
+- **Region:** eastus2
+
+## Setup (Before Recording)
+
+1. Ensure Azure subscription is active
+2. Ensure `.env` is configured
+3. Have a terminal open in the project root
+4. Have Azure Portal open in a browser tab
+5. (Optional) Have backup screenshots in `docs/screenshots/`
+
+## Demo Flow
+
+### Minute 0:00 -- 0:30 | Introduction
+
+**Say:** "We built an Enterprise DevEx Orchestrator -- a Copilot SDK-powered
+agent that transforms plain-English business intent into production-ready,
+secure, deployable Azure workloads. Today we'll demonstrate it with a
+build an enterprise-grade ecommerce returns and refund management api that automates the full lifecycle of product returns, refund processing, and customer communication for a mid-to-large online reta use case."
+
+**Show:** README.md in the repo
+
+### Minute 0:30 -- 1:30 | Agent in Action
+
+**Run:**
+```bash
+python -m src.orchestrator.main scaffold \
+  --file intent.md -o ./ecommerce-returns-refund-management-pla
+```
+
+**Show:**
+- Intent parsing output -- notice the 5 domain entities extracted: Refund, Return, Policy, Eligibility, Order
+- Architecture plan (`docs/plan.md`) with Build an enterprise-grade ecommerce returns and refund management API that automates the full lifecycle of product returns, refund processing, and customer communication for a mid-to-large online reta
+- Mermaid diagram rendering
+- Governance validation report -- all checks PASS
+
+**Say:** "The agent parsed our intent, extracted 5 domain
+entities (Refund, Return, Policy, Eligibility, Order), generated an architecture plan with ADRs and
+threat model, validated against governance policies, and produced deployable
+infrastructure."
+
+### Minute 1:30 -- 2:15 | Generated Artifacts
+
+**Show:**
+- `infra/bicep/main.bicep` -- Infrastructure as Code with Cosmos Db, Redis
+- `infra/bicep/modules/` -- Modular Bicep files
+- `.github/workflows/` -- CI/CD pipelines with OIDC
+- `src/app/main.py` -- Interactive business dashboard + API
+- `docs/security.md` -- Security controls and STRIDE threat model
+- `docs/governance-report.md` -- Governance validation results
+
+**Highlight the business dashboard:**
+- KPI cards showing live counts per entity (Refund, Return, Policy, Eligibility, Order)
+- Data tables with search, status badges, and workflow actions
+- Create/edit forms auto-generated from domain schema
+- Approve/reject/process workflow buttons
+
+**Sample API endpoints to demo:**
+- `GET /refunds` -- List Refund records
+- `GET /refunds/{id}` -- Get Refund by ID
+- `GET /returns` -- List Return records
+
+**Say:** "Every artifact is domain-specific: the API handles Refund, Return, Policy, Eligibility, Order with
+full CRUD and workflow actions. Infrastructure includes Cosmos Db, Redis,
+managed identity, Key Vault, and CI/CD with OIDC -- all generated from
+the intent file."
+
+### Minute 2:15 -- 2:45 | Live Deployment
+
+**Option A (Live):**
+```bash
+az deployment group create \
+  --resource-group rg-ecommerce-returns-refund-management-pla-dev \
+  --template-file infra/bicep/main.bicep \
+  --parameters infra/bicep/parameters/dev.parameters.json
+```
+
+**Option B (Pre-deployed):**
+- Switch to Azure Portal
+- Show Resource Group with all resources
+- Click into Container App -> show dashboard with Refund, Return, Policy, Eligibility, Order data
+- Click into Log Analytics -> run sample KQL query
+
+### Minute 2:45 -- 3:00 | Wrap Up
+
+**Say:** "Enterprises don't need faster code. They need safe, compliant,
+repeatable architecture. We built a Copilot SDK-powered orchestrator that
+turns intent into governed infrastructure with domain-aware APIs, interactive
+dashboards, security, observability, and CI/CD -- all tailored to your
+business problem."
+
+## Backup Plan
+
+If live demo fails:
+1. Show pre-recorded terminal output
+2. Show Azure Portal screenshots in `docs/screenshots/`
+3. Walk through generated code in the repo
+4. Open `http://localhost:8000/` to show the interactive dashboard locally
+
+## Azure Portal Locations to Show
+
+| Resource | What to Click |
+|----------|--------------|
+| Resource Group | Overview -> see all resources |
+| Container App | Overview -> FQDN, Revisions |
+| Key Vault | Access policies -> RBAC |
+| Log Analytics | Logs -> run KQL query |
+| Container Registry | Repositories -> image |
+
+## Sample KQL Query
+
+```kql
+ContainerAppConsoleLogs_CL
+| where ContainerAppName_s == "ecommerce-returns-refund-management-pla"
+| project TimeGenerated, Log_s, RevisionName_s
+| order by TimeGenerated desc
+| take 20
+```
+
+---
+*Generated by Enterprise DevEx Orchestrator Agent*
