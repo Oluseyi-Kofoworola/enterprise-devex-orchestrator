@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 
 
 # Orchestrator version
-__version__ = "1.4.0"
+__version__ = "1.5.0"
 
 # Supported LLM providers
 SUPPORTED_PROVIDERS = ["azure_openai", "openai", "anthropic", "copilot_sdk", "template-only"]

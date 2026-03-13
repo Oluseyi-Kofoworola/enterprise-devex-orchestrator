@@ -185,19 +185,29 @@ Generated scaffolds include a React + Vite + TypeScript frontend with a multi-st
 
 ```bash
 # The frontend Dockerfile uses multi-stage build:
-# Stage 1: node:18-alpine builds the React app
-# Stage 2: nginx:alpine serves the static assets
+# Stage 1: node:20-alpine builds the React app
+# Stage 2: nginx:alpine serves the static assets with configurable API proxy
 
 # Build and deploy frontend
 az acr build --registry $ACR_NAME --image <project>-frontend:v1.0.0 --no-logs frontend/
 ```
 
-The frontend connects to the backend API via the `VITE_API_URL` environment variable set at build time.
+The frontend nginx proxy connects to the backend via the `API_BACKEND_URL` environment variable:
+
+```bash
+# Default: Docker Compose service name (works with docker-compose up)
+# Override for Azure Container Apps:
+az containerapp update \
+  --name <project>-frontend-dev \
+  --resource-group $RG \
+  --set-env-vars API_BACKEND_URL=https://<backend-fqdn>
+```
+
+The React SPA is **domain-aware** -- it generates entity-specific API clients, TypeScript types, tabbed dashboards, and detail pages from the intent specification. No manual frontend customization required.
 
 ---
 
-*Deployment patterns enforce enterprise security: OIDC auth, Managed Identity, RBAC over access policies.*
-*Full-stack scaffolds: Backend (Python/Node.js/.NET) + Frontend (React+Vite+TypeScript) + Infrastructure (Bicep).*
+*Deployment patterns enforce enterprise security: OIDC auth, Managed Identity, RBAC over access policies.*\n*Full-stack scaffolds: Backend (Python/Node.js/.NET) + Domain-Aware Frontend (React+Vite+TypeScript) + Infrastructure (Bicep).*
 *Default LLM: GitHub Copilot SDK -- zero-configuration in Copilot-enabled environments.*
 
 

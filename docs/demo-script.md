@@ -65,8 +65,10 @@ find demo-output -type f | head -40
 # Show domain-specific services
 cat demo-output/src/app/services/*.py | head -40
 
-# Show React frontend
+# Show React frontend -- domain-specific dashboard, API client, types
 ls demo-output/frontend/src/
+cat demo-output/frontend/src/api/client.ts | head -20
+cat demo-output/frontend/src/pages/Dashboard.tsx | head -25
 
 # Show governance passed
 cat demo-output/docs/governance-report.md | head -20
@@ -122,14 +124,20 @@ curl https://$APP_URL/health
 
 ## Segment 5: Domain-Aware Generation (30 sec)
 
-**Narration:** "The orchestrator auto-detects business domains and generates real services."
+**Narration:** "The orchestrator auto-detects business domains and generates real services -- including a domain-specific React SPA."
 
 | Domain | Services | Endpoints | Entities |
 |--------|----------|-----------|----------|
 | Healthcare | PatientService, AppointmentService, VoiceInteractionService, ComplianceService | 11 | Patient, Appointment, VoiceSession |
 | Legal | ContractService, ClauseAnalysisService, ComplianceService | 7 | Contract, Clause, ReviewResult |
 | Document Processing | DocumentService, ExtractionService | 6 | Document, ExtractionResult |
-| Generic | ItemService (CRUD) | 5 | Item |
+| Generic (dynamic) | Entity-specific services from NLP extraction | Dynamic per entity | Extracted from intent text |
+
+**React SPA frontend is also domain-aware:**
+- API client maps to entity-specific endpoints (e.g., `listRefunds`, `processReturn`)
+- Dashboard shows tabbed data tables per entity with KPI cards, search, create modals
+- Detail page renders all entity fields with action buttons
+- TypeScript interfaces generated from entity field specs
 
 ```bash
 # Show repository pattern

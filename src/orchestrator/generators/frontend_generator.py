@@ -11,10 +11,50 @@ Generates a modern React application with:
 
 from __future__ import annotations
 
+import re as _re
+
 from src.orchestrator.intent_schema import DomainType, IntentSpec
 from src.orchestrator.logging import get_logger
 
 logger = get_logger(__name__)
+
+
+# -- Helpers for dynamic frontend generation ---------------------------
+
+def _snake(name: str) -> str:
+    """PascalCase -> snake_case."""
+    return _re.sub(r'(?<=[a-z0-9])(?=[A-Z])', '_', name).lower()
+
+
+def _plural(name: str) -> str:
+    """Simple English pluralizer."""
+    lower = name.lower()
+    if lower.endswith("y") and lower[-2:] not in ("ay", "ey", "oy", "uy"):
+        return name[:-1] + "ies"
+    if lower.endswith(("s", "sh", "ch", "x", "z")):
+        return name + "es"
+    return name + "s"
+
+
+def _has_custom_entities(spec: IntentSpec) -> bool:
+    """Return True if spec has domain-specific entities (not just default Item)."""
+    if not spec.entities:
+        return False
+    if len(spec.entities) == 1 and spec.entities[0].name == "Item":
+        return False
+    return True
+
+
+_TS_TYPE_MAP = {
+    "str": "string", "int": "number", "float": "number",
+    "bool": "boolean", "list": "string[]", "list[str]": "string[]",
+    "dict": "Record<string, any>", "datetime": "string",
+}
+
+
+def _ts_type(python_type: str) -> str:
+    """Map Python type to TypeScript type."""
+    return _TS_TYPE_MAP.get(python_type, "string")
 
 
 class FrontendGenerator:
@@ -36,17 +76,18 @@ class FrontendGenerator:
 
         # -- Source files --
         files["frontend/src/main.tsx"] = self._main_tsx()
-        files["frontend/src/App.tsx"] = self._app_tsx(domain)
-        files["frontend/src/api/client.ts"] = self._api_client(domain)
-        files["frontend/src/types/index.ts"] = self._types(domain)
+        files["frontend/src/App.tsx"] = self._app_tsx(spec)
+        files["frontend/src/api/client.ts"] = self._api_client(spec)
+        files["frontend/src/types/index.ts"] = self._types(spec)
         files["frontend/src/components/Layout.tsx"] = self._layout(project)
         files["frontend/src/components/StatusBadge.tsx"] = self._status_badge()
-        files["frontend/src/pages/Dashboard.tsx"] = self._dashboard(domain)
-        files["frontend/src/pages/DetailPage.tsx"] = self._detail_page(domain)
+        files["frontend/src/pages/Dashboard.tsx"] = self._dashboard(spec)
+        files["frontend/src/pages/DetailPage.tsx"] = self._detail_page(spec)
 
         # -- Static / env --
         files["frontend/.env"] = f'VITE_API_BASE_URL=http://localhost:8000/api/v1\nVITE_APP_TITLE="{project}"\n'
         files["frontend/Dockerfile"] = self._dockerfile()
+        files["frontend/docker-entrypoint.sh"] = self._docker_entrypoint()
 
         logger.info("FrontendGenerator produced %d files", len(files))
         return files
@@ -173,7 +214,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 );
 """
 
-    def _app_tsx(self, domain: DomainType) -> str:
+    def _app_tsx(self, spec: IntentSpec) -> str:
         return """import { Routes, Route } from 'react-router-dom';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
@@ -191,7 +232,8 @@ export default function App() {
 }
 """
 
-    def _api_client(self, domain: DomainType) -> str:
+    def _api_client(self, spec: IntentSpec) -> str:
+        domain = spec.domain_type if hasattr(spec, "domain_type") else DomainType.GENERIC
         base = """const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -262,7 +304,10 @@ export const api = {
 };
 """
         else:
-            base += """// Generic CRUD API
+            if _has_custom_entities(spec):
+                base += self._dynamic_api_client(spec)
+            else:
+                base += """// Generic CRUD API
 export const api = {
   listItems: () => request<any[]>('/items'),
   getItem: (id: string) => request<any>(`/items/${id}`),
@@ -276,7 +321,8 @@ export const api = {
 """
         return base
 
-    def _types(self, domain: DomainType) -> str:
+    def _types(self, spec: IntentSpec) -> str:
+        domain = spec.domain_type if hasattr(spec, "domain_type") else DomainType.GENERIC
         base = """// Shared TypeScript type definitions
 
 export interface Item {
@@ -372,6 +418,8 @@ export interface KeyValuePair {
   confidence: number;
 }
 """
+        if _has_custom_entities(spec):
+            base += self._dynamic_types(spec)
         return base
 
     def _layout(self, project: str) -> str:
@@ -427,7 +475,8 @@ export default function StatusBadge({ status }: { status: string }) {
 }
 """
 
-    def _dashboard(self, domain: DomainType) -> str:
+    def _dashboard(self, spec: IntentSpec) -> str:
+        domain = spec.domain_type if hasattr(spec, "domain_type") else DomainType.GENERIC
         if domain == DomainType.HEALTHCARE:
             return """import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -661,7 +710,9 @@ export default function Dashboard() {
 }
 """
 
-        # Generic
+        # Generic -- use dynamic dashboard if entities found
+        if _has_custom_entities(spec):
+            return self._dynamic_dashboard(spec)
         return """import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import StatusBadge from '../components/StatusBadge';
@@ -732,7 +783,8 @@ export default function Dashboard() {
 }
 """
 
-    def _detail_page(self, domain: DomainType) -> str:
+    def _detail_page(self, spec: IntentSpec) -> str:
+        domain = spec.domain_type if hasattr(spec, "domain_type") else DomainType.GENERIC
         if domain == DomainType.HEALTHCARE:
             return """import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -930,7 +982,9 @@ export default function DetailPage() {
 }
 """
 
-        # Generic
+        # Generic -- use dynamic detail page if entities found
+        if _has_custom_entities(spec):
+            return self._dynamic_detail_page(spec)
         return """import { useParams, useNavigate } from 'react-router-dom';
 
 export default function DetailPage() {
@@ -962,23 +1016,438 @@ RUN npm run build
 # Serve with lightweight nginx
 FROM nginx:alpine
 COPY --from=build /app/dist /usr/share/nginx/html
-COPY <<'EOF' /etc/nginx/conf.d/default.conf
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
+# Default: Docker Compose service name. Override for Azure Container Apps:
+#   docker run -e API_BACKEND_URL=https://<your-api>.azurecontainerapps.io ...
+ENV API_BACKEND_URL=http://api:8000
+EXPOSE 80
+ENTRYPOINT ["/docker-entrypoint.sh"]
+"""
+
+    def _docker_entrypoint(self) -> str:
+        return """#!/bin/sh
+# Generate nginx config with the API backend URL from environment
+cat > /etc/nginx/conf.d/default.conf <<EOF
 server {
     listen 80;
     root /usr/share/nginx/html;
     index index.html;
 
     location / {
-        try_files $uri $uri/ /index.html;
+        try_files \\$uri \\$uri/ /index.html;
     }
 
     location /api/ {
-        proxy_pass http://api:8000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
+        proxy_pass ${API_BACKEND_URL};
+        proxy_set_header Host \\$host;
+        proxy_set_header X-Real-IP \\$remote_addr;
     }
 }
 EOF
-EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
+exec nginx -g 'daemon off;'
+"""
+
+    # ================================================================
+    # Dynamic entity-driven generation (domain-agnostic)
+    # ================================================================
+
+    def _dynamic_tab_config(self, spec: IntentSpec) -> str:
+        """Generate TypeScript tabConfig object from spec.entities."""
+        lines = ["const tabConfig: Record<string, any> = {"]
+        for ent in spec.entities:
+            slug = _snake(_plural(ent.name))
+            # Build columns: id first, then entity fields (deduped)
+            columns = ["id"]
+            seen = {"id"}
+            for f in ent.fields:
+                if f.name not in seen:
+                    columns.append(f.name)
+                    seen.add(f.name)
+            headers = [c.replace("_", " ").title() for c in columns]
+            has_status = any(f.name == "status" for f in ent.fields)
+
+            # Collect action endpoints
+            actions: list[str] = []
+            for ep in (spec.endpoints or []):
+                parts = ep.path.strip("/").split("/")
+                if (len(parts) >= 3 and ep.method == "POST"
+                        and parts[0] == slug and parts[-1] not in ("", slug)):
+                    action = parts[-1]
+                    if action not in actions:
+                        actions.append(action)
+
+            lines.append(f"  '{slug}': {{")
+            lines.append(f"    label: '{_plural(ent.name)}',")
+            lines.append(f"    entityName: '{ent.name}',")
+            lines.append(f"    columns: {columns},")
+            lines.append(f"    headers: {headers},")
+            lines.append(f"    hasStatus: {'true' if has_status else 'false'},")
+            lines.append(f"    actions: {actions},")
+            lines.append("  },")
+        lines.append("};")
+        lines.append("const tabKeys = Object.keys(tabConfig);")
+        return "\n".join(lines)
+
+    def _dynamic_api_client(self, spec: IntentSpec) -> str:
+        """Generate TypeScript API client from spec.entities."""
+        lines = ["// Domain-specific API — auto-generated from business entities"]
+        lines.append("export const api = {")
+
+        for i, ent in enumerate(spec.entities):
+            slug = _snake(_plural(ent.name))
+            name = ent.name
+            plural_name = _plural(name)
+            has_status = any(f.name == "status" for f in ent.fields)
+
+            if i > 0:
+                lines.append("")
+            lines.append(f"  // {name}")
+
+            if has_status:
+                lines.append(f"  list{plural_name}: (status?: string) =>")
+                lines.append(f"    request<any[]>(status ? `/{slug}?status=${{status}}` : '/{slug}'),")
+            else:
+                lines.append(f"  list{plural_name}: () => request<any[]>('/{slug}'),")
+
+            lines.append(f"  get{name}: (id: string) => request<any>(`/{slug}/${{id}}`),")
+            lines.append(f"  create{name}: (data: any) =>")
+            lines.append(f"    request<any>('/{slug}', {{ method: 'POST', body: JSON.stringify(data) }}),")
+
+            # Action endpoints from spec.endpoints
+            for ep in (spec.endpoints or []):
+                parts = ep.path.strip("/").split("/")
+                if (len(parts) >= 3 and ep.method == "POST"
+                        and parts[0] == slug and parts[-1] not in ("", slug)):
+                    action = parts[-1]
+                    lines.append(f"  {action}{name}: (id: string) =>")
+                    lines.append(f"    request<any>(`/{slug}/${{id}}/{action}`, {{ method: 'POST' }}),")
+
+        lines.append("};")
+        return "\n".join(lines)
+
+    def _dynamic_types(self, spec: IntentSpec) -> str:
+        """Generate TypeScript interfaces from spec.entities."""
+        lines = ["// Domain-specific types — auto-generated from business entities", ""]
+        for ent in spec.entities:
+            lines.append(f"export interface {ent.name} {{")
+            lines.append("  id: string;")
+            for field in ent.fields:
+                ts = _ts_type(field.type)
+                opt = "?" if not field.required else ""
+                lines.append(f"  {field.name}{opt}: {ts};")
+            lines.append("}")
+            lines.append("")
+        return "\n".join(lines)
+
+    def _dynamic_dashboard(self, spec: IntentSpec) -> str:
+        """Generate a fully interactive, entity-driven Dashboard component."""
+        tab_config = self._dynamic_tab_config(spec)
+        # The Dashboard component is static — only tabConfig varies
+        return (
+            "import { useEffect, useState } from 'react';\n"
+            "import { Link } from 'react-router-dom';\n"
+            "import StatusBadge from '../components/StatusBadge';\n"
+            "\n"
+            + tab_config + "\n\n"
+            + _DASHBOARD_COMPONENT
+        )
+
+    def _dynamic_detail_page(self, spec: IntentSpec) -> str:
+        """Generate an entity-driven DetailPage component."""
+        tab_config = self._dynamic_tab_config(spec)
+        return (
+            "import { useEffect, useState } from 'react';\n"
+            "import { useParams, useNavigate, useSearchParams } from 'react-router-dom';\n"
+            "import StatusBadge from '../components/StatusBadge';\n"
+            "\n"
+            + tab_config + "\n\n"
+            + _DETAIL_PAGE_COMPONENT
+        )
+
+
+# ====================================================================
+# Static component templates used by dynamic generators
+# ====================================================================
+
+_DASHBOARD_COMPONENT = r"""const API_BASE = '/api/v1';
+
+export default function Dashboard() {
+  const [allData, setAllData] = useState<Record<string, any[]>>({});
+  const [activeTab, setActiveTab] = useState(tabKeys[0]);
+  const [loading, setLoading] = useState(true);
+  const [showCreate, setShowCreate] = useState(false);
+  const [formData, setFormData] = useState<Record<string, string>>({});
+  const [search, setSearch] = useState('');
+
+  const fetchAll = () => {
+    setLoading(true);
+    Promise.all(
+      tabKeys.map(key =>
+        fetch(`${API_BASE}/${key}`).then(r => r.json()).catch(() => [])
+      )
+    ).then(results => {
+      const data: Record<string, any[]> = {};
+      tabKeys.forEach((key, i) => { data[key] = results[i]; });
+      setAllData(data);
+    }).finally(() => setLoading(false));
+  };
+
+  useEffect(() => { fetchAll(); const t = setInterval(fetchAll, 30000); return () => clearInterval(t); }, []);
+
+  const config = tabConfig[activeTab];
+  const currentData = allData[activeTab] || [];
+  const filteredData = search
+    ? currentData.filter((item: any) =>
+        Object.values(item).some(v =>
+          String(v).toLowerCase().includes(search.toLowerCase())
+        )
+      )
+    : currentData;
+
+  const handleCreate = async () => {
+    try {
+      await fetch(`${API_BASE}/${activeTab}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
+      setShowCreate(false);
+      setFormData({});
+      fetchAll();
+    } catch { /* ignore */ }
+  };
+
+  const handleAction = async (action: string, id: string) => {
+    await fetch(`${API_BASE}/${activeTab}/${id}/${action}`, { method: 'POST' });
+    fetchAll();
+  };
+
+  if (loading) return <p className="text-center py-12 text-gray-500">Loading...</p>;
+
+  const createFields = config.columns.filter((c: string) => c !== 'id' && c !== 'status');
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">{config.label}</h1>
+        <div className="flex gap-3">
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search..."
+            className="border rounded-lg px-3 py-2 text-sm w-64"
+          />
+          <button
+            onClick={() => setShowCreate(true)}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700"
+          >
+            + Create {config.entityName}
+          </button>
+        </div>
+      </div>
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {tabKeys.map(key => (
+          <div
+            key={key}
+            onClick={() => setActiveTab(key)}
+            className={`bg-white rounded-xl shadow p-4 cursor-pointer border-2 transition ${
+              activeTab === key ? 'border-blue-500' : 'border-transparent hover:border-gray-200'
+            }`}
+          >
+            <p className="text-sm text-gray-500">{tabConfig[key].label}</p>
+            <p className="text-2xl font-bold text-blue-700">{(allData[key] || []).length}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Tab bar */}
+      <div className="flex gap-1 border-b">
+        {tabKeys.map(key => (
+          <button
+            key={key}
+            onClick={() => setActiveTab(key)}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition ${
+              activeTab === key
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            {tabConfig[key].label} ({(allData[key] || []).length})
+          </button>
+        ))}
+      </div>
+
+      {/* Data Table */}
+      <div className="bg-white rounded-xl shadow overflow-hidden">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              {config.headers.map((h: string) => (
+                <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  {h}
+                </th>
+              ))}
+              {config.hasStatus && config.actions.length > 0 && (
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+              )}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200">
+            {filteredData.map((item: any) => (
+              <tr key={item.id} className="hover:bg-gray-50">
+                {config.columns.map((col: string) => (
+                  <td key={col} className="px-4 py-3 text-sm">
+                    {col === 'id' ? (
+                      <Link to={`/detail/${item.id}?type=${activeTab}`} className="text-blue-600 hover:underline font-mono">
+                        {item.id?.slice(0, 8)}
+                      </Link>
+                    ) : col === 'status' ? (
+                      <StatusBadge status={item[col] || ''} />
+                    ) : (
+                      String(item[col] ?? '')
+                    )}
+                  </td>
+                ))}
+                {config.hasStatus && config.actions.length > 0 && (
+                  <td className="px-4 py-3 text-sm">
+                    <div className="flex gap-1">
+                      {config.actions.map((action: string) => (
+                        <button
+                          key={action}
+                          onClick={() => handleAction(action, item.id)}
+                          className="px-2 py-1 text-xs rounded bg-gray-100 hover:bg-gray-200 capitalize"
+                        >
+                          {action}
+                        </button>
+                      ))}
+                    </div>
+                  </td>
+                )}
+              </tr>
+            ))}
+            {filteredData.length === 0 && (
+              <tr>
+                <td colSpan={config.columns.length + (config.hasStatus && config.actions.length > 0 ? 1 : 0)}
+                    className="px-4 py-8 text-center text-gray-400">
+                  No {config.label.toLowerCase()} found
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Create Modal */}
+      {showCreate && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={() => setShowCreate(false)}>
+          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
+            <h2 className="text-lg font-bold mb-4">Create {config.entityName}</h2>
+            <div className="space-y-3">
+              {createFields.map((field: string) => (
+                <div key={field}>
+                  <label className="block text-sm font-medium text-gray-700 mb-1 capitalize">
+                    {field.replace(/_/g, ' ')}
+                  </label>
+                  <input
+                    value={formData[field] || ''}
+                    onChange={e => setFormData(prev => ({ ...prev, [field]: e.target.value }))}
+                    className="w-full border rounded-lg px-3 py-2 text-sm"
+                    placeholder={`Enter ${field.replace(/_/g, ' ')}`}
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => { setShowCreate(false); setFormData({}); }}
+                className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreate}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700"
+              >
+                Create
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+"""
+
+_DETAIL_PAGE_COMPONENT = r"""const API_BASE = '/api/v1';
+
+export default function DetailPage() {
+  const { id } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const [item, setItem] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  const entityType = searchParams.get('type') || tabKeys[0];
+  const config = tabConfig[entityType];
+
+  useEffect(() => {
+    if (id && entityType) {
+      fetch(`${API_BASE}/${entityType}/${id}`)
+        .then(r => r.json())
+        .then(setItem)
+        .finally(() => setLoading(false));
+    }
+  }, [id, entityType]);
+
+  const handleAction = async (action: string) => {
+    await fetch(`${API_BASE}/${entityType}/${id}/${action}`, { method: 'POST' });
+    const updated = await fetch(`${API_BASE}/${entityType}/${id}`).then(r => r.json());
+    setItem(updated);
+  };
+
+  if (loading) return <p className="text-center py-12 text-gray-500">Loading...</p>;
+  if (!item) return <p className="text-center py-12 text-red-500">Not found</p>;
+
+  return (
+    <div className="space-y-6">
+      <button onClick={() => navigate('/')} className="text-blue-600 hover:underline text-sm">
+        &larr; Back to Dashboard
+      </button>
+      <div className="bg-white rounded-xl shadow p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h1 className="text-xl font-bold">{config?.entityName || 'Item'} Detail</h1>
+          {item.status && <StatusBadge status={item.status} />}
+        </div>
+        <dl className="grid grid-cols-2 gap-4 text-sm">
+          {config?.columns?.filter((c: string) => c !== 'status').map((col: string) => (
+            <div key={col}>
+              <dt className="text-gray-500 capitalize">{col.replace(/_/g, ' ')}</dt>
+              <dd className="font-medium mt-1">
+                {col === 'id' ? item[col] : String(item[col] ?? '\u2014')}
+              </dd>
+            </div>
+          ))}
+        </dl>
+        {config?.hasStatus && config?.actions?.length > 0 && (
+          <div className="mt-6 flex gap-3">
+            {config.actions.map((action: string) => (
+              <button
+                key={action}
+                onClick={() => handleAction(action)}
+                className="px-4 py-2 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700 capitalize"
+              >
+                {action}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 """
