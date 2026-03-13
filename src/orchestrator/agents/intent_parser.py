@@ -491,14 +491,8 @@ class IntentParserAgent:
                     FieldSpec(name="confidence", type="float", required=False, description="Extraction confidence"),
                 ]),
             ]
-        # Generic domain — default Item entity
-        return [
-            EntitySpec(name="Item", description="Generic domain entity", fields=[
-                FieldSpec(name="name", type="str", required=True, description="Item name"),
-                FieldSpec(name="description", type="str", required=False, description="Item description"),
-                FieldSpec(name="status", type="str", required=False, description="Item status"),
-            ]),
-        ]
+        # Domain-agnostic: extract entities dynamically from intent text
+        return IntentParserAgent._extract_entities_dynamic(intent)
 
     @staticmethod
     def _extract_endpoints(intent: str, domain: DomainType) -> list[EndpointSpec]:
@@ -536,10 +530,199 @@ class IntentParserAgent:
                 EndpointSpec(method="GET", path="/analyses/{id}/key-values", description="Get key-value pairs"),
                 EndpointSpec(method="GET", path="/models", description="List available analysis models"),
             ]
-        return [
-            EndpointSpec(method="GET", path="/items", description="List items"),
-            EndpointSpec(method="POST", path="/items", description="Create item"),
-            EndpointSpec(method="GET", path="/items/{id}", description="Get item by ID"),
-            EndpointSpec(method="PUT", path="/items/{id}", description="Update item"),
-            EndpointSpec(method="DELETE", path="/items/{id}", description="Delete item"),
-        ]
+        return IntentParserAgent._extract_endpoints_dynamic(intent)
+
+    # ---------------------------------------------------------------
+    # Domain-agnostic entity/endpoint extraction engine
+    # ---------------------------------------------------------------
+
+    # Words to ignore when scanning for entity candidates
+    _STOPWORDS: set[str] = {
+        "the", "a", "an", "and", "or", "for", "to", "of", "in", "on", "at",
+        "by", "with", "from", "as", "is", "are", "was", "were", "be", "been",
+        "being", "have", "has", "had", "do", "does", "did", "will", "would",
+        "shall", "should", "may", "might", "can", "could", "must", "that",
+        "this", "these", "those", "it", "its", "our", "their", "your", "we",
+        "they", "you", "all", "each", "every", "any", "both", "such", "not",
+        "but", "if", "when", "than", "into", "about", "up", "out", "per",
+    }
+
+    # Infrastructure / tech words to filter out from entity candidates
+    _INFRA_WORDS: set[str] = {
+        "azure", "api", "apis", "database", "server", "cloud", "deploy",
+        "docker", "kubernetes", "container", "containers", "endpoint",
+        "endpoints", "service", "services", "system", "systems", "application",
+        "applications", "platform", "infrastructure", "environment", "region",
+        "cluster", "resource", "resources", "configuration", "config",
+        "authentication", "authorization", "identity", "key", "vault",
+        "monitor", "log", "logs", "logging", "storage", "blob", "cosmos",
+        "redis", "sql", "http", "https", "rest", "json", "yaml", "bicep",
+        "github", "cicd", "pipeline", "workflow", "terraform", "helm",
+        "compliance", "security", "networking", "integration", "webhook",
+        "notification", "notifications", "data", "time", "type", "status",
+        "management", "processing", "tracking", "lifecycle", "engine",
+        "automation", "requirement", "requirements", "feature", "latency",
+        "uptime", "retention", "access", "role", "tier", "category",
+        "method", "model", "framework", "sdk", "tool", "tools",
+    }
+
+    @staticmethod
+    def _extract_entities_dynamic(intent: str) -> list[EntitySpec]:
+        """Extract domain entities from intent text — fully domain-agnostic.
+
+        Scans for noun phrases that represent business concepts, then infers
+        fields for each entity based on context clues in the intent text.
+        Works for any industry without hardcoded domain logic.
+        """
+        candidates: dict[str, int] = {}
+        stop = IntentParserAgent._STOPWORDS
+        infra = IntentParserAgent._INFRA_WORDS
+
+        # Strategy 1: "X management/processing/tracking/engine" patterns
+        compound_re = re.compile(
+            r'\b(\w+)\s+(?:management|processing|tracking|lifecycle|engine'
+            r'|automation|workflow|service|module|handler)\b', re.I
+        )
+        for m in compound_re.finditer(intent):
+            word = m.group(1).lower()
+            if word not in stop and word not in infra and len(word) > 2:
+                candidates[word] = candidates.get(word, 0) + 5
+
+        # Strategy 2: verb + noun patterns ("manage X", "track X", etc.)
+        action_re = re.compile(
+            r'\b(?:manage|track|process|automate|handle|create|submit|review'
+            r'|approve|calculate|generate|validate|initiate|inspect)\s+'
+            r'(?:the\s+)?(?:a\s+)?(\w+)', re.I
+        )
+        for m in action_re.finditer(intent):
+            word = m.group(1).lower()
+            if word not in stop and word not in infra and len(word) > 2:
+                candidates[word] = candidates.get(word, 0) + 4
+
+        # Strategy 3: "X API", "X endpoint", "X request" patterns
+        api_re = re.compile(
+            r'\b(\w+)\s+(?:api|endpoint|request|response|record|entry'
+            r'|transaction|calculation|rule|check|report)\b', re.I
+        )
+        for m in api_re.finditer(intent):
+            word = m.group(1).lower()
+            if word not in stop and word not in infra and len(word) > 2:
+                candidates[word] = candidates.get(word, 0) + 3
+
+        # Strategy 4: frequency boost — domain nouns that appear often
+        words = re.findall(r'\b([a-z]{3,})\b', intent.lower())
+        for w in words:
+            if w in candidates:
+                candidates[w] += 1
+
+        if not candidates:
+            # Absolute fallback: generic Item
+            return [
+                EntitySpec(name="Item", description="Generic domain entity", fields=[
+                    FieldSpec(name="name", type="str", required=True, description="Item name"),
+                    FieldSpec(name="description", type="str", required=False, description="Item description"),
+                    FieldSpec(name="status", type="str", required=False, description="Item status"),
+                ]),
+            ]
+
+        # Rank and take top entities (max 5)
+        ranked = sorted(candidates.items(), key=lambda x: -x[1])
+        # Deduplicate singulars/plurals: prefer singular
+        seen: set[str] = set()
+        selected: list[str] = []
+        for word, _score in ranked:
+            singular = word.rstrip("s") if word.endswith("s") and len(word) > 4 else word
+            if singular not in seen and word not in seen:
+                seen.add(singular)
+                seen.add(word)
+                selected.append(singular)
+            if len(selected) >= 5:
+                break
+
+        # Build EntitySpecs with context-inferred fields
+        entities: list[EntitySpec] = []
+        for noun in selected:
+            fields = IntentParserAgent._infer_fields(noun, intent)
+            name = noun[0].upper() + noun[1:]  # Capitalize
+            entities.append(EntitySpec(
+                name=name,
+                description=f"{name} domain entity",
+                fields=fields,
+            ))
+        return entities
+
+    @staticmethod
+    def _infer_fields(entity_name: str, intent: str) -> list[FieldSpec]:
+        """Infer fields for an entity based on its name and the intent context."""
+        fields: list[FieldSpec] = []
+        intent_lower = intent.lower()
+
+        # Financial entities: refund, payment, invoice, charge, fee, price, cost
+        financial_kw = {"refund", "payment", "invoice", "charge", "fee", "price", "cost", "transaction"}
+        if entity_name in financial_kw or any(kw in intent_lower for kw in [f"{entity_name} amount", f"{entity_name} calculation"]):
+            fields.append(FieldSpec(name="amount", type="float", required=True, description="Monetary amount"))
+            fields.append(FieldSpec(name="currency", type="str", required=False, description="Currency code (e.g. USD)"))
+            fields.append(FieldSpec(name="method", type="str", required=False, description="Processing method"))
+
+        # Process/request entities: return, request, claim, order, ticket, case
+        process_kw = {"return", "request", "claim", "order", "ticket", "case", "application", "submission"}
+        if entity_name in process_kw:
+            fields.append(FieldSpec(name="reason", type="str", required=False, description="Reason or justification"))
+            fields.append(FieldSpec(name="priority", type="str", required=False, description="Priority level"))
+
+        # Check for reference fields from context
+        ref_entities = {"customer", "user", "order", "product", "account", "patient", "employee", "vendor"}
+        for ref in ref_entities:
+            if ref != entity_name and ref in intent_lower:
+                fields.append(FieldSpec(
+                    name=f"{ref}_id", type="str", required=True,
+                    description=f"Associated {ref} identifier",
+                ))
+
+        # If intent mentions items/products with this entity, add items field
+        if entity_name in {"return", "order", "shipment", "cart"} and "item" in intent_lower:
+            fields.append(FieldSpec(name="items", type="list[str]", required=False, description="Associated item IDs"))
+
+        # Every entity gets a status and description
+        if not any(f.name == "status" for f in fields):
+            fields.append(FieldSpec(name="status", type="str", required=True, description="Current status"))
+        fields.append(FieldSpec(name="notes", type="str", required=False, description="Additional notes"))
+
+        return fields
+
+    @staticmethod
+    def _extract_endpoints_dynamic(intent: str) -> list[EndpointSpec]:
+        """Generate API endpoints from dynamically extracted entities."""
+        entities = IntentParserAgent._extract_entities_dynamic(intent)
+        endpoints: list[EndpointSpec] = []
+        intent_lower = intent.lower()
+
+        for entity in entities:
+            slug = entity.name.lower() + "s"  # pluralize
+            label = entity.name
+            endpoints.extend([
+                EndpointSpec(method="GET", path=f"/{slug}", description=f"List {label} records"),
+                EndpointSpec(method="POST", path=f"/{slug}", description=f"Create {label}"),
+                EndpointSpec(method="GET", path=f"/{slug}/{{id}}", description=f"Get {label} by ID"),
+                EndpointSpec(method="PUT", path=f"/{slug}/{{id}}", description=f"Update {label}"),
+                EndpointSpec(method="DELETE", path=f"/{slug}/{{id}}", description=f"Delete {label}"),
+            ])
+
+            # Detect workflow actions from intent context
+            word = entity.name.lower()
+            action_map = {
+                "approve": f"Approve {label}",
+                "reject": f"Reject {label}",
+                "process": f"Process {label}",
+                "cancel": f"Cancel {label}",
+                "complete": f"Complete {label}",
+                "escalate": f"Escalate {label}",
+                "inspect": f"Inspect {label}",
+            }
+            for action, desc in action_map.items():
+                if re.search(rf'\b{action}\w*\b', intent_lower):
+                    endpoints.append(EndpointSpec(
+                        method="POST", path=f"/{slug}/{{id}}/{action}", description=desc,
+                    ))
+
+        return endpoints
