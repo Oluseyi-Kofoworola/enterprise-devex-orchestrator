@@ -11,7 +11,7 @@ Give the orchestrator a business description (plain text or a structured intent 
 - **Domain-aware code generation** -- auto-detects Healthcare, Legal, Document Processing, or Generic domains and generates domain-specific services, models, and seed data
 - **Azure Bicep infrastructure** (5-7 modules per scaffold)
 - **Full-stack application** scaffold (Python/FastAPI, Node.js/Express, .NET/ASP.NET Core) with domain-specific business logic, repository pattern, and enterprise dashboard UI
-- **React + Vite + TypeScript SPA** frontend with domain dashboards, API clients, and multi-stage Dockerfile
+- **React + Vite + TypeScript SPA** frontend with domain-aware dashboards, entity-specific API clients, and Azure-compatible Dockerfile
 - **GitHub Actions CI/CD** (validate, deploy, CodeQL, Dependabot)
 - **Pytest test suite** (5 auto-generated test files per scaffold)
 - **Governance validation** (25 enterprise policies)
@@ -110,6 +110,7 @@ devex validate ./my-output
 
 ```powershell
 devex init -o ./my-output -p my-output
+
 # Edit ./my-output/intent.md with your requirements
 devex scaffold --file ./my-output/intent.md -o ./my-output
 ```
@@ -204,7 +205,7 @@ Each agent has a distinct role, instruction set, and tool access. See [`AGENTS.m
 | Persistent planner | `src/orchestrator/planning/` -- 13-task DAG with checkpoints |
 | Deploy orchestrator | `src/orchestrator/agents/deploy_orchestrator.py` -- staged deployment |
 | Domain-aware generation | `src/orchestrator/generators/app_generator.py` -- domain detection, services, repository pattern |
-| Frontend generator | `src/orchestrator/generators/frontend_generator.py` -- React + Vite + TypeScript SPA |
+| Frontend generator | `src/orchestrator/generators/frontend_generator.py` -- Domain-aware React + Vite + TypeScript SPA |
 
 ---
 
@@ -234,7 +235,7 @@ src/orchestrator/
     cost_estimator.py     # Cost estimation
     dashboard_generator.py # Azure Monitor dashboard queries
     docs_generator.py     # Documentation (7+ files)
-    frontend_generator.py # React + Vite + TypeScript SPA with domain dashboards
+    frontend_generator.py # Domain-aware React + Vite + TypeScript SPA with entity dashboards
     test_generator.py     # Pytest test suite (5 files)
   planning/               # Persistent planner (13-task DAG)
   prompts/                # Repo-aware prompt generation
@@ -336,6 +337,18 @@ Extension points:
 
 ## Changelog
 
+### v1.5.0
+
+- **Feature**: Domain-agnostic React SPA frontend -- generates entity-specific dashboards, API clients, TypeScript types, and detail pages from intent entities
+  - Tabbed dashboard with KPI cards, search, create modals, and workflow action buttons
+  - Entity-specific API client with dynamic methods (e.g., `listRefunds`, `processReturn`)
+  - TypeScript interfaces generated from entity field specs
+  - Detail page with full entity field display and action buttons
+- **Feature**: Azure-compatible frontend Dockerfile -- configurable `API_BACKEND_URL` env var replaces hardcoded Docker Compose service name
+  - Works with Docker Compose (default `http://api:8000`)
+  - Works with Azure Container Apps (set `API_BACKEND_URL` to backend FQDN)
+- **Docs**: Updated architecture, demo-script, deployment, and RAI docs for domain-agnostic frontend
+
 ### v1.4.0
 
 - **Feature**: Multi-provider LLM support -- GitHub Copilot SDK (default), Azure OpenAI, OpenAI, Anthropic (Claude)
@@ -388,7 +401,7 @@ MIT
 
 ---
 
-*Enterprise DevEx Orchestrator v1.4.0*
+*Enterprise DevEx Orchestrator v1.5.0*
 
 
 

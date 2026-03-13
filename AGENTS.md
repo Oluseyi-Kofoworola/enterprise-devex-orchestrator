@@ -144,6 +144,7 @@ All generated code must follow enterprise security baselines:
 - `BicepGenerator` -- 7 Bicep modules + parameters + enterprise naming/tagging
 - `CICDGenerator` -- 4 GitHub Actions workflows
 - `AppGenerator` -- FastAPI app + Docker + requirements
+- `FrontendGenerator` -- Domain-aware React + Vite + TypeScript SPA (entity dashboards, API client, types, detail pages). Dynamic entity-driven generation for Generic domains.
 - `DocsGenerator` -- 7 documentation files + standards reference + improvement suggestions
 - `TestGenerator` -- Auto-generated pytest test suite (health, API, security, config, storage)
 - `AlertGenerator` -- Azure Monitor alert rules (Bicep) + action groups + alerting runbook

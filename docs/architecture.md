@@ -55,7 +55,7 @@ graph LR
         BG[Bicep Generator<br>7 modules]
         CG[CI/CD Generator<br>4 workflows]
         AG[App Generator<br>Domain-Aware Backend<br>Python + Node.js + .NET]
-        FG[Frontend Generator<br>React + Vite + TypeScript]
+        FG[Frontend Generator<br>Domain-Aware React SPA]
         DG[Docs Generator<br>7 doc files]
         TG[Test Generator<br>5 test files]
         ALG[Alert Generator<br>Bicep alerts + runbook]
@@ -228,6 +228,6 @@ graph TD
 *Azure CAF naming + enterprise tagging + WAF 5-pillar alignment*
 *Domain-aware full-stack: Healthcare · Legal · Document Processing · Generic*
 *Backend: Python (FastAPI) · Node.js (Express) · .NET (ASP.NET Core)*
-*Frontend: React 18 + Vite 5 + TypeScript*
+*Frontend: Domain-Aware React 18 + Vite 5 + TypeScript SPA*
 
 
