@@ -446,120 +446,12 @@ class IntentParserAgent:
 
     @staticmethod
     def _extract_entities(intent: str, domain: DomainType) -> list[EntitySpec]:
-        """Extract domain entities based on detected domain."""
-        if domain == DomainType.HEALTHCARE:
-            return [
-                EntitySpec(name="Session", description="Voice agent session with patient", fields=[
-                    FieldSpec(name="patient_id", type="str", required=True, description="Patient identifier"),
-                    FieldSpec(name="status", type="str", required=True, description="active, completed, escalated"),
-                    FieldSpec(name="transcript", type="list[str]", required=False, description="Conversation transcript"),
-                    FieldSpec(name="intent_detected", type="str", required=False, description="Detected patient intent"),
-                ]),
-                EntitySpec(name="Appointment", description="Scheduled medical appointment", fields=[
-                    FieldSpec(name="patient_id", type="str", required=True, description="Patient identifier"),
-                    FieldSpec(name="provider", type="str", required=True, description="Healthcare provider name"),
-                    FieldSpec(name="date_time", type="datetime", required=True, description="Appointment date and time"),
-                    FieldSpec(name="status", type="str", required=True, description="scheduled, confirmed, cancelled"),
-                    FieldSpec(name="reason", type="str", required=False, description="Visit reason"),
-                ]),
-                EntitySpec(name="PrescriptionRefill", description="Prescription refill request", fields=[
-                    FieldSpec(name="patient_id", type="str", required=True, description="Patient identifier"),
-                    FieldSpec(name="medication", type="str", required=True, description="Medication name"),
-                    FieldSpec(name="pharmacy", type="str", required=False, description="Preferred pharmacy"),
-                    FieldSpec(name="status", type="str", required=True, description="pending, approved, denied"),
-                ]),
-                EntitySpec(name="AuditLog", description="HIPAA audit trail entry", fields=[
-                    FieldSpec(name="user_id", type="str", required=True, description="Actor identifier"),
-                    FieldSpec(name="action", type="str", required=True, description="Action performed"),
-                    FieldSpec(name="resource_type", type="str", required=True, description="Resource accessed"),
-                    FieldSpec(name="resource_id", type="str", required=True, description="Resource identifier"),
-                    FieldSpec(name="phi_accessed", type="bool", required=True, description="Whether PHI was accessed"),
-                ]),
-            ]
-        if domain == DomainType.LEGAL:
-            return [
-                EntitySpec(name="Contract", description="Legal contract document", fields=[
-                    FieldSpec(name="title", type="str", required=True, description="Contract title"),
-                    FieldSpec(name="parties", type="list[str]", required=True, description="Contracting parties"),
-                    FieldSpec(name="status", type="str", required=True, description="uploaded, analyzing, analyzed, approved"),
-                    FieldSpec(name="file_path", type="str", required=False, description="Source document path"),
-                    FieldSpec(name="risk_score", type="float", required=False, description="Overall risk score 0-100"),
-                ]),
-                EntitySpec(name="Clause", description="Extracted contract clause", fields=[
-                    FieldSpec(name="contract_id", type="str", required=True, description="Parent contract ID"),
-                    FieldSpec(name="category", type="str", required=True, description="indemnification, liability, termination, etc."),
-                    FieldSpec(name="text", type="str", required=True, description="Clause text"),
-                    FieldSpec(name="risk_level", type="str", required=True, description="low, medium, high, critical"),
-                    FieldSpec(name="recommendation", type="str", required=False, description="Suggested action"),
-                ]),
-                EntitySpec(name="RiskAssessment", description="Contract risk assessment report", fields=[
-                    FieldSpec(name="contract_id", type="str", required=True, description="Assessed contract ID"),
-                    FieldSpec(name="overall_score", type="float", required=True, description="Risk score 0-100"),
-                    FieldSpec(name="categories", type="dict", required=False, description="Per-category risk scores"),
-                    FieldSpec(name="summary", type="str", required=True, description="Executive summary"),
-                ]),
-            ]
-        if domain == DomainType.DOCUMENT_PROCESSING:
-            return [
-                EntitySpec(name="AnalysisResult", description="Document analysis result", fields=[
-                    FieldSpec(name="document_name", type="str", required=True, description="Source document name"),
-                    FieldSpec(name="model_id", type="str", required=True, description="Analysis model used"),
-                    FieldSpec(name="status", type="str", required=True, description="processing, completed, failed"),
-                    FieldSpec(name="confidence", type="float", required=False, description="Overall confidence score"),
-                    FieldSpec(name="page_count", type="int", required=False, description="Number of pages analyzed"),
-                ]),
-                EntitySpec(name="ExtractedTable", description="Table extracted from document", fields=[
-                    FieldSpec(name="analysis_id", type="str", required=True, description="Parent analysis ID"),
-                    FieldSpec(name="page_number", type="int", required=True, description="Source page number"),
-                    FieldSpec(name="rows", type="list", required=True, description="Table row data"),
-                    FieldSpec(name="column_headers", type="list[str]", required=False, description="Column headers"),
-                ]),
-                EntitySpec(name="KeyValuePair", description="Extracted key-value pair", fields=[
-                    FieldSpec(name="analysis_id", type="str", required=True, description="Parent analysis ID"),
-                    FieldSpec(name="key", type="str", required=True, description="Extracted key"),
-                    FieldSpec(name="value", type="str", required=True, description="Extracted value"),
-                    FieldSpec(name="confidence", type="float", required=False, description="Extraction confidence"),
-                ]),
-            ]
-        # Domain-agnostic: extract entities dynamically from intent text
+        """Extract domain entities using semantic reasoning for all domains."""
         return IntentParserAgent._extract_entities_dynamic(intent)
 
     @staticmethod
     def _extract_endpoints(intent: str, domain: DomainType) -> list[EndpointSpec]:
-        """Extract domain API endpoints based on detected domain."""
-        if domain == DomainType.HEALTHCARE:
-            return [
-                EndpointSpec(method="POST", path="/sessions", description="Start new voice session"),
-                EndpointSpec(method="GET", path="/sessions", description="List active sessions"),
-                EndpointSpec(method="GET", path="/sessions/{id}", description="Get session details"),
-                EndpointSpec(method="POST", path="/sessions/{id}/end", description="End a session"),
-                EndpointSpec(method="POST", path="/sessions/{id}/escalate", description="Escalate to human agent"),
-                EndpointSpec(method="GET", path="/appointments", description="List appointments"),
-                EndpointSpec(method="POST", path="/appointments", description="Book appointment"),
-                EndpointSpec(method="DELETE", path="/appointments/{id}", description="Cancel appointment"),
-                EndpointSpec(method="GET", path="/prescriptions", description="List prescription refills"),
-                EndpointSpec(method="POST", path="/prescriptions", description="Request prescription refill"),
-                EndpointSpec(method="GET", path="/audit-logs", description="Query audit trail"),
-            ]
-        if domain == DomainType.LEGAL:
-            return [
-                EndpointSpec(method="POST", path="/contracts/upload", description="Upload contract document"),
-                EndpointSpec(method="GET", path="/contracts", description="List contracts"),
-                EndpointSpec(method="GET", path="/contracts/{id}", description="Get contract details"),
-                EndpointSpec(method="POST", path="/contracts/{id}/analyze", description="Start clause analysis"),
-                EndpointSpec(method="GET", path="/contracts/{id}/clauses", description="Get extracted clauses"),
-                EndpointSpec(method="GET", path="/contracts/{id}/risk-report", description="Get risk assessment"),
-                EndpointSpec(method="POST", path="/contracts/{id}/redlines", description="Generate redlines"),
-            ]
-        if domain == DomainType.DOCUMENT_PROCESSING:
-            return [
-                EndpointSpec(method="POST", path="/analyze", description="Submit document for analysis"),
-                EndpointSpec(method="GET", path="/analyses", description="List analysis results"),
-                EndpointSpec(method="GET", path="/analyses/{id}", description="Get analysis result"),
-                EndpointSpec(method="GET", path="/analyses/{id}/tables", description="Get extracted tables"),
-                EndpointSpec(method="GET", path="/analyses/{id}/key-values", description="Get key-value pairs"),
-                EndpointSpec(method="GET", path="/models", description="List available analysis models"),
-            ]
+        """Extract domain API endpoints using semantic reasoning for all domains."""
         return IntentParserAgent._extract_endpoints_dynamic(intent)
 
     # ---------------------------------------------------------------

@@ -86,3 +86,7 @@ redeploy*.txt
 
 # Generated scaffold outputs (catch-all)
 voice-agent-output/
+*-output/
+ecommerce-returns-output/
+pet-adoption-output/
+propane-delivery-output/
