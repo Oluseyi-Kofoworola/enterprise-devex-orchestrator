@@ -39,7 +39,9 @@ critical information is genuinely ambiguous.
 
 **Tools:** None (pure LLM reasoning with structured output)
 
-**Fallback:** Rule-based keyword extraction when LLM is unavailable.
+**Fallback:** 5-phase semantic extraction engine (section-header analysis, noun-phrase
+extraction, business-object pattern matching, merge/rank, EntitySpec building) with
+rule-based keyword extraction when LLM is unavailable.
 
 **Input:** Plain-English business intent string  
 **Output:** `IntentSpec` (Pydantic model)
@@ -143,8 +145,8 @@ All generated code must follow enterprise security baselines:
 **Sub-generators:**
 - `BicepGenerator` -- 7 Bicep modules + parameters + enterprise naming/tagging
 - `CICDGenerator` -- 4 GitHub Actions workflows
-- `AppGenerator` -- FastAPI app + Docker + requirements
-- `FrontendGenerator` -- Domain-aware React + Vite + TypeScript SPA (entity dashboards, API client, types, detail pages). Dynamic entity-driven generation for Generic domains.
+- `AppGenerator` -- FastAPI app + Docker + requirements with dynamic entity-driven services
+- `FrontendGenerator` -- Entity-driven React + Vite + TypeScript SPA (entity dashboards, API client, types, detail pages). Dynamic entity-driven generation for all domains via semantic extraction.
 - `DocsGenerator` -- 7 documentation files + standards reference + improvement suggestions
 - `TestGenerator` -- Auto-generated pytest test suite (health, API, security, config, storage)
 - `AlertGenerator` -- Azure Monitor alert rules (Bicep) + action groups + alerting runbook

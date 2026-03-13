@@ -54,8 +54,8 @@ graph LR
     subgraph "Generators (9)"
         BG[Bicep Generator<br>7 modules]
         CG[CI/CD Generator<br>4 workflows]
-        AG[App Generator<br>Domain-Aware Backend<br>Python + Node.js + .NET]
-        FG[Frontend Generator<br>Domain-Aware React SPA]
+        AG[App Generator<br>Entity-Driven Backend<br>Python + Node.js + .NET]
+        FG[Frontend Generator<br>Entity-Driven React SPA]
         DG[Docs Generator<br>7 doc files]
         TG[Test Generator<br>5 test files]
         ALG[Alert Generator<br>Bicep alerts + runbook]
@@ -119,7 +119,7 @@ graph LR
 
 | Stage | Input | Processing | Output |
 |-------|-------|-----------|--------|
-| 1. Parse | Plain-text intent or `intent.md` | LLM extraction + domain detection + rule-based fallback | `IntentSpec` (Pydantic) with `DomainType`, entities, endpoints |
+| 1. Parse | Plain-text intent or `intent.md` | LLM extraction + 5-phase semantic entity extraction + rule-based fallback | `IntentSpec` (Pydantic) with `DomainType`, semantically-extracted entities, endpoints |
 | 2. Plan | `IntentSpec` | Component selection, 6 ADRs, STRIDE threat model, Mermaid diagram | `PlanOutput` |
 | 3. Review | `IntentSpec` + `PlanOutput` | 25-policy validation, WAF 5-pillar assessment (26 principles) | `GovernanceReport` + `WAFAlignmentReport` |
 | 4. Generate | All above | 9 generators produce Bicep, workflows, app, frontend, docs, tests, alerts, cost, dashboard | `dict[str, str]` file map |
@@ -181,7 +181,7 @@ graph TD
 
 | Agent | Tools | LLM Provider | Fallback | Key Output |
 |-------|-------|-------------|----------|-----------|
-| Intent Parser | None (pure LLM) | GitHub Copilot SDK (default) | Rule-based keyword extraction + domain detection | `IntentSpec` with `DomainType`, entities, endpoints |
+| Intent Parser | None (pure LLM) | GitHub Copilot SDK (default) | 5-phase semantic extraction engine + domain detection | `IntentSpec` with `DomainType`, entities, endpoints |
 | Architecture Planner | `check_policy`, `check_region_availability` | GitHub Copilot SDK (default) | Template-based component builder | `PlanOutput` with ADRs + threat model |
 | Governance Reviewer | `check_policy`, `list_policies`, `validate_bicep` | GitHub Copilot SDK (default) | Policy catalog evaluation | `GovernanceReport` + `WAFAlignmentReport` |
 | Infrastructure Generator | `render_template`, `preview_output`, `validate_bicep` | GitHub Copilot SDK (default) | Direct file generation | Complete file tree (backend + frontend + infra) |
@@ -226,8 +226,8 @@ graph TD
 *4-agent chain | 9 MCP tools | 9 generators | 25 policies | 543 tests*
 *Multi-provider LLM: GitHub Copilot SDK (default) · Azure OpenAI · OpenAI · Anthropic (Claude)*
 *Azure CAF naming + enterprise tagging + WAF 5-pillar alignment*
-*Domain-aware full-stack: Healthcare · Legal · Document Processing · Generic*
+*Domain-agnostic semantic extraction: Any business domain*
 *Backend: Python (FastAPI) · Node.js (Express) · .NET (ASP.NET Core)*
-*Frontend: Domain-Aware React 18 + Vite 5 + TypeScript SPA*
+*Frontend: Entity-Driven React 18 + Vite 5 + TypeScript SPA*
 
 

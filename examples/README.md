@@ -64,18 +64,29 @@ An enterprise document processing service that accepts uploaded files and proces
 devex scaffold --file examples/doc-intelligence-intent.md -o ./doc-intel-output
 ```
 
+### 5. Propane Delivery Logistics
+
+**File:** [`propane-delivery-intent.md`](propane-delivery-intent.md)
+
+A propane delivery logistics platform for managing deliveries, tank monitoring, route optimization, and customer management. Demonstrates the semantic extraction engine working on a non-standard business domain with no hardcoded templates.
+
+```powershell
+devex scaffold --file examples/propane-delivery-intent.md -o ./propane-delivery-output
+```
+
 ---
 
 ## Comparison
 
-| Feature | Voice Agent | Contract Review | Doc Intelligence |
-|---------|-------------|-----------------|------------------|
-| Industry | Healthcare Ops | Legal Ops | Document Processing |
-| Primary User | Clinical staff | Legal team | Back-office staff |
-| Data Stores | None (in-memory) | Blob, Cosmos DB | Blob |
-| AI/ML | Pattern matching | GPT-4, clause extraction | Document Intelligence |
-| Compliance | HIPAA | HIPAA, SOC2 | SOC2 |
-| Auth | Entra ID | Entra ID + RBAC | Managed Identity |
+| Feature | Voice Agent | Contract Review | Doc Intelligence | Propane Delivery |
+|---------|-------------|-----------------|------------------|------------------|
+| Industry | Healthcare Ops | Legal Ops | Document Processing | Logistics |
+| Primary User | Clinical staff | Legal team | Back-office staff | Delivery operations |
+| Data Stores | None (in-memory) | Blob, Cosmos DB | Blob | Cosmos DB |
+| AI/ML | Pattern matching | GPT-4, clause extraction | Document Intelligence | Route optimization |
+| Compliance | HIPAA | HIPAA, SOC2 | SOC2 | SOC2 |
+| Auth | Entra ID | Entra ID + RBAC | Managed Identity | Managed Identity |
+| Entity Discovery | Semantic NLP | Semantic NLP | Semantic NLP | Semantic NLP |
 
 ---
 
@@ -123,7 +134,7 @@ See [`contract-review-intent.md`](contract-review-intent.md) as a comprehensive 
 
 ---
 
-*Enterprise DevEx Orchestrator v1.4.0*
+*Enterprise DevEx Orchestrator v1.6.0*
 
 
 

@@ -126,9 +126,10 @@ The [`examples/`](examples/) folder includes additional intent files:
 ```powershell
 devex scaffold --file examples/contract-review-intent.md -o ./contract-review
 devex scaffold --file examples/doc-intelligence-intent.md -o ./doc-intelligence
+devex scaffold --file examples/propane-delivery-intent.md -o ./propane-delivery
 ```
 
-Each generates a full scaffold with CI/CD workflows ready to push and deploy.
+Each generates a full scaffold with CI/CD workflows ready to push and deploy. The orchestrator uses semantic extraction to discover entities and endpoints from any business domain -- no hardcoded templates.
 
 ---
 

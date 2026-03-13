@@ -8,10 +8,10 @@ Transform business intent into production-ready Azure infrastructure using a 4-a
 
 Give the orchestrator a business description (plain text or a structured intent file) and it generates a complete, deployable enterprise scaffold:
 
-- **Domain-aware code generation** -- auto-detects Healthcare, Legal, Document Processing, or Generic domains and generates domain-specific services, models, and seed data
+- **Semantic entity extraction** -- analyzes any business intent using a 5-phase NLP pipeline to extract domain entities, fields, and endpoints dynamically (no hardcoded domain templates)
 - **Azure Bicep infrastructure** (5-7 modules per scaffold)
-- **Full-stack application** scaffold (Python/FastAPI, Node.js/Express, .NET/ASP.NET Core) with domain-specific business logic, repository pattern, and enterprise dashboard UI
-- **React + Vite + TypeScript SPA** frontend with domain-aware dashboards, entity-specific API clients, and Azure-compatible Dockerfile
+- **Full-stack application** scaffold (Python/FastAPI, Node.js/Express, .NET/ASP.NET Core) with semantically-extracted business logic, repository pattern, and enterprise dashboard UI
+- **React + Vite + TypeScript SPA** frontend with entity-driven dashboards, API clients, and Azure-compatible Dockerfile
 - **GitHub Actions CI/CD** (validate, deploy, CodeQL, Dependabot)
 - **Pytest test suite** (5 auto-generated test files per scaffold)
 - **Governance validation** (25 enterprise policies)
@@ -22,7 +22,7 @@ Give the orchestrator a business description (plain text or a structured intent 
 
 Every scaffold enforces enterprise security baselines: Managed Identity, Key Vault with RBAC, non-root containers, OIDC for CI/CD, and HTTPS-only with TLS 1.2+.
 
-Generated applications include **domain-specific business logic** with real services, endpoints, and seed data -- not just stubs. The orchestrator detects the business domain from your intent and generates appropriate entities, repositories, and API routes. A **production-grade enterprise dashboard** with live health monitoring, Key Vault status, architecture & compliance badges, and API endpoint directory is rendered dynamically from the intent specification.
+Generated applications include **semantically-extracted business logic** with real services, endpoints, and seed data -- not just stubs. The orchestrator uses a 5-phase semantic extraction engine (section-header analysis, noun-phrase extraction, business-object pattern matching, merge/rank, EntitySpec building) to discover entities, infer field types, and generate appropriate repositories and API routes from any business domain. A **production-grade enterprise dashboard** with live health monitoring, Key Vault status, architecture & compliance badges, and API endpoint directory is rendered dynamically from the intent specification.
 
 ---
 
@@ -136,6 +136,7 @@ Ready-to-run examples are in [`examples/`](examples/):
 | [`intent.v2.md`](examples/intent.v2.md) | Voice agent upgrade (v2) |
 | [`contract-review-intent.md`](examples/contract-review-intent.md) | Legal contract review AI |
 | [`doc-intelligence-intent.md`](examples/doc-intelligence-intent.md) | Document processing service |
+| [`propane-delivery-intent.md`](examples/propane-delivery-intent.md) | Propane delivery logistics |
 
 See [`examples/README.md`](examples/README.md) for details on each example.
 
@@ -204,8 +205,8 @@ Each agent has a distinct role, instruction set, and tool access. See [`AGENTS.m
 | Subagent dispatcher | `src/orchestrator/agents/subagent_dispatcher.py` -- parallel fan-out |
 | Persistent planner | `src/orchestrator/planning/` -- 13-task DAG with checkpoints |
 | Deploy orchestrator | `src/orchestrator/agents/deploy_orchestrator.py` -- staged deployment |
-| Domain-aware generation | `src/orchestrator/generators/app_generator.py` -- domain detection, services, repository pattern |
-| Frontend generator | `src/orchestrator/generators/frontend_generator.py` -- Domain-aware React + Vite + TypeScript SPA |
+| Semantic entity extraction | `src/orchestrator/agents/intent_parser.py` -- 5-phase NLP pipeline, dynamic entity/endpoint discovery |
+| Frontend generator | `src/orchestrator/generators/frontend_generator.py` -- Entity-driven React + Vite + TypeScript SPA |
 
 ---
 
@@ -229,13 +230,13 @@ src/orchestrator/
     subagent_dispatcher.py
   generators/
     alert_generator.py    # Azure Monitor alert rules and runbook
-    app_generator.py      # Domain-aware backend (Python, Node.js, .NET) with services, repositories, seed data
+    app_generator.py      # Entity-driven backend (Python, Node.js, .NET) with dynamic services, repositories, seed data
     bicep_generator.py    # Bicep IaC (7 modules)
     cicd_generator.py     # GitHub Actions workflows (4 files)
     cost_estimator.py     # Cost estimation
     dashboard_generator.py # Azure Monitor dashboard queries
     docs_generator.py     # Documentation (7+ files)
-    frontend_generator.py # Domain-aware React + Vite + TypeScript SPA with entity dashboards
+    frontend_generator.py # Entity-driven React + Vite + TypeScript SPA with dynamic dashboards
     test_generator.py     # Pytest test suite (5 files)
   planning/               # Persistent planner (13-task DAG)
   prompts/                # Repo-aware prompt generation
@@ -337,6 +338,16 @@ Extension points:
 
 ## Changelog
 
+### v1.6.0
+
+- **Breaking**: Fully domain-agnostic semantic extraction -- all domains now use the same 5-phase NLP pipeline for entity/endpoint discovery
+  - Removed hardcoded entity lists for Healthcare, Legal, and Document Processing domains from Intent Parser
+  - Removed all domain-specific code generation branches from App Generator (Python, Node.js, .NET)
+  - Added 4 new dynamic generator methods for Node.js and .NET (`_dynamic_node_services`, `_dynamic_node_seed_data`, `_dynamic_dotnet_services`, `_dynamic_dotnet_seed_data`)
+  - Domain labels (Healthcare/Legal/etc.) still detected for context but no longer drive entity extraction or code generation
+- **Feature**: Every business domain -- healthcare, legal, e-commerce, logistics, or any custom domain -- receives identical treatment through semantic reasoning
+- **Docs**: Updated all documentation to reflect domain-agnostic architecture
+
 ### v1.5.0
 
 - **Feature**: Domain-agnostic React SPA frontend -- generates entity-specific dashboards, API clients, TypeScript types, and detail pages from intent entities
@@ -360,9 +371,8 @@ Extension points:
 
 ### v1.3.0
 
-- **Feature**: Domain-aware code generation with auto-detection of 4 business domains
-  - Healthcare (4 services, 11 endpoints), Legal (3 services, 7 endpoints), Document Processing (2 services, 6 endpoints), Generic (CRUD, 5 endpoints)
-  - Domain-specific entity models, repositories, seed data, and API routes
+- **Feature**: Domain-aware code generation with auto-detection of 4 business domains (superseded by v1.6.0 semantic extraction)
+  - Healthcare, Legal, Document Processing, Generic domain templates (now removed in favour of universal semantic extraction)
 - **Feature**: Repository pattern with dual-mode storage (in-memory or Azure via `STORAGE_MODE` env var)
 - **Feature**: React + Vite + TypeScript frontend SPA generator
   - Domain-specific dashboards, API client, type definitions, and reusable components

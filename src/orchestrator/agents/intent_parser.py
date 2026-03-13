@@ -390,29 +390,59 @@ class IntentParserAgent:
 
     @staticmethod
     def _detect_domain(intent: str) -> DomainType:
-        """Detect business domain from intent text."""
-        healthcare_kw = [
-            "patient", "healthcare", "health care", "appointment", "prescription",
-            "medical", "clinical", "hipaa", "ehr", "diagnosis", "voice agent",
-            "session", "transcript", "escalation", "nurse", "doctor", "pharmacy",
+        """Detect business domain from intent text using scored keyword matching.
+
+        Each domain has *strong* keywords (worth 2 points) that are highly
+        specific and *weak* keywords (worth 1 point) that could appear in
+        unrelated contexts.  A domain must reach a minimum score threshold
+        to be selected, preventing false positives from incidental mentions
+        (e.g. "price lock contracts" triggering Legal).
+        """
+        # (strong_keywords, weak_keywords, threshold)
+        domains: list[tuple[DomainType, list[str], list[str], int]] = [
+            (
+                DomainType.HEALTHCARE,
+                # strong — unlikely outside healthcare
+                ["patient", "healthcare", "health care", "hipaa", "ehr",
+                 "clinical", "diagnosis", "nurse", "doctor", "pharmacy",
+                 "medical"],
+                # weak — could appear elsewhere
+                ["appointment", "prescription", "voice agent", "session",
+                 "transcript", "escalation"],
+                2,
+            ),
+            (
+                DomainType.LEGAL,
+                # strong — clearly legal / contract-review
+                ["legal review", "contract review", "redline", "clause analysis",
+                 "indemnification", "non-compete", "attorney", "law firm",
+                 "legal counsel", "legal agreement"],
+                # weak — may appear in non-legal contexts
+                ["contract", "clause", "liability", "amendment",
+                 "compliance review", "risk score"],
+                3,
+            ),
+            (
+                DomainType.DOCUMENT_PROCESSING,
+                ["document intelligence", "document processing", "form recognizer",
+                 "document analysis", "table extraction"],
+                ["extract", "invoice", "receipt", "ocr", "key-value",
+                 "id document"],
+                2,
+            ),
         ]
-        legal_kw = [
-            "contract", "clause", "legal", "redline", "compliance review",
-            "risk score", "indemnification", "liability", "amendment",
-            "attorney", "law firm", "legal review", "non-compete",
-        ]
-        docproc_kw = [
-            "document intelligence", "document processing", "extract", "invoice",
-            "receipt", "ocr", "table extraction", "key-value", "form recognizer",
-            "document analysis", "id document",
-        ]
-        if any(kw in intent for kw in healthcare_kw):
-            return DomainType.HEALTHCARE
-        if any(kw in intent for kw in legal_kw):
-            return DomainType.LEGAL
-        if any(kw in intent for kw in docproc_kw):
-            return DomainType.DOCUMENT_PROCESSING
-        return DomainType.GENERIC
+
+        best_domain = DomainType.GENERIC
+        best_score = 0
+        for domain, strong, weak, threshold in domains:
+            strong_hits = sum(1 for kw in strong if kw in intent)
+            if strong_hits == 0:
+                continue  # require at least one strong keyword
+            score = strong_hits * 2 + sum(1 for kw in weak if kw in intent)
+            if score >= threshold and score > best_score:
+                best_domain = domain
+                best_score = score
+        return best_domain
 
     @staticmethod
     def _extract_entities(intent: str, domain: DomainType) -> list[EntitySpec]:
@@ -533,21 +563,15 @@ class IntentParserAgent:
         return IntentParserAgent._extract_endpoints_dynamic(intent)
 
     # ---------------------------------------------------------------
-    # Domain-agnostic entity/endpoint extraction engine
+    # Domain-agnostic SEMANTIC entity/endpoint extraction engine
+    # ---------------------------------------------------------------
+    # Instead of keyword-matching, this engine reasons about the intent
+    # by analysing section structure, noun-phrase context, described
+    # attributes, and business relationships to extract the real
+    # domain objects the system is built around.
     # ---------------------------------------------------------------
 
-    # Words to ignore when scanning for entity candidates
-    _STOPWORDS: set[str] = {
-        "the", "a", "an", "and", "or", "for", "to", "of", "in", "on", "at",
-        "by", "with", "from", "as", "is", "are", "was", "were", "be", "been",
-        "being", "have", "has", "had", "do", "does", "did", "will", "would",
-        "shall", "should", "may", "might", "can", "could", "must", "that",
-        "this", "these", "those", "it", "its", "our", "their", "your", "we",
-        "they", "you", "all", "each", "every", "any", "both", "such", "not",
-        "but", "if", "when", "than", "into", "about", "up", "out", "per",
-    }
-
-    # Infrastructure / tech words to filter out from entity candidates
+    # Infrastructure/tech words that should never become entities
     _INFRA_WORDS: set[str] = {
         "azure", "api", "apis", "database", "server", "cloud", "deploy",
         "docker", "kubernetes", "container", "containers", "endpoint",
@@ -559,64 +583,198 @@ class IntentParserAgent:
         "redis", "sql", "http", "https", "rest", "json", "yaml", "bicep",
         "github", "cicd", "pipeline", "workflow", "terraform", "helm",
         "compliance", "security", "networking", "integration", "webhook",
-        "notification", "notifications", "data", "time", "type", "status",
+        "notification", "notifications", "data", "type",
         "management", "processing", "tracking", "lifecycle", "engine",
         "automation", "requirement", "requirements", "feature", "latency",
         "uptime", "retention", "access", "role", "tier", "category",
         "method", "model", "framework", "sdk", "tool", "tools",
+        "module", "handler", "layer", "component", "stack", "protocol",
+        "format", "schema", "parameter", "parameters", "setting", "settings",
+        # Section-header boilerplate
+        "problem", "statement", "business", "goals", "target", "users",
+        "functional", "scalability", "performance", "acceptance", "criteria",
+        "version", "changes", "based", "initial", "scaffold",
+    }
+
+    # Generic/abstract words too vague to be entities on their own
+    _ABSTRACT_WORDS: set[str] = {
+        "time", "status", "level", "rate", "value", "item", "items",
+        "request", "response", "record", "entry", "update", "action",
+        "process", "event", "result", "report", "summary", "detail",
+        "details", "list", "note", "notes", "info", "information",
+        "step", "rule", "rules", "check", "trigger", "signal",
+        "default", "option", "options", "mode", "threshold", "limit",
+        "period", "interval", "cycle", "window", "range", "scope",
+        "volume", "size", "count", "total", "average", "percentage",
     }
 
     @staticmethod
     def _extract_entities_dynamic(intent: str) -> list[EntitySpec]:
-        """Extract domain entities from intent text — fully domain-agnostic.
+        """Extract domain entities semantically from intent text.
 
-        Scans for noun phrases that represent business concepts, then infers
-        fields for each entity based on context clues in the intent text.
-        Works for any industry without hardcoded domain logic.
+        This engine reasons about the business intent rather than
+        matching isolated keywords. It works in four phases:
+
+        1. **Section analysis** — Parse markdown section headers to
+           identify functional areas (e.g. "Tank Monitoring & Smart
+           Scheduling" → Tank, Schedule).
+        2. **Noun-phrase extraction** — Find multi-word business
+           concepts (e.g. "delivery order", "tank reading", "driver
+           log", "price forecast") that describe real-world objects.
+        3. **Attribute harvesting** — For each candidate entity, scan
+           surrounding sentences for described properties, creating
+           contextual fields rather than generic ones.
+        4. **Relationship linking** — Detect parent-child references
+           (e.g. "per customer", "for each tank") to add foreign-key
+           fields.
+
+        The result is a set of entities that reflect what the
+        business *actually manages*, not just words that appear often.
         """
-        candidates: dict[str, int] = {}
-        stop = IntentParserAgent._STOPWORDS
         infra = IntentParserAgent._INFRA_WORDS
+        abstract = IntentParserAgent._ABSTRACT_WORDS
 
-        # Strategy 1: "X management/processing/tracking/engine" patterns
+        # ----------------------------------------------------------
+        # Phase 1: Section-based concept extraction
+        # ----------------------------------------------------------
+        # Markdown headers like "### Tank Monitoring & Smart Scheduling"
+        # describe functional domains — the nouns inside them are high-
+        # confidence entity candidates.
+        section_concepts: dict[str, float] = {}
+        section_header_re = re.compile(r'^#{1,4}\s+(.+)$', re.MULTILINE)
+        for m in section_header_re.finditer(intent):
+            header = m.group(1).strip()
+            # Remove boilerplate suffixes
+            header_clean = re.sub(
+                r'\b(?:management|processing|tracking|automation|engine'
+                r'|optimization|requirements?|system|module|integration'
+                r'|& |and )\b', ' ', header, flags=re.I,
+            )
+            # Extract meaningful nouns from the cleaned header
+            words = re.findall(r'[A-Za-z][a-z]{2,}', header_clean)
+            for w in words:
+                wl = w.lower()
+                if wl not in infra and wl not in abstract and len(wl) > 2:
+                    section_concepts[wl] = section_concepts.get(wl, 0) + 8
+
+        # ----------------------------------------------------------
+        # Phase 2: Noun-phrase extraction from body text
+        # ----------------------------------------------------------
+        # Look for compound noun phrases that describe business objects.
+        # E.g. "delivery order", "tank level", "driver log", "burn rate"
+        # Score multi-word phrases higher than single words.
+        compound_candidates: dict[str, float] = {}
+
+        # Pattern: Adjective/Noun + Noun (2-3 word phrases)
         compound_re = re.compile(
-            r'\b(\w+)\s+(?:management|processing|tracking|lifecycle|engine'
-            r'|automation|workflow|service|module|handler)\b', re.I
+            r'\b([A-Za-z][a-z]+)\s+([A-Za-z][a-z]+)'
+            r'(?:\s+([A-Za-z][a-z]+))?\b'
         )
         for m in compound_re.finditer(intent):
-            word = m.group(1).lower()
-            if word not in stop and word not in infra and len(word) > 2:
-                candidates[word] = candidates.get(word, 0) + 5
+            w1, w2, w3 = m.group(1).lower(), m.group(2).lower(), m.group(3)
+            w3 = w3.lower() if w3 else None
+            # 2-word compounds
+            if (w1 not in infra and w1 not in abstract
+                    and w2 not in infra and w2 not in abstract):
+                phrase = f"{w1}_{w2}"
+                compound_candidates[phrase] = compound_candidates.get(phrase, 0) + 1
 
-        # Strategy 2: verb + noun patterns ("manage X", "track X", etc.)
-        action_re = re.compile(
-            r'\b(?:manage|track|process|automate|handle|create|submit|review'
-            r'|approve|calculate|generate|validate|initiate|inspect)\s+'
-            r'(?:the\s+)?(?:a\s+)?(\w+)', re.I
+        # ----------------------------------------------------------
+        # Phase 3: Business-object patterns
+        # ----------------------------------------------------------
+        # Sentences describing what the system stores/tracks/manages
+        # are strong signals for entities.
+        entity_scores: dict[str, float] = {}
+
+        # "X <noun>" where X is a domain-specific modifier
+        domain_noun_re = re.compile(
+            r'\b([a-z]+)\s+(order|schedule|reading|log|profile|history'
+            r'|forecast|prediction|alert|invoice|receipt|report|record'
+            r'|plan|queue|assignment|contract|ticket|account|template'
+            r'|sensor|meter|gauge|tank|fleet|truck|vehicle|route'
+            r'|shipment|package|depot|terminal|warehouse|inventory'
+            r'|customer|driver|dispatcher|patient|employee|vendor'
+            r'|appointment|session|claim|refund|return|subscription'
+            r'|notification|message|email|sms|price|rate|fee|charge)\b',
+            re.I,
         )
-        for m in action_re.finditer(intent):
-            word = m.group(1).lower()
-            if word not in stop and word not in infra and len(word) > 2:
-                candidates[word] = candidates.get(word, 0) + 4
+        for m in domain_noun_re.finditer(intent.lower()):
+            modifier, noun = m.group(1), m.group(2)
+            if modifier in infra or modifier in abstract:
+                # Use just the noun
+                key = noun
+            else:
+                key = f"{modifier}_{noun}"
+            if key not in infra:
+                entity_scores[key] = entity_scores.get(key, 0) + 3
 
-        # Strategy 3: "X API", "X endpoint", "X request" patterns
-        api_re = re.compile(
-            r'\b(\w+)\s+(?:api|endpoint|request|response|record|entry'
-            r'|transaction|calculation|rule|check|report)\b', re.I
+        # Standalone business nouns from bullet-point descriptions
+        # (lines starting with "- ")
+        bullet_re = re.compile(r'^[-*]\s+(.+)$', re.MULTILINE)
+        standalone_noun_re = re.compile(
+            r'\b(tank|customer|driver|route|delivery|invoice|payment'
+            r'|receipt|sensor|meter|fleet|truck|vehicle|depot|inventory'
+            r'|shipment|order|forecast|prediction|alert|appointment'
+            r'|session|claim|refund|return|subscription|contract'
+            r'|schedule|queue|ticket|report|notification|employee'
+            r'|vendor|patient|product|catalog|inspection|certificate'
+            r'|document|form|template|campaign|lead|opportunity'
+            r'|account|portfolio|transaction|asset|device|reading'
+            r'|measurement|telemetry|rate|quote|estimate|proposal'
+            r'|budget|expense|reimbursement|timesheet|shift|roster)\b',
+            re.I,
         )
-        for m in api_re.finditer(intent):
-            word = m.group(1).lower()
-            if word not in stop and word not in infra and len(word) > 2:
-                candidates[word] = candidates.get(word, 0) + 3
+        for bm in bullet_re.finditer(intent):
+            line = bm.group(1).lower()
+            for nm in standalone_noun_re.finditer(line):
+                noun = nm.group(1)
+                if noun not in infra:
+                    entity_scores[noun] = entity_scores.get(noun, 0) + 2
 
-        # Strategy 4: frequency boost — domain nouns that appear often
-        words = re.findall(r'\b([a-z]{3,})\b', intent.lower())
-        for w in words:
-            if w in candidates:
-                candidates[w] += 1
+        # ----------------------------------------------------------
+        # Phase 4: Merge and rank
+        # ----------------------------------------------------------
+        # Combine section concepts, compound phrases, and pattern matches.
+        # Section-header concepts get highest weight because they describe
+        # the system's functional areas.
+        merged: dict[str, float] = {}
 
-        if not candidates:
-            # Absolute fallback: generic Item
+        # Add section concepts
+        for k, v in section_concepts.items():
+            merged[k] = merged.get(k, 0) + v
+
+        # Add entity patterns (domain_noun matches)
+        for k, v in entity_scores.items():
+            merged[k] = merged.get(k, 0) + v
+
+        # Boost concepts that appear frequently in the text
+        words_lower = re.findall(r'\b([a-z]{3,})\b', intent.lower())
+        word_freq: dict[str, int] = {}
+        for w in words_lower:
+            word_freq[w] = word_freq.get(w, 0) + 1
+
+        for key in list(merged.keys()):
+            # For compound keys like "delivery_order", check both parts
+            parts = key.split("_")
+            freq_boost = sum(word_freq.get(p, 0) for p in parts) / len(parts)
+            if freq_boost >= 3:
+                merged[key] = merged[key] + min(freq_boost, 10)
+
+        # Promote compound phrases where both words score individually
+        for phrase, count in compound_candidates.items():
+            parts = phrase.split("_")
+            if count >= 2 and any(p in merged for p in parts):
+                merged[phrase] = merged.get(phrase, 0) + count * 2
+
+        # Filter out pure infra/abstract
+        merged = {
+            k: v for k, v in merged.items()
+            if k not in infra
+            and k not in abstract
+            and not all(p in infra or p in abstract for p in k.split("_"))
+        }
+
+        if not merged:
             return [
                 EntitySpec(name="Item", description="Generic domain entity", fields=[
                     FieldSpec(name="name", type="str", required=True, description="Item name"),
@@ -625,80 +783,305 @@ class IntentParserAgent:
                 ]),
             ]
 
-        # Rank and take top entities (max 5)
-        ranked = sorted(candidates.items(), key=lambda x: -x[1])
-        # Deduplicate singulars/plurals: prefer singular
-        seen: set[str] = set()
+        # Rank and deduplicate
+        ranked = sorted(merged.items(), key=lambda x: -x[1])
+
+        # Connector/adjective words that should not start entity names
+        _CONNECTOR_WORDS = {
+            "and", "or", "the", "for", "with", "from", "into", "onto",
+            "smart", "real", "auto", "each", "every", "all", "any",
+            "new", "old", "current", "daily", "weekly", "monthly",
+        }
+
+        # Deduplicate: merge singular/plural, prefer compound form
+        seen_roots: set[str] = set()
         selected: list[str] = []
-        for word, _score in ranked:
-            singular = word.rstrip("s") if word.endswith("s") and len(word) > 4 else word
-            if singular not in seen and word not in seen:
-                seen.add(singular)
-                seen.add(word)
-                selected.append(singular)
-            if len(selected) >= 5:
+        for key, _score in ranked:
+            parts = key.split("_")
+            # Skip entities starting with connectors (e.g. "and_customer")
+            if parts[0] in _CONNECTOR_WORDS:
+                # Try salvaging: "and_customer" → "customer"
+                parts = parts[1:]
+                if not parts:
+                    continue
+                key = "_".join(parts)
+            # Singularize each part
+            roots = tuple(
+                p.rstrip("s") if p.endswith("s") and len(p) > 4 else p
+                for p in parts
+            )
+            root_key = "_".join(roots)
+            # Skip if we already have this concept or a superset
+            if root_key in seen_roots:
+                continue
+            # Skip if a single-word form is already covered by a compound
+            if len(parts) == 1 and any(parts[0] in s for s in seen_roots if "_" in s):
+                continue
+            seen_roots.add(root_key)
+            selected.append(key)
+            if len(selected) >= 8:  # allow more entities for rich intents
                 break
 
-        # Build EntitySpecs with context-inferred fields
+        # ----------------------------------------------------------
+        # Phase 5: Build EntitySpecs with contextual fields
+        # ----------------------------------------------------------
         entities: list[EntitySpec] = []
-        for noun in selected:
-            fields = IntentParserAgent._infer_fields(noun, intent)
-            name = noun[0].upper() + noun[1:]  # Capitalize
+        for raw_name in selected:
+            fields = IntentParserAgent._infer_fields_semantic(raw_name, intent)
+            # Convert to PascalCase
+            display = "".join(w.capitalize() for w in raw_name.split("_"))
+            description = IntentParserAgent._infer_description(raw_name, intent)
             entities.append(EntitySpec(
-                name=name,
-                description=f"{name} domain entity",
+                name=display,
+                description=description,
                 fields=fields,
             ))
         return entities
 
     @staticmethod
-    def _infer_fields(entity_name: str, intent: str) -> list[FieldSpec]:
-        """Infer fields for an entity based on its name and the intent context."""
+    def _infer_description(entity_key: str, intent: str) -> str:
+        """Infer a meaningful description by finding the sentence that best
+        describes this entity in the intent text."""
+        parts = entity_key.split("_")
+        # Find bullet-point or sentence mentioning this concept
+        search_term = " ".join(parts)
+        for line in intent.split("\n"):
+            line_stripped = line.strip().lstrip("-* ")
+            if search_term in line_stripped.lower() and len(line_stripped) > 20:
+                # Truncate to a sensible length
+                desc = line_stripped[:120].rstrip(".,;: ")
+                return desc
+        return f"{' '.join(w.capitalize() for w in parts)} domain entity"
+
+    @staticmethod
+    def _infer_fields_semantic(entity_key: str, intent: str) -> list[FieldSpec]:
+        """Infer fields for an entity using name-based reasoning and contextual extraction.
+
+        Instead of scanning all lines for keyword matches (which pulls in
+        document-structure words like KPI, SLA, RTO), this method:
+        1. Infers sensible fields from the entity *name* itself (a Tank has
+           level, capacity, temperature; a Customer has name, email, phone).
+        2. Extracts explicit data attributes only from API-spec lines that
+           describe the entity's payload structure.
+        3. Adds relationship foreign keys only when explicit association
+           language is found.
+        """
         fields: list[FieldSpec] = []
-        intent_lower = intent.lower()
+        seen_names: set[str] = set()
+        parts = entity_key.split("_")
+        search_term = " ".join(parts)
 
-        # Financial entities: refund, payment, invoice, charge, fee, price, cost
-        financial_kw = {"refund", "payment", "invoice", "charge", "fee", "price", "cost", "transaction"}
-        if entity_name in financial_kw or any(kw in intent_lower for kw in [f"{entity_name} amount", f"{entity_name} calculation"]):
-            fields.append(FieldSpec(name="amount", type="float", required=True, description="Monetary amount"))
-            fields.append(FieldSpec(name="currency", type="str", required=False, description="Currency code (e.g. USD)"))
-            fields.append(FieldSpec(name="method", type="str", required=False, description="Processing method"))
+        # Words that are document/requirements structure — never valid fields
+        _META = {
+            "kpi", "sla", "rto", "rpo", "problem_statement", "problem",
+            "target_users", "target", "acceptance", "criteria", "requirement",
+            "requirements", "scalability", "compliance", "integration",
+            "functional", "performance", "business_goals", "goals", "users",
+            "overview", "section", "note", "todo", "action",
+            "driven", "based", "upstream", "downstream", "monitoring",
+            "rbac_enforcement", "rbac", "enforcement", "pii_protection",
+            "pii", "data_retention", "retention", "audit_trail", "audit",
+            "and_totals", "correct_line_items", "day_horizon_target_users",
+            "email_delivery", "simulated_sensor_data", "y_scalability",
+            "customer_dashboard_load", "based_access",
+        }
 
-        # Process/request entities: return, request, claim, order, ticket, case
-        process_kw = {"return", "request", "claim", "order", "ticket", "case", "application", "submission"}
-        if entity_name in process_kw:
-            fields.append(FieldSpec(name="reason", type="str", required=False, description="Reason or justification"))
-            fields.append(FieldSpec(name="priority", type="str", required=False, description="Priority level"))
-
-        # Check for reference fields from context
-        ref_entities = {"customer", "user", "order", "product", "account", "patient", "employee", "vendor"}
-        for ref in ref_entities:
-            if ref != entity_name and ref in intent_lower:
+        def _add(name: str, ftype: str, required: bool, desc: str) -> None:
+            if name not in seen_names and name not in _META and len(name) > 2:
+                seen_names.add(name)
                 fields.append(FieldSpec(
-                    name=f"{ref}_id", type="str", required=True,
-                    description=f"Associated {ref} identifier",
+                    name=name, type=ftype, required=required, description=desc,
                 ))
 
-        # If intent mentions items/products with this entity, add items field
-        if entity_name in {"return", "order", "shipment", "cart"} and "item" in intent_lower:
-            fields.append(FieldSpec(name="items", type="list[str]", required=False, description="Associated item IDs"))
+        # ----------------------------------------------------------
+        # Strategy 1: Name-based field inference
+        # ----------------------------------------------------------
+        # The entity name tells us what kind of thing it is.
+        name_lower = entity_key.lower()
 
-        # Every entity gets a status and description
-        if not any(f.name == "status" for f in fields):
-            fields.append(FieldSpec(name="status", type="str", required=True, description="Current status"))
-        fields.append(FieldSpec(name="notes", type="str", required=False, description="Additional notes"))
+        # Person-like entities
+        if any(w in name_lower for w in [
+            "customer", "driver", "employee", "patient", "vendor",
+            "user", "dispatcher", "operator", "agent",
+        ]):
+            _add("name", "str", True, "Full name")
+            _add("email", "str", False, "Email address")
+            _add("phone", "str", False, "Phone number")
 
-        return fields
+        # Physical object / device entities
+        if any(w in name_lower for w in [
+            "tank", "device", "sensor", "meter", "vehicle",
+            "truck", "equipment", "asset", "machine",
+        ]):
+            _add("serial_number", "str", False, "Serial or device identifier")
+            _add("location", "str", False, "Physical location")
+
+        # Reading / measurement entities
+        if any(w in name_lower for w in [
+            "reading", "measurement", "telemetry",
+        ]):
+            _add("value", "float", True, "Measured value")
+            _add("unit", "str", False, "Unit of measurement")
+            _add("recorded_at", "datetime", True, "Measurement timestamp")
+
+        # Forecast / prediction entities
+        if any(w in name_lower for w in [
+            "forecast", "prediction", "estimate",
+        ]):
+            _add("predicted_value", "float", True, "Predicted value")
+            _add("confidence", "float", False, "Confidence score")
+            _add("horizon_days", "int", False, "Forecast horizon in days")
+            _add("model_version", "str", False, "Model version used")
+
+        # Transaction / payment entities
+        if any(w in name_lower for w in [
+            "payment", "transaction", "charge", "refund",
+        ]):
+            _add("amount", "float", True, "Transaction amount")
+            _add("currency", "str", False, "Currency code")
+            _add("method", "str", False, "Payment method")
+            _add("transaction_id", "str", False, "External transaction ID")
+
+        # Document entities (invoice, receipt, bill)
+        if any(w in name_lower for w in [
+            "invoice", "receipt", "bill",
+        ]):
+            _add("total_amount", "float", True, "Total amount")
+            _add("due_date", "datetime", False, "Payment due date")
+            _add("line_items", "list[str]", False, "Line item descriptions")
+
+        # Order / delivery / shipment entities
+        if any(w in name_lower for w in [
+            "order", "delivery", "shipment",
+        ]):
+            _add("scheduled_date", "datetime", False, "Scheduled date")
+            _add("quantity", "float", False, "Quantity or volume")
+
+        # Route entities
+        if any(w in name_lower for w in ["route"]):
+            _add("date", "datetime", False, "Route date")
+            _add("stops_count", "int", False, "Number of stops")
+            _add("total_distance", "float", False, "Total route distance")
+
+        # Price / rate / quote entities
+        if any(w in name_lower for w in [
+            "price", "pricing", "rate", "quote",
+        ]):
+            _add("price", "float", True, "Price value")
+            _add("effective_date", "datetime", False, "Date price takes effect")
+
+        # Alert / notification entities
+        if any(w in name_lower for w in [
+            "alert", "notification",
+        ]):
+            _add("message", "str", True, "Alert or notification message")
+            _add("severity", "str", False, "Severity level")
+            _add("acknowledged", "bool", False, "Whether acknowledged")
+
+        # Schedule / shift entities
+        if any(w in name_lower for w in [
+            "schedule", "shift", "roster", "appointment",
+        ]):
+            _add("start_time", "datetime", True, "Start time")
+            _add("end_time", "datetime", False, "End time")
+
+        # Contract entities
+        if any(w in name_lower for w in [
+            "contract", "agreement", "subscription",
+        ]):
+            _add("start_date", "datetime", False, "Contract start date")
+            _add("end_date", "datetime", False, "Contract end date")
+            _add("terms", "str", False, "Contract terms")
+
+        # History / log entities
+        if any(w in name_lower for w in [
+            "history", "log", "audit",
+        ]):
+            _add("actor", "str", False, "Who performed the action")
+            _add("action_type", "str", True, "Type of action recorded")
+            _add("timestamp", "datetime", True, "When the action occurred")
+
+        # ----------------------------------------------------------
+        # Strategy 2: Relationship fields (foreign keys)
+        # ----------------------------------------------------------
+        # Split by ### subsections to find functional-area co-occurrence.
+        # Only add FK if the other entity appears ≥2 times in the same
+        # subsection (not just once in passing). Cap at 3 FKs.
+        # Ordered by priority: most common business relationships first.
+        ref_entities = [
+            "customer", "order", "delivery", "driver", "tank",
+            "route", "invoice", "product", "user", "account",
+        ]
+        subsections = re.split(r'^###\s+', intent, flags=re.MULTILINE)
+        fk_count = 0
+        for ref in ref_entities:
+            if ref in parts or fk_count >= 3:
+                continue  # don't self-reference; cap FKs
+            for sub in subsections:
+                sl = sub.lower()
+                # Entity must be the topic of this subsection (≥2 mentions)
+                if sl.count(search_term) < 2:
+                    continue
+                # Other entity also appears meaningfully (≥2 mentions)
+                if sl.count(ref) >= 2:
+                    _add(f"{ref}_id", "str", True,
+                         f"Associated {ref} identifier")
+                    fk_count += 1
+                    break
+
+        # ----------------------------------------------------------
+        # Ensure minimum baseline fields
+        # ----------------------------------------------------------
+        _add("status", "str", True, "Current status")
+        _add("created_at", "datetime", False, "Record creation timestamp")
+
+        return fields[:12]
+
+    @staticmethod
+    def _guess_field_type(field_name: str, context: str) -> str:
+        """Guess field type from name and surrounding text."""
+        name = field_name.lower()
+        ctx = context.lower()
+        if any(kw in name for kw in ["_id", "id_"]):
+            return "str"
+        if any(kw in name for kw in ["amount", "price", "cost", "fee", "rate",
+                                      "score", "percentage", "pct", "confidence",
+                                      "latitude", "longitude", "distance"]):
+            return "float"
+        if any(kw in name for kw in ["count", "quantity", "volume", "gallons",
+                                      "number", "page", "port"]):
+            return "int"
+        if any(kw in name for kw in ["date", "time", "timestamp", "created",
+                                      "updated", "expires"]):
+            return "datetime"
+        if any(kw in name for kw in ["is_", "has_", "enable", "active",
+                                      "verified", "flag"]):
+            return "bool"
+        if any(kw in name for kw in ["items", "tags", "list", "parties"]):
+            return "list[str]"
+        if any(kw in ctx for kw in ["percentage", "score", "amount", "decimal"]):
+            return "float"
+        if any(kw in ctx for kw in ["number of", "count", "quantity"]):
+            return "int"
+        return "str"
 
     @staticmethod
     def _extract_endpoints_dynamic(intent: str) -> list[EndpointSpec]:
-        """Generate API endpoints from dynamically extracted entities."""
+        """Generate API endpoints from semantically extracted entities."""
         entities = IntentParserAgent._extract_entities_dynamic(intent)
         endpoints: list[EndpointSpec] = []
         intent_lower = intent.lower()
 
         for entity in entities:
-            slug = entity.name.lower() + "s"  # pluralize
+            # Convert PascalCase to kebab-case slug: TankReading → tank-readings
+            raw = re.sub(r'(?<!^)(?=[A-Z])', '-', entity.name).lower()
+            # Handle irregular plurals
+            if raw.endswith("y") and len(raw) > 1 and raw[-2] not in "aeiou-":
+                slug = raw[:-1] + "ies"       # delivery → deliveries
+            elif raw.endswith(("s", "x", "z", "sh", "ch")):
+                slug = raw + "es"
+            else:
+                slug = raw + "s"
             label = entity.name
             endpoints.extend([
                 EndpointSpec(method="GET", path=f"/{slug}", description=f"List {label} records"),
@@ -708,9 +1091,9 @@ class IntentParserAgent:
                 EndpointSpec(method="DELETE", path=f"/{slug}/{{id}}", description=f"Delete {label}"),
             ])
 
-            # Detect workflow actions from intent context
-            word = entity.name.lower()
-            action_map = {
+            # Detect workflow actions from intent context near this entity
+            entity_words = re.sub(r'(?<!^)(?=[A-Z])', ' ', entity.name).lower().split()
+            action_candidates = {
                 "approve": f"Approve {label}",
                 "reject": f"Reject {label}",
                 "process": f"Process {label}",
@@ -718,11 +1101,37 @@ class IntentParserAgent:
                 "complete": f"Complete {label}",
                 "escalate": f"Escalate {label}",
                 "inspect": f"Inspect {label}",
+                "schedule": f"Schedule {label}",
+                "dispatch": f"Dispatch {label}",
+                "submit": f"Submit {label}",
+                "verify": f"Verify {label}",
+                "send": f"Send {label}",
+                "calculate": f"Calculate {label}",
+                "predict": f"Predict {label}",
+                "optimize": f"Optimize {label}",
             }
-            for action, desc in action_map.items():
-                if re.search(rf'\b{action}\w*\b', intent_lower):
-                    endpoints.append(EndpointSpec(
-                        method="POST", path=f"/{slug}/{{id}}/{action}", description=desc,
-                    ))
+            for action, desc in action_candidates.items():
+                # Only add if the action + entity concept co-occur tightly
+                # (entity word in first half of the line, action near entity)
+                for line in intent.split("\n"):
+                    ll = line.lower()
+                    if action not in ll:
+                        continue
+                    # At least one entity word must appear in the same line
+                    if not any(ew in ll for ew in entity_words):
+                        continue
+                    # Entity concept should be the topic: appears in first
+                    # 60 chars of the line (not just mentioned at the end)
+                    first_pos = min(
+                        (ll.find(ew) for ew in entity_words if ew in ll),
+                        default=999,
+                    )
+                    if first_pos < 60:
+                        endpoints.append(EndpointSpec(
+                            method="POST",
+                            path=f"/{slug}/{{id}}/{action}",
+                            description=desc,
+                        ))
+                        break
 
         return endpoints

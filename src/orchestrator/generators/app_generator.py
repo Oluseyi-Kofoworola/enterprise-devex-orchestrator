@@ -1213,7 +1213,7 @@ async def {action}_{sn}({sn}_id: str, settings: Settings = Depends(get_settings)
                     lines.append(f'    {field.name}: {field.type} = Field(default=None, description="{field.description}")')
                 else:
                     lines.append(f'    {field.name}: {field.type} = Field(..., description="{field.description}")')
-            lines.append('    created_at: str = Field(default="", description="Creation timestamp")')
+            lines.append('    created_at: str = Field(default="", description="Creation timestamp")' if "created_at" not in {f.name for f in ent.fields} else '')
             lines.append('')
             lines.append('')
 
@@ -1336,8 +1336,11 @@ async def {action}_{sn}({sn}_id: str, settings: Settings = Depends(get_settings)
             for f in ent.fields:
                 default = _python_type_default(f.type)
                 lines.append(f'    {f.name}: {f.type} = {default}')
-            lines.append('    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())')
-            lines.append('    updated_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())')
+            field_names = {f.name for f in ent.fields}
+            if "created_at" not in field_names:
+                lines.append('    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())')
+            if "updated_at" not in field_names:
+                lines.append('    updated_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())')
             lines.append('')
             lines.append('')
         return "\n".join(lines)

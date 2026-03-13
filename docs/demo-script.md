@@ -30,7 +30,7 @@ devex plan "Build a healthcare voice agent API with patient records, voice inter
 
 **What to highlight:**
 - IntentSpec extraction (project name, app type, data stores, auth model)
-- **Domain auto-detection** (Healthcare, Legal, Document Processing, or Generic)
+- **Domain auto-detection** (assigns context labels, but all entity/endpoint extraction is semantic)
 - Component selection (Container Apps, Key Vault, Managed Identity, ACR, Log Analytics)
 - 6 Architecture Decision Records
 - STRIDE threat model (6 categories)
@@ -50,8 +50,8 @@ devex scaffold "Build a healthcare voice agent API" --output ./demo-output
 **What to highlight:**
 - Bicep templates (main.bicep + 7 modules)
 - GitHub Actions workflows (4 files)
-- **Domain-specific backend** -- real services, repositories, models, and seed data (not stubs)
-- **React + Vite + TypeScript frontend** SPA with domain dashboard
+- **Entity-driven backend** -- real services, repositories, models, and seed data extracted semantically from intent (not hardcoded stubs)
+- **React + Vite + TypeScript frontend** SPA with entity-driven dashboard
 - FastAPI application + enterprise dashboard UI + Dockerfile
 - Auto-generated pytest test suite (5 test files)
 - Azure Monitor alert rules + runbook
@@ -122,22 +122,32 @@ curl https://$APP_URL/health
 
 ---
 
-## Segment 5: Domain-Aware Generation (30 sec)
+## Segment 5: Semantic Entity Extraction (30 sec)
 
-**Narration:** "The orchestrator auto-detects business domains and generates real services -- including a domain-specific React SPA."
+**Narration:** "The orchestrator uses a 5-phase semantic extraction engine to discover entities, fields, and endpoints from any business domain -- no hardcoded templates."
 
-| Domain | Services | Endpoints | Entities |
-|--------|----------|-----------|----------|
-| Healthcare | PatientService, AppointmentService, VoiceInteractionService, ComplianceService | 11 | Patient, Appointment, VoiceSession |
-| Legal | ContractService, ClauseAnalysisService, ComplianceService | 7 | Contract, Clause, ReviewResult |
-| Document Processing | DocumentService, ExtractionService | 6 | Document, ExtractionResult |
-| Generic (dynamic) | Entity-specific services from NLP extraction | Dynamic per entity | Extracted from intent text |
+The 5-phase extraction pipeline:
+1. **Section-header analysis** -- identifies entity candidates from intent structure
+2. **Noun-phrase extraction** -- discovers business objects from natural language
+3. **Business-object pattern matching** -- scores candidates against domain patterns
+4. **Merge and rank** -- deduplicates and prioritises entity candidates
+5. **EntitySpec building** -- infers field names, types, and generates endpoint specs
 
-**React SPA frontend is also domain-aware:**
+| Input Domain | Entities Extracted | Endpoints Generated | How |
+|-------------|-------------------|-------------------|-----|
+| Healthcare | Patient, Appointment, VoiceSession | Dynamic per entity | Semantic NLP |
+| Legal | Contract, Clause, ReviewResult | Dynamic per entity | Semantic NLP |
+| Document Processing | Document, ExtractionResult | Dynamic per entity | Semantic NLP |
+| E-commerce | Order, Refund, Return | Dynamic per entity | Semantic NLP |
+| Propane Delivery | Delivery, Tank, Route | Dynamic per entity | Semantic NLP |
+| Any custom domain | Extracted from intent text | Dynamic per entity | Semantic NLP |
+
+**React SPA frontend is entity-driven:**
 - API client maps to entity-specific endpoints (e.g., `listRefunds`, `processReturn`)
 - Dashboard shows tabbed data tables per entity with KPI cards, search, create modals
 - Detail page renders all entity fields with action buttons
 - TypeScript interfaces generated from entity field specs
+- Works identically for healthcare, legal, e-commerce, or any custom domain
 
 ```bash
 # Show repository pattern
