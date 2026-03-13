@@ -123,7 +123,7 @@ See [`contract-review-intent.md`](contract-review-intent.md) as a comprehensive 
 
 ---
 
-*Enterprise DevEx Orchestrator v1.1.0*
+*Enterprise DevEx Orchestrator v1.4.0*
 
 
 

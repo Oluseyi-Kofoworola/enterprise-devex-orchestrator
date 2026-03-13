@@ -108,13 +108,13 @@ Runs 25 governance policy checks and drift-aware validation against the generate
 ## 7. Create Your Own Intent
 
 ```powershell
-devex init -o ./my-project -p my-enterprise-api
+devex init -o ./my-api -p my-api
 ```
 
-Edit `./my-project/intent.md` with your business requirements, then:
+Edit `./my-api/intent.md` with your business requirements, then:
 
 ```powershell
-devex scaffold --file ./my-project/intent.md -o ./my-project
+devex scaffold --file ./my-api/intent.md -o ./my-api
 ```
 
 ---
@@ -242,7 +242,7 @@ Generated folders are disposable:
 Remove-Item -Recurse -Force ./my-first-output -ErrorAction SilentlyContinue
 Remove-Item -Recurse -Force ./contract-review -ErrorAction SilentlyContinue
 Remove-Item -Recurse -Force ./doc-intelligence -ErrorAction SilentlyContinue
-Remove-Item -Recurse -Force ./my-project -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force ./my-api -ErrorAction SilentlyContinue
 ```
 
 To delete Azure resources:
@@ -281,6 +281,6 @@ az group delete --name rg-<project-name>-dev --yes --no-wait
 
 ---
 
-*Enterprise DevEx Orchestrator v1.2.0*
+*Enterprise DevEx Orchestrator v1.4.0*
 
 

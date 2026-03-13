@@ -109,9 +109,9 @@ devex validate ./my-output
 ### Create your own intent file
 
 ```powershell
-devex init -o ./my-project -p my-api-name
-# Edit my-project/intent.md with your requirements
-devex scaffold --file my-project/intent.md -o ./my-project
+devex init -o ./my-api -p my-api
+# Edit my-api/intent.md with your requirements
+devex scaffold --file my-api/intent.md -o ./my-api
 ```
 
 ### Upgrade with a new intent version
