@@ -108,6 +108,7 @@ def get_repository(entity: str) -> BaseRepository:
 - Data access abstracted behind repository interface -- no direct DB calls in service layer
 - `STORAGE_MODE` environment variable controls storage backend (default: in-memory with seed data)
 - Azure mode uses Managed Identity for authentication -- no connection strings in code
+- Generated Dockerfiles use **single-worker uvicorn** -- prevents in-memory data isolation between forked processes
 
 ### LLM Provider Credential Security
 

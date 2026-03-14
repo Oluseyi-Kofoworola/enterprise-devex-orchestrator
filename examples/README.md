@@ -145,7 +145,26 @@ See [`contract-review-intent.md`](contract-review-intent.md) as a comprehensive 
 
 ---
 
-*Enterprise DevEx Orchestrator v1.6.0*
+## Preview Dashboard Locally
+
+After scaffolding, preview the interactive dashboard before deploying:
+
+```powershell
+cd <output-dir>/src/app
+pip install fastapi uvicorn pydantic pydantic-settings
+uvicorn main:app --host 127.0.0.1 --port 8000 --reload
+```
+
+Open `http://127.0.0.1:8000`. The dashboard includes:
+- **Entity tabs** with pre-seeded domain data
+- **Create** records via modal forms
+- **Workflow actions** (dispatch, approve, verify) that update record status
+- **Search** and health monitoring
+- **No database required** -- uses in-memory storage with auto-seeded data
+
+---
+
+*Enterprise DevEx Orchestrator v1.7.0*
 
 
 

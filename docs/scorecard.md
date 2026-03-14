@@ -111,6 +111,8 @@
 | 20 | Semantic entity extraction | Done | 5-phase NLP pipeline: any business domain dynamically extracted |
 | 21 | Frontend SPA generator | Done | React 18 + Vite 5 + TypeScript with entity-driven dashboards |
 | 22 | Multi-provider LLM | Done | GitHub Copilot SDK (default), Azure OpenAI, OpenAI, Anthropic (Claude) |
+| 23 | Interactive CRUD Dashboard | Done | Create, read, update, delete via browser UI; domain-aware seed data; single-worker Dockerfile; local preview with `uvicorn` |
+| 24 | Local Dashboard Preview | Done | `uvicorn main:app --reload` in `src/app/` -- no Azure or DB required |
 
 ---
 
@@ -128,6 +130,7 @@
 10. **Advanced patterns** -- Skills, subagents, persistent planning, deploy orchestrator
 11. **Multi-provider LLM** -- GitHub Copilot SDK (default), Azure OpenAI, OpenAI, Anthropic with auto-detection
 12. **Intent-to-production** -- Single command generates and deploys enterprise-grade infrastructure
+13. **Interactive CRUD dashboard** -- Every scaffold includes a fully functional dashboard with create, update, delete, search, and health monitoring -- works locally and in Azure
 
 ---
 

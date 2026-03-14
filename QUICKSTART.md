@@ -95,6 +95,46 @@ my-first-output/
 
 ---
 
+## 5b. Preview Dashboard Locally
+
+Before deploying to Azure, run the dashboard locally to verify everything works:
+
+```powershell
+# Navigate to the generated app
+cd my-first-output/src/app
+
+# Install dependencies
+pip install fastapi uvicorn pydantic pydantic-settings
+
+# Start the local server
+uvicorn main:app --host 127.0.0.1 --port 8000 --reload
+```
+
+Open `http://127.0.0.1:8000` in your browser. The dashboard is fully interactive:
+
+| Action | How |
+|--------|-----|
+| **View data** | Entity tabs show pre-seeded domain-aware data |
+| **Create record** | Click "+" button, fill the modal form, submit |
+| **Update status** | Click a row, use action buttons (dispatch, approve, verify) |
+| **Delete record** | Click a row, press Delete |
+| **Search** | Type in the search box above each table |
+| **Health check** | Green dot in header = server healthy |
+
+> **No database or Azure resources required.** Local mode uses in-memory storage
+> with auto-seeded data. Data resets on server restart.
+
+Alternatively, run with Docker:
+
+```powershell
+cd my-first-output/src/app
+docker build -t my-app .
+docker run -p 8000:8000 my-app
+# Open http://localhost:8000
+```
+
+---
+
 ## 6. Validate Governance
 
 ```powershell

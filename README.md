@@ -266,6 +266,61 @@ standards.yaml            # Enterprise standards configuration
 
 ---
 
+## Run Dashboard Locally (Before Azure Deployment)
+
+Every generated scaffold includes a fully functional dashboard with CRUD operations. You can preview and interact with it locally before deploying to Azure:
+
+### Option 1: Run directly with Python (Recommended)
+
+```powershell
+# Generate a scaffold
+devex scaffold --file examples/intent.md -o ./my-output
+
+# Install dependencies
+cd my-output/src/app
+pip install fastapi uvicorn pydantic pydantic-settings
+
+# Start the server
+uvicorn main:app --host 127.0.0.1 --port 8000 --reload
+```
+
+Open `http://127.0.0.1:8000` in your browser. The dashboard loads with:
+- **KPI cards** showing entity counts
+- **Tabbed data tables** with pre-seeded domain-aware data
+- **Create** new records via modal forms
+- **Update** status via workflow action buttons (e.g., dispatch, approve, verify)
+- **Search** and filter across entities
+- **Health monitoring** with live status indicator
+
+### Option 2: Run with Docker
+
+```powershell
+cd my-output/src/app
+docker build -t my-app .
+docker run -p 8000:8000 my-app
+```
+
+Open `http://localhost:8000`.
+
+### Option 3: Run both backend and React frontend
+
+```powershell
+# Terminal 1: Start backend API
+cd my-output/src/app
+uvicorn main:app --host 127.0.0.1 --port 8000 --reload
+
+# Terminal 2: Start React frontend
+cd my-output/frontend
+npm install
+npm run dev
+```
+
+The React SPA opens at `http://localhost:5173` with entity-driven dashboards, TypeScript types, and API client.
+
+> **Note:** Local mode uses in-memory storage with auto-seeded domain data. All CRUD operations work immediately -- no database setup required. Data resets on server restart.
+
+---
+
 ## Deploy to Azure (Optional)
 
 Deployment requires Azure CLI and an active subscription:
@@ -338,6 +393,21 @@ Extension points:
 ---
 
 ## Changelog
+
+### v1.7.0
+
+- **Feature**: Fully interactive enterprise dashboard with end-to-end CRUD operations
+  - Create records via modal forms with type-aware field inputs
+  - Update status via workflow action buttons (dispatch, approve, verify, etc.)
+  - Delete records with confirmation
+  - Real-time health indicator, auto-refresh, and live clock
+  - Search and filter across all entities
+- **Feature**: Domain-aware seed data -- generated values are contextually appropriate (e.g., smart city sensors get GPS coordinates and zone IDs, not generic "item-001")
+- **Fix**: Single-worker uvicorn in generated Dockerfiles -- prevents in-memory data isolation between forked processes
+- **Fix**: HTML entity encoding (`&#39;`) for onclick handlers -- survives nested Python f-string processing
+- **Fix**: Missing `from datetime import datetime` in generated Pydantic schemas
+- **Docs**: Added "Run Dashboard Locally" guide to README and QUICKSTART
+- **Docs**: Updated all documentation for v1.7.0
 
 ### v1.6.0
 
@@ -412,7 +482,7 @@ MIT
 
 ---
 
-*Enterprise DevEx Orchestrator v1.5.0*
+*Enterprise DevEx Orchestrator v1.7.0*
 
 
 

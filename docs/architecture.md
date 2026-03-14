@@ -229,5 +229,6 @@ graph TD
 *Domain-agnostic semantic extraction: Any business domain*
 *Backend: Python (FastAPI) · Node.js (Express) · .NET (ASP.NET Core)*
 *Frontend: Entity-Driven React 18 + Vite 5 + TypeScript SPA*
+*Dashboard: Interactive CRUD with domain-aware seed data, local preview via `uvicorn`*
 
 

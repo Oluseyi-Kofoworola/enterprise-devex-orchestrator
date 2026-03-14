@@ -76,7 +76,35 @@ cat demo-output/docs/governance-report.md | head -20
 
 ---
 
-## Segment 3: Enterprise Standards (1 min)
+## Segment 3: Interactive Dashboard CRUD (1 min)
+
+**Narration:** "Every generated scaffold includes a fully functional dashboard. Let me show you the complete data lifecycle."
+
+```bash
+# Start the generated app locally (no Azure required)
+cd demo-output/src/app
+pip install fastapi uvicorn pydantic pydantic-settings
+uvicorn main:app --host 127.0.0.1 --port 8000 --reload
+```
+
+**Open in browser:** `http://127.0.0.1:8000`
+
+**Live demo steps:**
+1. **View seed data** -- Show pre-populated tables with domain-aware data (dates, statuses, amounts)
+2. **Create a record** -- Click "+", fill modal form, submit -> new row appears in table
+3. **Trigger an action** -- Click a row, press "Dispatch" or "Approve" -> status updates immediately
+4. **Search** -- Type in search box -> table filters live
+5. **Health check** -- Point out the live health indicator in the header
+
+**What to highlight:**
+- This is generated code, not a demo app -- every scaffold gets this dashboard
+- Entities, fields, actions, and seed data are all semantically extracted from the intent
+- Works locally with zero configuration (in-memory storage, auto-seeded data)
+- Same app deploys to Azure Container Apps unchanged
+
+---
+
+## Segment 4: Enterprise Standards (1 min)
 
 **Narration:** "Every resource follows Azure CAF naming, enterprise tagging, and WAF alignment."
 
@@ -99,7 +127,7 @@ cat demo-output/docs/waf-report.md | head -30
 
 ---
 
-## Segment 4: Live Deployment (1.5 min)
+## Segment 5: Live Deployment (1.5 min)
 
 **Narration:** "This exact pipeline deploys to Azure Container Apps with enterprise security."
 
@@ -122,7 +150,7 @@ curl https://$APP_URL/health
 
 ---
 
-## Segment 5: Semantic Entity Extraction (30 sec)
+## Segment 6: Semantic Entity Extraction (30 sec)
 
 **Narration:** "The orchestrator uses a 5-phase semantic extraction engine to discover entities, fields, and endpoints from any business domain -- no hardcoded templates."
 
@@ -162,7 +190,7 @@ cat demo-output/src/app/domain_models.py | head -20
 
 ---
 
-## Segment 6: Advanced Patterns (30 sec)
+## Segment 7: Advanced Patterns (30 sec)
 
 **Narration:** "The orchestrator includes advanced enterprise patterns."
 
@@ -183,7 +211,7 @@ pytest tests/ -v --tb=short 2>&1 | tail -5
 
 ---
 
-## Segment 7: Multi-Provider LLM (30 sec)
+## Segment 8: Multi-Provider LLM (30 sec)
 
 **Narration:** "The orchestrator supports multiple LLM providers with GitHub Copilot SDK as the default."
 

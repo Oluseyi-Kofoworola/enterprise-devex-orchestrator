@@ -55,6 +55,38 @@ devex scaffold -> infra/bicep/ + src/app/ + frontend/ + .github/workflows/
 
 ## Quick Deploy (Manual)
 
+### 0. Preview Dashboard Locally (Before Deploying)
+
+Every generated scaffold includes a fully functional dashboard with CRUD operations. Test it locally before deploying:
+
+```powershell
+# Install dependencies (from scaffold root)
+cd <output-dir>/src/app
+pip install fastapi uvicorn pydantic pydantic-settings
+
+# Start local server
+uvicorn main:app --host 127.0.0.1 --port 8000 --reload
+```
+
+Open `http://127.0.0.1:8000` in your browser. You can:
+- **Create** records via the "+" button and modal form
+- **View** all entities in tabbed data tables with domain-aware seed data
+- **Update** status via action buttons (dispatch, approve, verify, etc.)
+- **Delete** records from the detail view
+- **Search** and filter across entities
+- **Monitor** health status with live indicator
+
+> **Note:** Local mode uses in-memory storage with auto-seeded domain data. No database or Azure resources required. Data resets on restart.
+
+Alternatively, run with Docker:
+
+```powershell
+cd <output-dir>/src/app
+docker build -t my-app .
+docker run -p 8000:8000 my-app
+# Open http://localhost:8000
+```
+
 ### 1. Generate Scaffold
 
 ```bash
@@ -203,11 +235,13 @@ az containerapp update \
   --set-env-vars API_BACKEND_URL=https://<backend-fqdn>
 ```
 
-The React SPA is **domain-aware** -- it generates entity-specific API clients, TypeScript types, tabbed dashboards, and detail pages from the intent specification. No manual frontend customization required.
+The React SPA is **entity-driven** -- it generates entity-specific API clients, TypeScript types, tabbed dashboards with full CRUD (create, read, update, delete), and detail pages from the intent specification. No manual frontend customization required.
 
 ---
 
-*Deployment patterns enforce enterprise security: OIDC auth, Managed Identity, RBAC over access policies.*\n*Full-stack scaffolds: Backend (Python/Node.js/.NET) + Domain-Aware Frontend (React+Vite+TypeScript) + Infrastructure (Bicep).*
+*Deployment patterns enforce enterprise security: OIDC auth, Managed Identity, RBAC over access policies.*
+*Full-stack scaffolds: Backend (Python/Node.js/.NET) + Entity-Driven Frontend (React+Vite+TypeScript) + Infrastructure (Bicep).*
 *Default LLM: GitHub Copilot SDK -- zero-configuration in Copilot-enabled environments.*
+*Local preview: Run `uvicorn main:app --reload` in `src/app/` to test the dashboard before deploying.*
 
 
