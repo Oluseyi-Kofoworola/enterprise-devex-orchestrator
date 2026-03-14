@@ -137,6 +137,7 @@ Ready-to-run examples are in [`examples/`](examples/):
 | [`contract-review-intent.md`](examples/contract-review-intent.md) | Legal contract review AI |
 | [`doc-intelligence-intent.md`](examples/doc-intelligence-intent.md) | Document processing service |
 | [`propane-delivery-intent.md`](examples/propane-delivery-intent.md) | Propane delivery logistics |
+| [`smart-city-intent.md`](examples/smart-city-intent.md) | Smart city operations (stress test — 4 data stores, 10 Bicep modules) |
 
 See [`examples/README.md`](examples/README.md) for details on each example.
 

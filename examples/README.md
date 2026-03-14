@@ -10,7 +10,7 @@ This directory contains example intent files that you can pass to `devex scaffol
 
 Every generated scaffold includes:
 
-- Full Bicep IaC with 5-7 modules
+- Full Bicep IaC with 5-10 modules
 - GitHub Actions CI/CD (4 workflows)
 - FastAPI application with Pydantic validation
 - Pytest test suite
@@ -74,19 +74,30 @@ A propane delivery logistics platform for managing deliveries, tank monitoring, 
 devex scaffold --file examples/propane-delivery-intent.md -o ./propane-delivery-output
 ```
 
+### 6. Smart City Operations Platform (Stress Test)
+
+**File:** [`smart-city-intent.md`](smart-city-intent.md)
+
+A full-scale smart city operations platform integrating IoT sensor ingestion, emergency response, utility grid management, citizen services, environmental monitoring, transit tracking, parking management, and asset maintenance. Exercises all 4 data stores (Cosmos DB, SQL, Blob, Redis), 10 Bicep modules, FedRAMP + SOC2 + HIPAA compliance, and 8 user personas. Designed to stress-test every generator path.
+
+```powershell
+devex scaffold --file examples/smart-city-intent.md -o ./smart-city-output
+```
+
 ---
 
 ## Comparison
 
-| Feature | Voice Agent | Contract Review | Doc Intelligence | Propane Delivery |
-|---------|-------------|-----------------|------------------|------------------|
-| Industry | Healthcare Ops | Legal Ops | Document Processing | Logistics |
-| Primary User | Clinical staff | Legal team | Back-office staff | Delivery operations |
-| Data Stores | None (in-memory) | Blob, Cosmos DB | Blob | Cosmos DB |
-| AI/ML | Pattern matching | GPT-4, clause extraction | Document Intelligence | Route optimization |
-| Compliance | HIPAA | HIPAA, SOC2 | SOC2 | SOC2 |
-| Auth | Entra ID | Entra ID + RBAC | Managed Identity | Managed Identity |
-| Entity Discovery | Semantic NLP | Semantic NLP | Semantic NLP | Semantic NLP |
+| Feature | Voice Agent | Contract Review | Doc Intelligence | Propane Delivery | Smart City |
+|---------|-------------|-----------------|------------------|------------------|------------|
+| Industry | Healthcare Ops | Legal Ops | Document Processing | Logistics | Government/IoT |
+| Primary User | Clinical staff | Legal team | Back-office staff | Delivery operations | City operators |
+| Data Stores | None (in-memory) | Blob, Cosmos DB | Blob | Cosmos DB | Cosmos, SQL, Blob, Redis |
+| AI/ML | Pattern matching | GPT-4, clause extraction | Document Intelligence | Route optimization | Anomaly detection, NLP |
+| Compliance | HIPAA | HIPAA, SOC2 | SOC2 | SOC2 | FedRAMP, SOC2, HIPAA |
+| Auth | Entra ID | Entra ID + RBAC | Managed Identity | Managed Identity | Entra ID |
+| Entity Discovery | Semantic NLP | Semantic NLP | Semantic NLP | Semantic NLP | Semantic NLP |
+| Bicep Modules | 5 | 6 | 5 | 6 | 10 |
 
 ---
 

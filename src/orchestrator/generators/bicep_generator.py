@@ -200,6 +200,8 @@ module sqlDb 'modules/sql.bicep' = {
     databaseName: '${projectName}-db'
     managedIdentityPrincipalId: identity.outputs.principalId
     logAnalyticsWorkspaceId: logAnalytics.outputs.workspaceId
+    entraAdminObjectId: entraAdminObjectId
+    entraAdminLogin: 'entra-admin'
     tags: tags
   }
 }
@@ -302,9 +304,19 @@ module sqlDb 'modules/sql.bicep' = {
     databaseName: '${projectName}-db'
     managedIdentityPrincipalId: identity.outputs.principalId
     logAnalyticsWorkspaceId: logAnalytics.outputs.workspaceId
+    entraAdminObjectId: entraAdminObjectId
+    entraAdminLogin: 'entra-admin'
     tags: tags
   }
 }
+"""
+
+        # SQL Entra-only auth parameter (required by Azure policy)
+        sql_params = ""
+        if DataStore.SQL in spec.data_stores:
+            sql_params = """
+@description('Entra ID admin object ID for SQL Server')
+param entraAdminObjectId string
 """
 
         return f"""// ===================================================================
@@ -330,7 +342,7 @@ param location string = resourceGroup().location
 @description('Environment (dev, staging, prod)')
 @allowed(['dev', 'staging', 'prod'])
 param environment string = 'dev'
-{compute_params}
+{compute_params}{sql_params}
 @description('Resource owner email for tagging')
 param ownerEmail string = '{self.tagging.owner}'
 
@@ -935,19 +947,28 @@ param skuName string = 'GP_S_Gen5_1'
 @description('Database SKU tier')
 param skuTier string = 'GeneralPurpose'
 
+@description('Entra ID admin object ID (deploying user or group)')
+param entraAdminObjectId string
+
+@description('Entra ID admin login name')
+param entraAdminLogin string = 'entra-admin'
+
 resource sqlServer 'Microsoft.Sql/servers@2023-08-01-preview' = {
   name: serverName
   location: location
   tags: tags
+  identity: {
+    type: 'SystemAssigned'
+  }
   properties: {
     minimalTlsVersion: '1.2'
     publicNetworkAccess: 'Disabled'
     administrators: {
       administratorType: 'ActiveDirectory'
       azureADOnlyAuthentication: true
-      principalType: 'Application'
-      sid: managedIdentityPrincipalId
-      login: 'managed-identity-admin'
+      principalType: 'User'
+      sid: entraAdminObjectId
+      login: entraAdminLogin
       tenantId: subscription().tenantId
     }
   }
