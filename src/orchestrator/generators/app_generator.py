@@ -78,6 +78,8 @@ def _seed_value(field_spec, entity_name: str, row: int) -> str:
         return '["item-001", "item-002"]' if row == 1 else '["item-003"]'
     if ftype == "dict":
         return "{}"
+    if ftype == "datetime":
+        return f'"2024-03-{10 + row}T{8 + row:02d}:{row * 15:02d}:00Z"'
     # str type — generate contextual values
     if name == "status":
         statuses = ["pending", "in_progress", "completed"]
@@ -102,6 +104,17 @@ def _seed_value(field_spec, entity_name: str, row: int) -> str:
         return f'"{entity_name} #{row}"'
     if name in ("description", "condition"):
         return f'"Sample {name} for record #{row}"'
+    if name == "serial_number":
+        return f'"SN-{ename_lower[:3].upper()}-2024-{row:04d}"'
+    if name in ("location", "address"):
+        locations = ["Downtown - Main St", "Industrial Zone B", "Central Park Area"]
+        return f'"{locations[(row - 1) % len(locations)]}"'
+    if name == "email":
+        return f'"user{row}@example.com"'
+    if name == "phone":
+        return f'"+1-555-010{row}"'
+    if name == "date":
+        return f'"2024-03-{10 + row}T{6 + row:02d}:00:00Z"'
     return f'"{name}-value-{row}"'
 
 
@@ -368,7 +381,7 @@ class AppGenerator:
             </div>
         </div>
     </div>
-    <footer class=\\"footer\\">{_an} v{_ver} \\u00b7 <a href=\\"/docs\\">API Docs</a> \\u00b7 Enterprise DevEx Orchestrator</footer>
+    <footer class=\\"footer\\"><span id=\\"last-updated\\" style=\\"margin-right:12px\\"></span>{_an} v{_ver} \\u00b7 <a href=\\"/docs\\">API Docs</a> \\u00b7 <button class=\\"btn btn-primary btn-sm\\" onclick=\\"loadAll()\\" style=\\"margin-left:8px\\">&#8635; Refresh Data</button> \\u00b7 Enterprise DevEx Orchestrator</footer>
     <script>
         {self._js_for_fstring()}
     </script>
@@ -403,7 +416,8 @@ class AppGenerator:
             {_an}
         </div>
         <div class=\\"topbar-meta\\">
-            <div class=\\"status-live\\"><span class=\\"dot\\"></span>Live</div>
+            <div class=\\"status-live\\" id=\\"health-indicator\\"><span class=\\"dot\\"></span><span id=\\"health-text\\">Checking...</span></div>
+            <span id=\\"live-clock\\" style=\\"font-family:Consolas,monospace;font-size:12px;\\"></span>
             <span class=\\"env-badge\\">{spec.environment}</span>
             <span>{spec.azure_region}</span>
         </div>
@@ -419,7 +433,7 @@ class AppGenerator:
     </section>
     <div class=\\"kpi-bar\\">
         {dashboard_body}
-    <footer class=\\"footer\\">{_an} v{_ver} \\u00b7 <a href=\\"/docs\\">API Docs</a> \\u00b7 Enterprise DevEx Orchestrator</footer>
+    <footer class=\\"footer\\"><span id=\\"last-updated\\" style=\\"margin-right:12px\\"></span>{_an} v{_ver} \\u00b7 <a href=\\"/docs\\">API Docs</a> \\u00b7 <button class=\\"btn btn-primary btn-sm\\" onclick=\\"loadAll()\\" style=\\"margin-left:8px\\">&#8635; Refresh Data</button> \\u00b7 Enterprise DevEx Orchestrator</footer>
     <script>
         {dashboard_js}
     </script>
@@ -965,6 +979,13 @@ async def {action}_{sn}({sn}_id: str, settings: Settings = Depends(get_settings)
 
     def _dynamic_schemas(self, spec: IntentSpec) -> str:
         """Generate Pydantic schemas from spec.entities — works for any domain."""
+        # Check if any entity uses datetime fields
+        has_datetime = any(
+            f.type == "datetime"
+            for ent in spec.entities
+            for f in ent.fields
+        )
+
         lines = [
             '"""API v1 request/response schemas.',
             '',
@@ -973,6 +994,11 @@ async def {action}_{sn}({sn}_id: str, settings: Settings = Depends(get_settings)
             '',
             'from __future__ import annotations',
             '',
+        ]
+        if has_datetime:
+            lines.append('from datetime import datetime')
+            lines.append('')
+        lines += [
             'from pydantic import BaseModel, Field',
             '',
         ]
@@ -1486,6 +1512,8 @@ async def {action}_{sn}({sn}_id: str, settings: Settings = Depends(get_settings)
             {rb}
             document.getElementById('count-pending').textContent = totalPending;
             document.getElementById('count-completed').textContent = totalCompleted;
+            const luEl = document.getElementById('last-updated');
+            if (luEl) luEl.textContent = 'Last updated: ' + new Date().toLocaleTimeString();
         {rb}
 
         function renderTable(ent, rows) {lb}
@@ -1496,7 +1524,7 @@ async def {action}_{sn}({sn}_id: str, settings: Settings = Depends(get_settings)
             {rb}
             tbody.innerHTML = rows.map(row => {lb}
                 const idShort = (row.id || '').substring(0, 8);
-                let cells = '<td style="font-family:Consolas,monospace;font-size:12px;cursor:pointer;color:var(--primary)" onclick="openDetail(\\'' + ent.slug + '\\',\\'' + row.id + '\\')">' + idShort + '...</td>';
+                let cells = '<td style="font-family:Consolas,monospace;font-size:12px;cursor:pointer;color:var(--primary)" onclick="openDetail(&#39;' + ent.slug + '&#39;,&#39;' + row.id + '&#39;)">' + idShort + '...</td>';
                 ent.table_fields.forEach(f => {lb}
                     const val = row[f] != null ? row[f] : '-';
                     if (f === 'status') {lb}
@@ -1514,14 +1542,14 @@ async def {action}_{sn}({sn}_id: str, settings: Settings = Depends(get_settings)
                 {rb});
                 let actionBtns = '';
                 if (row.status === 'pending') {lb}
-                    if (ent.actions.includes('approve')) actionBtns += '<button class="btn btn-success btn-sm" onclick="doAction(\\'' + ent.slug + '\\',\\'' + row.id + '\\',\\'approve\\')">Approve</button> ';
-                    if (ent.actions.includes('reject')) actionBtns += '<button class="btn btn-danger btn-sm" onclick="doAction(\\'' + ent.slug + '\\',\\'' + row.id + '\\',\\'reject\\')">Reject</button> ';
+                    if (ent.actions.includes('approve')) actionBtns += '<button class="btn btn-success btn-sm" onclick="doAction(&#39;' + ent.slug + '&#39;,&#39;' + row.id + '&#39;,&#39;approve&#39;)">Approve</button> ';
+                    if (ent.actions.includes('reject')) actionBtns += '<button class="btn btn-danger btn-sm" onclick="doAction(&#39;' + ent.slug + '&#39;,&#39;' + row.id + '&#39;,&#39;reject&#39;)">Reject</button> ';
                 {rb}
                 if (row.status === 'approved' && ent.actions.includes('process')) {lb}
-                    actionBtns += '<button class="btn btn-warning btn-sm" onclick="doAction(\\'' + ent.slug + '\\',\\'' + row.id + '\\',\\'process\\')">Process</button> ';
+                    actionBtns += '<button class="btn btn-warning btn-sm" onclick="doAction(&#39;' + ent.slug + '&#39;,&#39;' + row.id + '&#39;,&#39;process&#39;)">Process</button> ';
                 {rb}
                 if (['pending','approved','in_progress'].includes(row.status) && ent.actions.includes('escalate')) {lb}
-                    actionBtns += '<button class="btn btn-sm" style="background:#7b1fa2;color:white" onclick="doAction(\\'' + ent.slug + '\\',\\'' + row.id + '\\',\\'escalate\\')">Escalate</button> ';
+                    actionBtns += '<button class="btn btn-sm" style="background:#7b1fa2;color:white" onclick="doAction(&#39;' + ent.slug + '&#39;,&#39;' + row.id + '&#39;,&#39;escalate&#39;)">Escalate</button> ';
                 {rb}
                 if (!actionBtns) actionBtns = '<span style="color:var(--text-secondary);font-size:12px">No actions</span>';
                 cells += '<td>' + actionBtns + '</td>';
@@ -1626,11 +1654,11 @@ async def {action}_{sn}({sn}_id: str, settings: Settings = Depends(get_settings)
             // Action buttons in detail
             let actionsHtml = '<button class="btn" onclick="closeDetail()">Close</button>';
             if (row.status === 'pending') {lb}
-                if (ent.actions.includes('approve')) actionsHtml += ' <button class="btn btn-success" onclick="doAction(\\'' + slug + '\\',\\'' + id + '\\',\\'approve\\');closeDetail()">Approve</button>';
-                if (ent.actions.includes('reject')) actionsHtml += ' <button class="btn btn-danger" onclick="doAction(\\'' + slug + '\\',\\'' + id + '\\',\\'reject\\');closeDetail()">Reject</button>';
+                if (ent.actions.includes('approve')) actionsHtml += ' <button class="btn btn-success" onclick="doAction(&#39;' + slug + '&#39;,&#39;' + id + '&#39;,&#39;approve&#39;);closeDetail()">Approve</button>';
+                if (ent.actions.includes('reject')) actionsHtml += ' <button class="btn btn-danger" onclick="doAction(&#39;' + slug + '&#39;,&#39;' + id + '&#39;,&#39;reject&#39;);closeDetail()">Reject</button>';
             {rb}
             if (row.status === 'approved' && ent.actions.includes('process')) {lb}
-                actionsHtml += ' <button class="btn btn-warning" onclick="doAction(\\'' + slug + '\\',\\'' + id + '\\',\\'process\\');closeDetail()">Process</button>';
+                actionsHtml += ' <button class="btn btn-warning" onclick="doAction(&#39;' + slug + '&#39;,&#39;' + id + '&#39;,&#39;process&#39;);closeDetail()">Process</button>';
             {rb}
             document.getElementById('detailActions').innerHTML = actionsHtml;
             document.getElementById('detailModal').classList.add('open');
@@ -1663,6 +1691,42 @@ async def {action}_{sn}({sn}_id: str, settings: Settings = Depends(get_settings)
         // Init
         loadAll();
         setInterval(loadAll, 30000);
+
+        // Real-time clock
+        function updateClock() {lb}
+            const now = new Date();
+            const el = document.getElementById('live-clock');
+            if (el) el.textContent = now.toLocaleString('en-US', {lb}
+                weekday:'short', year:'numeric', month:'short', day:'numeric',
+                hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false
+            {rb});
+        {rb}
+        updateClock();
+        setInterval(updateClock, 1000);
+
+        // Health check
+        async function checkHealth() {lb}
+            const indicator = document.getElementById('health-indicator');
+            if (!indicator) return;
+            const dot = indicator.querySelector('.dot');
+            const text = document.getElementById('health-text');
+            try {lb}
+                const r = await fetch('/health');
+                const d = await r.json();
+                if (d.status === 'healthy') {lb}
+                    dot.style.background = 'var(--success)';
+                    text.textContent = 'Healthy';
+                {rb} else {lb}
+                    dot.style.background = 'var(--warning)';
+                    text.textContent = 'Degraded';
+                {rb}
+            {rb} catch(e) {lb}
+                dot.style.background = 'var(--danger)';
+                text.textContent = 'Offline';
+            {rb}
+        {rb}
+        checkHealth();
+        setInterval(checkHealth, 15000);
 """
         return raw.replace(lb, lb * 2).replace(rb, rb * 2)
 
