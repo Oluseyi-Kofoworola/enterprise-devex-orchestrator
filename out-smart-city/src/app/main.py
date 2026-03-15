@@ -224,9 +224,28 @@ async def root():
         .chat-status {{ font-size:11px; display:flex; align-items:center; gap:6px; }}
         .chat-status .dot {{ width:8px; height:8px; border-radius:50%; }}
         .chat-messages {{ flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:12px; background:var(--surface-alt); }}
-        .chat-msg {{ max-width:80%; padding:10px 14px; border-radius:12px; font-size:13px; line-height:1.5; word-wrap:break-word; white-space:pre-wrap; }}
-        .chat-msg.user {{ align-self:flex-end; background:var(--primary); color:white; border-bottom-right-radius:4px; }}
-        .chat-msg.assistant {{ align-self:flex-start; background:var(--surface); border:1px solid var(--border); border-bottom-left-radius:4px; box-shadow:var(--shadow); }}
+        .chat-msg {{ max-width:85%; padding:10px 14px; border-radius:12px; font-size:13px; line-height:1.6; word-wrap:break-word; }}
+        .chat-msg.user {{ align-self:flex-end; background:var(--primary); color:white; border-bottom-right-radius:4px; white-space:pre-wrap; }}
+        .chat-msg.assistant {{ align-self:flex-start; background:var(--surface); border:1px solid var(--border); border-bottom-left-radius:4px; box-shadow:var(--shadow); max-width:92%; }}
+        .ai-table {{ width:100%; border-collapse:collapse; font-size:12px; margin:6px 0; }}
+        .ai-table th {{ background:var(--surface-alt); padding:6px 8px; text-align:left; border-bottom:2px solid var(--border); font-weight:600; font-size:11px; text-transform:uppercase; color:var(--text-secondary); }}
+        .ai-table td {{ padding:5px 8px; border-bottom:1px solid var(--border); }}
+        .ai-table tr:hover td {{ background:rgba(0,120,212,.04); }}
+        .ai-table code {{ background:var(--surface-alt); padding:1px 4px; border-radius:3px; font-size:11px; }}
+        .ai-stats-row {{ display:flex; flex-wrap:wrap; gap:6px; margin:8px 0; }}
+        .ai-stat {{ display:inline-flex; align-items:center; gap:4px; padding:4px 10px; border-radius:16px; border-left:3px solid; background:var(--surface-alt); font-size:12px; }}
+        .ai-section {{ margin:8px 0; }}
+        .ai-section-title {{ font-weight:600; font-size:14px; color:var(--primary); margin-bottom:6px; padding-bottom:4px; border-bottom:1px solid var(--border); }}
+        .ai-greeting {{ font-size:14px; margin-bottom:8px; }}
+        .ai-hint {{ font-size:12px; color:var(--text-secondary); margin:6px 0; padding:6px 10px; background:var(--surface-alt); border-radius:var(--radius); border-left:3px solid var(--primary); }}
+        .ai-suggestions {{ margin:6px 0 0; padding-left:18px; font-size:12px; }}
+        .ai-suggestions li {{ margin:3px 0; color:var(--text-secondary); }}
+        .ai-bar-chart {{ margin:4px 0; }}
+        .ai-bar-row {{ display:flex; align-items:center; gap:6px; margin:3px 0; font-size:12px; }}
+        .ai-bar-label {{ min-width:80px; text-align:right; color:var(--text-secondary); text-transform:capitalize; }}
+        .ai-bar-track {{ flex:1; height:16px; background:var(--surface-alt); border-radius:8px; overflow:hidden; }}
+        .ai-bar-fill {{ height:100%; border-radius:8px; transition:width .3s; }}
+        .ai-bar-val {{ min-width:24px; font-weight:600; }}
         .chat-msg.system {{ align-self:center; background:var(--surface-alt); border:1px solid var(--border); color:var(--text-secondary); font-size:12px; text-align:center; max-width:90%; }}
         .chat-input-bar {{ display:flex; gap:8px; padding:12px 16px; border-top:1px solid var(--border); background:var(--surface); }}
         .chat-input {{ flex:1; padding:10px 14px; border:1px solid var(--border); border-radius:20px; font-size:13px; outline:none; resize:none; font-family:inherit; }}
@@ -1498,7 +1517,11 @@ async def root():
             const container = document.getElementById('chatMessages');
             const div = document.createElement('div');
             div.className = 'chat-msg ' + role;
-            div.textContent = content;
+            if (role === 'assistant' && (content.includes('<') && content.includes('>'))) {{
+                div.innerHTML = content;
+            }} else {{
+                div.textContent = content;
+            }}
             container.appendChild(div);
             container.scrollTop = container.scrollHeight;
         }}

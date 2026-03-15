@@ -47,150 +47,601 @@ def _search_rag_context(query: str, top_k: int = 3) -> str:
         return ""
 
 
-def _build_domain_context() -> str:
-    """Build RAG context from the app's own entity repositories."""
-    sections: list[str] = []
+def _build_domain_context() -> dict:
+    """Build structured domain context from the app\'s own entity repositories."""
+    result: dict[str, list[dict]] = {}
     try:
         repo = get_repository("incident")
         items = repo.list_all()
-        sections.append(f"Incidents ({len(items)} records):")
-        for item in items[:5]:
-            sections.append(f"  - {item}")
-        if len(items) > 5:
-            sections.append(f"  ... and {len(items) - 5} more")
+        records = []
+        for item in items:
+            if hasattr(item, "__dict__"):
+                records.append({k: v for k, v in item.__dict__.items() if not k.startswith("_")})
+            elif isinstance(item, dict):
+                records.append(item)
+            else:
+                records.append({"value": str(item)})
+        result["Incident"] = records
     except Exception:
         pass
     try:
         repo = get_repository("asset")
         items = repo.list_all()
-        sections.append(f"Assets ({len(items)} records):")
-        for item in items[:5]:
-            sections.append(f"  - {item}")
-        if len(items) > 5:
-            sections.append(f"  ... and {len(items) - 5} more")
+        records = []
+        for item in items:
+            if hasattr(item, "__dict__"):
+                records.append({k: v for k, v in item.__dict__.items() if not k.startswith("_")})
+            elif isinstance(item, dict):
+                records.append(item)
+            else:
+                records.append({"value": str(item)})
+        result["Asset"] = records
     except Exception:
         pass
     try:
         repo = get_repository("sensor")
         items = repo.list_all()
-        sections.append(f"Sensors ({len(items)} records):")
-        for item in items[:5]:
-            sections.append(f"  - {item}")
-        if len(items) > 5:
-            sections.append(f"  ... and {len(items) - 5} more")
+        records = []
+        for item in items:
+            if hasattr(item, "__dict__"):
+                records.append({k: v for k, v in item.__dict__.items() if not k.startswith("_")})
+            elif isinstance(item, dict):
+                records.append(item)
+            else:
+                records.append({"value": str(item)})
+        result["Sensor"] = records
     except Exception:
         pass
     try:
         repo = get_repository("service_request")
         items = repo.list_all()
-        sections.append(f"ServiceRequests ({len(items)} records):")
-        for item in items[:5]:
-            sections.append(f"  - {item}")
-        if len(items) > 5:
-            sections.append(f"  ... and {len(items) - 5} more")
+        records = []
+        for item in items:
+            if hasattr(item, "__dict__"):
+                records.append({k: v for k, v in item.__dict__.items() if not k.startswith("_")})
+            elif isinstance(item, dict):
+                records.append(item)
+            else:
+                records.append({"value": str(item)})
+        result["ServiceRequest"] = records
     except Exception:
         pass
     try:
         repo = get_repository("transit_route")
         items = repo.list_all()
-        sections.append(f"TransitRoutes ({len(items)} records):")
-        for item in items[:5]:
-            sections.append(f"  - {item}")
-        if len(items) > 5:
-            sections.append(f"  ... and {len(items) - 5} more")
+        records = []
+        for item in items:
+            if hasattr(item, "__dict__"):
+                records.append({k: v for k, v in item.__dict__.items() if not k.startswith("_")})
+            elif isinstance(item, dict):
+                records.append(item)
+            else:
+                records.append({"value": str(item)})
+        result["TransitRoute"] = records
     except Exception:
         pass
     try:
         repo = get_repository("vehicle")
         items = repo.list_all()
-        sections.append(f"Vehicles ({len(items)} records):")
-        for item in items[:5]:
-            sections.append(f"  - {item}")
-        if len(items) > 5:
-            sections.append(f"  ... and {len(items) - 5} more")
+        records = []
+        for item in items:
+            if hasattr(item, "__dict__"):
+                records.append({k: v for k, v in item.__dict__.items() if not k.startswith("_")})
+            elif isinstance(item, dict):
+                records.append(item)
+            else:
+                records.append({"value": str(item)})
+        result["Vehicle"] = records
     except Exception:
         pass
     try:
         repo = get_repository("zone")
         items = repo.list_all()
-        sections.append(f"Zones ({len(items)} records):")
-        for item in items[:5]:
-            sections.append(f"  - {item}")
-        if len(items) > 5:
-            sections.append(f"  ... and {len(items) - 5} more")
+        records = []
+        for item in items:
+            if hasattr(item, "__dict__"):
+                records.append({k: v for k, v in item.__dict__.items() if not k.startswith("_")})
+            elif isinstance(item, dict):
+                records.append(item)
+            else:
+                records.append({"value": str(item)})
+        result["Zone"] = records
     except Exception:
         pass
     try:
         repo = get_repository("work_order")
         items = repo.list_all()
-        sections.append(f"WorkOrders ({len(items)} records):")
-        for item in items[:5]:
-            sections.append(f"  - {item}")
-        if len(items) > 5:
-            sections.append(f"  ... and {len(items) - 5} more")
+        records = []
+        for item in items:
+            if hasattr(item, "__dict__"):
+                records.append({k: v for k, v in item.__dict__.items() if not k.startswith("_")})
+            elif isinstance(item, dict):
+                records.append(item)
+            else:
+                records.append({"value": str(item)})
+        result["WorkOrder"] = records
     except Exception:
         pass
     try:
         repo = get_repository("audit_log")
         items = repo.list_all()
-        sections.append(f"AuditLogs ({len(items)} records):")
-        for item in items[:5]:
-            sections.append(f"  - {item}")
-        if len(items) > 5:
-            sections.append(f"  ... and {len(items) - 5} more")
+        records = []
+        for item in items:
+            if hasattr(item, "__dict__"):
+                records.append({k: v for k, v in item.__dict__.items() if not k.startswith("_")})
+            elif isinstance(item, dict):
+                records.append(item)
+            else:
+                records.append({"value": str(item)})
+        result["AuditLog"] = records
     except Exception:
         pass
-    return "\n".join(sections) if sections else "No data available yet."
+    return result
 
 
-def _local_data_reply(question: str, context: str) -> str:
-    """Keyword-matching data-aware reply engine -- works without an AI provider."""
-    q = question.lower()
-    lines = context.split("\n")
-    # Parse entity summaries from context
-    entity_data: dict[str, list[str]] = {}
-    current = ""
-    for line in lines:
-        if line.endswith("):"):
-            current = line
-            entity_data[current] = []
-        elif line.startswith("  - ") and current:
-            entity_data[current].append(line.strip("- ").strip())
+def _local_data_reply(question: str, context: dict) -> str:
+    """Smart analytical data engine with conversational reasoning -- works without an AI provider."""
+    import re as _re
+    from collections import Counter
 
-    # Count helpers
-    total = sum(len(v) for v in entity_data.values())
-    summaries = []
-    for header, records in entity_data.items():
-        summaries.append(f"• {header} {len(records)} shown")
+    q = question.lower().strip()
+    entity_names = list(context.keys())
+    total_records = sum(len(v) for v in context.values())
 
-    # Check for count/how many questions
-    if any(w in q for w in ("how many", "count", "total", "number of")):
-        parts = []
-        for header, records in entity_data.items():
-            parts.append(f"{header}")
-        return "Here are the current counts:\n" + "\n".join(parts) + f"\n\nTotal records across all entities: {total}."
+    # --- Intent detection ---
+    def _is_greeting():
+        return any(w in q for w in ("hello", "hi ", "hey", "good morning", "good afternoon", "greetings", "howdy")) or q in ("hi", "hey")
 
-    # Check for list/show questions
-    if any(w in q for w in ("list", "show", "display", "get all", "what are")):
-        for header, records in entity_data.items():
-            if any(w in header.lower() for w in q.split() if len(w) > 3):
-                items = "\n".join(f"  • {r}" for r in records[:10])
-                return f"{header}\n{items}"
-        return "Available data:\n" + "\n".join(summaries)
+    def _is_count():
+        return any(w in q for w in ("how many", "count", "total", "number of", "quantity"))
 
-    # Check for status/health questions
-    if any(w in q for w in ("status", "health", "overview", "summary", "dashboard")):
-        return f"System Overview:\n\n" + "\n".join(summaries) + f"\n\nTotal records: {total}. All systems operational."
+    def _is_list():
+        return any(w in q for w in ("list", "show me", "show all", "display", "get all", "what are the", "give me"))
 
-    # Check for specific entity mentions
-    for header, records in entity_data.items():
-        entity_name = header.split("(")[0].strip().lower()
-        if any(w in q for w in entity_name.split() if len(w) > 3):
-            items = "\n".join(f"  • {r}" for r in records[:8])
-            return f"{header}\n{items}"
-            
-    # Default: provide overview
-    return f"I can help you explore your data. Here\'s what\'s available:\n\n" + "\n".join(summaries) + f"\n\nTotal: {total} records. Try asking \'how many\', \'show [entity]\', or \'status\'."
+    def _is_status():
+        return any(w in q for w in ("status", "health", "overview", "summary", "dashboard", "report", "how is", "how are"))
+
+    def _is_analytics():
+        return any(w in q for w in ("analyze", "analyse", "trend", "insight", "breakdown", "distribution", "statistic", "average", "mean", "compare", "correlation", "pattern", "top", "bottom", "worst", "best", "highest", "lowest", "most", "least", "peak"))
+
+    def _is_help():
+        return any(w in q for w in ("help", "what can you", "capabilities", "what do you", "how do i", "how to"))
+
+    def _is_action():
+        return any(w in q for w in ("create", "add", "update", "delete", "remove", "fix", "resolve", "assign", "triage", "escalate", "dispatch", "approve", "schedule"))
+
+    def _is_filter():
+        return any(w in q for w in ("where", "which", "filter", "find", "with", "without", "that have", "that are", "pending", "active", "completed", "critical", "high", "low", "open", "closed"))
+
+    def _is_temporal():
+        return any(w in q for w in ("latest", "recent", "newest", "oldest", "last updated", "first", "when was", "most recent", "earliest", "last created", "last added", "new record", "updated record", "last record", "ago"))
+
+    def _is_recommendation():
+        return any(w in q for w in ("improve", "improvement", "suggest", "suggestion", "recommend", "recommendation", "future", "what should", "next step", "forecast", "optimize", "optimise", "enhance", "gap", "missing", "weakness", "opportunity", "priority action", "attention"))
+
+    def _is_crossentity():
+        return any(w in q for w in ("related", "belong", "associated", "linked", "connected", "between", "correlation", "correlate", "across entities", "across all", "comparison", "compare all"))
+
+    # --- Entity matching (flexible NLP) ---
+    def _find_entity() -> tuple[str, list[dict]]:
+        best_match = ("", [])
+        best_score = 0
+        for name in entity_names:
+            name_lower = name.lower()
+            score = 0
+            # Exact match
+            if name_lower in q or name_lower + "s" in q:
+                score = 10
+            elif name_lower.rstrip("s") in q:
+                score = 9
+            else:
+                # CamelCase split: "ServiceRequest" -> ["service", "request"]
+                words = _re.split(r'(?<=[a-z])(?=[A-Z])', name)
+                words = [w.lower() for w in words if w]
+                # snake_case split
+                snake_parts = name_lower.split("_")
+                all_tokens = set(words + snake_parts)
+                matched_tokens = sum(1 for w in all_tokens if len(w) > 2 and w in q)
+                if matched_tokens > 0:
+                    score = matched_tokens * 3
+                # Singular/plural variations
+                for w in all_tokens:
+                    if len(w) > 3:
+                        if w + "s" in q or w.rstrip("s") in q:
+                            score = max(score, 5)
+            if score > best_score:
+                best_score = score
+                best_match = (name, context[name])
+        return best_match
+
+    # --- HTML helpers ---
+    def _table(records: list[dict], keys: list[str] | None = None, max_rows: int = 10) -> str:
+        if not records:
+            return "<em>No records found.</em>"
+        keys = keys or [k for k in records[0].keys() if k != "id"][:6]
+        headers = "".join(f"<th>{k.replace('_', ' ').title()}</th>" for k in keys)
+        rows = ""
+        for r in records[:max_rows]:
+            cells = ""
+            for k in keys:
+                v = r.get(k, "")
+                if isinstance(v, list):
+                    v = ", ".join(str(x) for x in v[:3])
+                elif v is None:
+                    v = ""
+                cells += f"<td>{v}</td>"
+            rows += f"<tr>{cells}</tr>"
+        more = f"<tr><td colspan='{len(keys)}' style='text-align:center;color:#666;font-style:italic'>...and {len(records) - max_rows} more</td></tr>" if len(records) > max_rows else ""
+        return f"<table class='ai-table'><thead><tr>{headers}</tr></thead><tbody>{rows}{more}</tbody></table>"
+
+    def _stat_card(label: str, value, color: str = "#0078d4") -> str:
+        return f"<span class='ai-stat' style='border-color:{color}'><strong style='color:{color}'>{value}</strong> {label}</span>"
+
+    def _section(title: str, body: str) -> str:
+        return f"<div class='ai-section'><div class='ai-section-title'>{title}</div>{body}</div>"
+
+    def _status_breakdown(records: list[dict]) -> dict[str, int]:
+        statuses = [str(r.get("status", "unknown")).lower() for r in records]
+        return dict(Counter(statuses).most_common())
+
+    def _field_distribution(records: list[dict], field: str) -> dict[str, int]:
+        values = [str(r.get(field, "unknown")).lower() for r in records if r.get(field)]
+        return dict(Counter(values).most_common(10))
+
+    def _bar_chart(distribution: dict[str, int], color: str = "#0078d4") -> str:
+        if not distribution:
+            return ""
+        max_val = max(distribution.values())
+        bars = ""
+        for label, count in distribution.items():
+            pct = (count / max_val) * 100 if max_val else 0
+            bars += f"<div class='ai-bar-row'><span class='ai-bar-label'>{label}</span><div class='ai-bar-track'><div class='ai-bar-fill' style='width:{pct}%;background:{color}'></div></div><span class='ai-bar-val'>{count}</span></div>"
+        return f"<div class='ai-bar-chart'>{bars}</div>"
+
+    def _numeric_stats(records: list[dict], field: str) -> dict | None:
+        vals = []
+        for r in records:
+            v = r.get(field)
+            if v is not None:
+                try:
+                    vals.append(float(v))
+                except (ValueError, TypeError):
+                    pass
+        if not vals:
+            return None
+        return {"min": min(vals), "max": max(vals), "avg": sum(vals)/len(vals), "count": len(vals)}
+
+    # --- Responses ---
+
+    if _is_greeting():
+        cards = "".join(_stat_card(name, len(records)) for name, records in context.items())
+        return (
+            f"<div class='ai-greeting'>👋 Hello! I'm your intelligent data assistant for this platform.</div>"
+            f"<div class='ai-stats-row'>{cards}</div>"
+            f"<div class='ai-hint'>I can analyze <strong>{total_records} records</strong> across "
+            f"<strong>{len(entity_names)} entities</strong>. Try asking me:</div>"
+            f"<ul class='ai-suggestions'>"
+            f"<li>\"How many incidents are critical?\"</li>"
+            f"<li>\"Show me a breakdown of asset status\"</li>"
+            f"<li>\"What needs attention right now?\"</li>"
+            f"<li>\"Analyze sensor health trends\"</li></ul>"
+        )
+
+    if _is_help():
+        return (
+            f"<div class='ai-section-title'>💡 What I Can Do</div>"
+            f"<ul class='ai-suggestions'>"
+            f"<li><strong>Count & Summarize</strong> — \"How many work orders are pending?\"</li>"
+            f"<li><strong>Browse Data</strong> — \"Show me all sensors\" or \"List critical incidents\"</li>"
+            f"<li><strong>Analyze Patterns</strong> — \"Breakdown incidents by status\" or \"Analyze asset health\"</li>"
+            f"<li><strong>Find & Filter</strong> — \"Which vehicles are active?\" or \"Find pending requests\"</li>"
+            f"<li><strong>Temporal Queries</strong> — \"Show latest incidents\" or \"What was the first work order?\"</li>"
+            f"<li><strong>Cross-Entity</strong> — \"Compare all entities\" or \"Status across all\"</li>"
+            f"<li><strong>Recommendations</strong> — \"What should we improve?\" or \"Future suggestions\"</li>"
+            f"<li><strong>Action Guidance</strong> — \"How do I create an incident?\" or \"How to triage?\"</li></ul>"
+            f"<div class='ai-hint'>I have access to {total_records} records across: {', '.join(entity_names)}</div>"
+        )
+
+    # --- Temporal queries BEFORE action (so "latest updated" doesn't trigger action via "update") ---
+    if _is_temporal():
+        ename, edata = _find_entity()
+        if not ename and entity_names:
+            ename, edata = entity_names[0], context[entity_names[0]]
+        if edata:
+            is_oldest = any(w in q for w in ("oldest", "first", "earliest"))
+            sorted_records = sorted(edata, key=lambda r: str(r.get("created_at", r.get("updated_at", r.get("timestamp", "")))), reverse=not is_oldest)
+            direction = "Oldest" if is_oldest else "Most Recent"
+            top_records = sorted_records[:5]
+            display_keys = [k for k in top_records[0].keys() if k != "id"][:7]
+            # ensure created_at is included
+            if "created_at" not in display_keys:
+                display_keys.append("created_at")
+            return (
+                f"<div class='ai-section-title'>🕒 {direction} {ename} Records</div>"
+                f"<div class='ai-hint'>Showing {len(top_records)} {direction.lower()} of {len(edata)} total records, sorted by timestamp.</div>"
+                + _table(top_records, display_keys)
+                + f"<div class='ai-hint'>Latest record: <strong>{sorted_records[0].get('created_at', 'N/A')}</strong></div>"
+            )
+        return f"<div class='ai-hint'>Specify an entity, e.g. \"show latest incidents\" or \"oldest work orders\"</div>"
+
+    if _is_action():
+        ename, edata = _find_entity()
+        if not ename:
+            ename = entity_names[0] if entity_names else "Resource"
+        sn = _re.sub(r'(?<=[a-z])(?=[A-Z])', '_', ename).lower()
+        plural = sn + "s"
+        return (
+            f"<div class='ai-section-title'>🔧 API Actions for {ename}</div>"
+            f"<table class='ai-table'><thead><tr><th>Action</th><th>Method</th><th>Endpoint</th></tr></thead>"
+            f"<tbody>"
+            f"<tr><td>List all</td><td><code>GET</code></td><td><code>/api/v1/{plural}</code></td></tr>"
+            f"<tr><td>Get by ID</td><td><code>GET</code></td><td><code>/api/v1/{plural}/{{id}}</code></td></tr>"
+            f"<tr><td>Create</td><td><code>POST</code></td><td><code>/api/v1/{plural}</code></td></tr>"
+            f"<tr><td>Update</td><td><code>PUT</code></td><td><code>/api/v1/{plural}/{{id}}</code></td></tr>"
+            f"<tr><td>Delete</td><td><code>DELETE</code></td><td><code>/api/v1/{plural}/{{id}}</code></td></tr>"
+            f"</tbody></table>"
+            f"<div class='ai-hint'>Use the <strong>API Docs</strong> link in the footer for interactive testing.</div>"
+        )
+
+    if _is_filter():
+        ename, edata = _find_entity()
+        if not ename:
+            for name, records in context.items():
+                ename, edata = name, records
+                break
+        if edata:
+            filter_terms = [t for t in ("pending","active","completed","critical","high","low","open","closed","in_progress","healthy","unhealthy","degraded","failed") if t in q]
+            if filter_terms:
+                matched = [r for r in edata if any(t in json.dumps(r, default=str).lower() for t in filter_terms)]
+                desc = " & ".join(filter_terms)
+                if matched:
+                    display_keys = [k for k in matched[0].keys() if k != "id"][:6]
+                    return (
+                        f"<div class='ai-section-title'>🔍 {ename} — \"{desc}\"</div>"
+                        f"<div class='ai-hint'>Found <strong>{len(matched)}</strong> of {len(edata)} records matching.</div>"
+                        + _table(matched, display_keys)
+                    )
+                else:
+                    return (
+                        f"<div class='ai-section-title'>{ename} — filter \"{desc}\"</div>"
+                        f"<div class='ai-hint'>No records match that filter. Current statuses:</div>"
+                        + _bar_chart(_status_breakdown(edata))
+                    )
+            else:
+                display_keys = [k for k in edata[0].keys() if k != "id"][:6] if edata else []
+                return f"<div class='ai-section-title'>{ename} ({len(edata)} records)</div>" + _table(edata, display_keys)
+        return f"<div class='ai-hint'>Specify an entity to filter, e.g. \"which incidents are critical?\"</div>"
+
+    if _is_count():
+        ename, edata = _find_entity()
+        if ename:
+            status_dist = _status_breakdown(edata)
+            cards = "".join(
+                _stat_card(s.title(), c, "#107c10" if s in ("completed","resolved","healthy") else "#d83b01" if s in ("critical","failed","unhealthy") else "#0078d4")
+                for s, c in status_dist.items()
+            )
+            return (
+                f"<div class='ai-section-title'>📊 {ename} — {len(edata)} total records</div>"
+                f"<div class='ai-stats-row'>{cards}</div>"
+                + (_bar_chart(status_dist) if len(status_dist) > 1 else "")
+            )
+        else:
+            cards = "".join(_stat_card(name, len(records)) for name, records in context.items())
+            return (
+                f"<div class='ai-section-title'>📊 Record Counts</div>"
+                f"<div class='ai-stats-row'>{cards}</div>"
+                + _stat_card("Total Records", total_records, "#107c10")
+            )
+
+    # --- Cross-entity comparison (must be before analytics to avoid "compare" collision) ---
+    if _is_crossentity():
+        parts = [f"<div class='ai-section-title'>📊 Cross-Entity Comparison</div>"]
+        comparison_rows = ""
+        for name, records in context.items():
+            total = len(records)
+            status_dist = _status_breakdown(records)
+            needs_action = sum(v for k, v in status_dist.items() if k in ("pending","critical","open","failed","unhealthy","degraded"))
+            resolved = sum(v for k, v in status_dist.items() if k in ("completed","resolved","closed","healthy"))
+            in_progress = sum(v for k, v in status_dist.items() if k in ("in_progress","active"))
+            health_pct = (resolved * 100 // total) if total > 0 else 0
+            health_color = "#107c10" if health_pct >= 70 else "#d83b01" if health_pct < 40 else "#ffc107"
+            comparison_rows += (
+                f"<tr><td><strong>{name}</strong></td><td>{total}</td>"
+                f"<td style='color:#d83b01'>{needs_action}</td>"
+                f"<td style='color:#0078d4'>{in_progress}</td>"
+                f"<td style='color:#107c10'>{resolved}</td>"
+                f"<td style='color:{health_color}'>{health_pct}%</td></tr>"
+            )
+        parts.append(
+            f"<table class='ai-table'><thead><tr>"
+            f"<th>Entity</th><th>Total</th><th>⚠ Action</th><th>🔄 Progress</th><th>✅ Done</th><th>Health</th>"
+            f"</tr></thead><tbody>{comparison_rows}</tbody></table>"
+        )
+        all_action = sum(
+            sum(1 for r in records if str(r.get('status','')).lower() in ('pending','critical','open','failed','unhealthy','degraded'))
+            for records in context.values()
+        )
+        worst_entity = max(context.items(), key=lambda x: sum(1 for r in x[1] if str(r.get('status','')).lower() in ('pending','critical','open','failed')))
+        parts.append(
+            f"<div class='ai-hint'>💡 <strong>{all_action}</strong> items need action across all entities. "
+            f"<strong>{worst_entity[0]}</strong> has the most items requiring attention.</div>"
+        )
+        return "".join(parts)
+
+    # --- Recommendation / improvement engine (must be before analytics) ---
+    if _is_recommendation():
+        parts = [f"<div class='ai-section-title'>💡 Platform Improvement Recommendations</div>"]
+        recommendations = []
+        high_action_entities = []
+        for name, records in context.items():
+            total = len(records)
+            if total == 0:
+                continue
+            status_dist = _status_breakdown(records)
+            needs_action = sum(v for k, v in status_dist.items() if k in ("pending","critical","open","failed","unhealthy","degraded"))
+            action_pct = needs_action * 100 // total if total > 0 else 0
+            if action_pct > 30:
+                high_action_entities.append((name, action_pct, needs_action))
+            if records and records[0].get("priority") or records[0].get("severity"):
+                field = "priority" if "priority" in records[0] else "severity"
+                dist = _field_distribution(records, field)
+                critical_count = sum(v for k, v in dist.items() if k in ("critical","high"))
+                if critical_count > total * 0.3:
+                    recommendations.append(
+                        f"🔴 <strong>{name}</strong> has {critical_count} critical/high priority items "
+                        f"({critical_count * 100 // total}%) — consider adding more resources or automated triage."
+                    )
+        if high_action_entities:
+            for ename, pct, count in sorted(high_action_entities, key=lambda x: -x[1]):
+                recommendations.append(
+                    f"⚠️ <strong>{ename}</strong> has {count} items ({pct}%) pending action — "
+                    f"prioritize processing these to reduce backlog."
+                )
+        recommendations.extend([
+            f"📈 <strong>Automation</strong> — Set up automated status transitions for records idle >48 hours.",
+            f"🔒 <strong>Security</strong> — Ensure all API endpoints use RBAC with Managed Identity authentication.",
+            f"🔍 <strong>Monitoring</strong> — Add Azure Monitor alerts for entities with >50% pending items.",
+            f"📊 <strong>Dashboards</strong> — Create per-team dashboards filtering by assigned_to or zone.",
+            f"⚡ <strong>Performance</strong> — Index frequently queried fields (status, priority, created_at) for faster lookups.",
+            f"🔄 <strong>CI/CD</strong> — Add automated regression tests for all {len(entity_names)} entity endpoints.",
+        ])
+        parts.append("<ol class='ai-suggestions'>" + "".join(f"<li>{r}</li>" for r in recommendations) + "</ol>")
+        parts.append(
+            f"<div class='ai-hint'>🎯 Based on analysis of {total_records} records across {len(entity_names)} entities. "
+            f"Ask about a specific entity for targeted recommendations.</div>"
+        )
+        return "".join(parts)
+
+    if _is_analytics():
+        ename, edata = _find_entity()
+        if not ename and entity_names:
+            ename, edata = entity_names[0], context[entity_names[0]]
+        if edata:
+            parts = [f"<div class='ai-section-title'>📊 Analysis: {ename}</div>"]
+            status_dist = _status_breakdown(edata)
+            if len(status_dist) > 1:
+                parts.append(_section("Status Distribution", _bar_chart(status_dist)))
+            numeric_insights = []
+            if edata:
+                for key in edata[0].keys():
+                    stats = _numeric_stats(edata, key)
+                    if stats and stats["count"] > 1:
+                        numeric_insights.append(
+                            f"<tr><td>{key.replace('_', ' ').title()}</td>"
+                            f"<td>{stats['min']:.1f}</td><td>{stats['max']:.1f}</td>"
+                            f"<td>{stats['avg']:.1f}</td></tr>"
+                        )
+            if numeric_insights:
+                parts.append(_section("Numeric Statistics",
+                    f"<table class='ai-table'><thead><tr><th>Field</th><th>Min</th><th>Max</th><th>Avg</th></tr></thead>"
+                    f"<tbody>{''.join(numeric_insights[:6])}</tbody></table>"
+                ))
+            if edata:
+                for field in ("category","type","priority","severity","asset_type","zone_id","assigned_to"):
+                    if field in edata[0]:
+                        dist = _field_distribution(edata, field)
+                        if len(dist) > 1:
+                            parts.append(_section(f"By {field.replace('_', ' ').title()}", _bar_chart(dist, "#005a9e")))
+                            break
+            insights = []
+            needs_action = [r for r in edata if str(r.get("status","")).lower() in ("pending","critical","open","failed","unhealthy","degraded")]
+            if needs_action:
+                pct = len(needs_action) * 100 // len(edata)
+                insights.append(f"⚠️ <strong>{len(needs_action)}</strong> records ({pct}%) need attention")
+            resolved = [r for r in edata if str(r.get("status","")).lower() in ("completed","resolved","closed","healthy")]
+            if resolved:
+                pct = len(resolved) * 100 // len(edata)
+                insights.append(f"✅ <strong>{len(resolved)}</strong> records ({pct}%) are resolved/completed")
+            if insights:
+                parts.append(_section("💡 Key Insights", "<ul>" + "".join(f"<li>{i}</li>" for i in insights) + "</ul>"))
+            return "".join(parts)
+        return "<div class='ai-hint'>Specify an entity to analyze, e.g. \"analyze incidents\" or \"breakdown sensor status\".</div>"
+
+    if _is_list():
+        ename, edata = _find_entity()
+        if ename and edata:
+            display_keys = [k for k in edata[0].keys() if k != "id"][:6]
+            return f"<div class='ai-section-title'>{ename} ({len(edata)} records)</div>" + _table(edata, display_keys)
+        parts = [f"<div class='ai-section-title'>All Available Data</div>"]
+        for name, records in context.items():
+            keys = [k for k in records[0].keys() if k != "id"][:4] if records else []
+            parts.append(_section(f"{name} ({len(records)})", _table(records, keys, 3)))
+        return "".join(parts)
+
+    if _is_status():
+        parts = [f"<div class='ai-greeting'>📋 Platform Status Overview</div>"]
+        cards = "".join(_stat_card(name, len(records)) for name, records in context.items())
+        parts.append(f"<div class='ai-stats-row'>{cards}</div>")
+        all_needs_action = 0
+        all_resolved = 0
+        for name, records in context.items():
+            dist = _status_breakdown(records)
+            all_needs_action += sum(v for k, v in dist.items() if k in ("pending","critical","open","failed","unhealthy","degraded"))
+            all_resolved += sum(v for k, v in dist.items() if k in ("completed","resolved","closed","healthy"))
+        action_color = "#d83b01" if all_needs_action > 0 else "#107c10"
+        parts.append(
+            f"<div class='ai-stats-row'>"
+            + _stat_card("Needs Action", all_needs_action, action_color)
+            + _stat_card("Resolved", all_resolved, "#107c10")
+            + _stat_card("Total", total_records, "#0078d4")
+            + f"</div>"
+        )
+        parts.append(f"<div class='ai-hint'>✅ All systems operational. Ask about a specific entity for deeper analysis.</div>")
+        return "".join(parts)
+
+    # Entity-specific mention fallback
+    ename, edata = _find_entity()
+    if ename and edata:
+        display_keys = [k for k in edata[0].keys() if k != "id"][:5]
+        status_dist = _status_breakdown(edata)
+        cards = "".join(
+            _stat_card(s.title(), c, "#107c10" if s in ("completed","resolved","healthy") else "#d83b01" if s in ("critical","failed") else "#0078d4")
+            for s, c in status_dist.items()
+        ) if len(status_dist) > 1 else ""
+        return (
+            f"<div class='ai-section-title'>{ename} — {len(edata)} records</div>"
+            + (f"<div class='ai-stats-row'>{cards}</div>" if cards else "")
+            + _table(edata, display_keys, 5)
+            + f"<div class='ai-hint'>Ask me to \"analyze {ename.lower()}\" for deeper insights, or \"filter by status\".</div>"
+        )
+
+    # Conversational fallback — smarter response based on question type
+    # Try to give useful data even for unexpected queries
+    if any(w in q for w in ("what", "tell", "explain", "describe", "about")):
+        ename, edata = _find_entity()
+        if ename and edata:
+            display_keys = [k for k in edata[0].keys() if k != "id"][:6]
+            status_dist = _status_breakdown(edata)
+            cards = "".join(
+                _stat_card(s.title(), c, "#107c10" if s in ("completed","resolved","healthy") else "#d83b01" if s in ("critical","failed") else "#0078d4")
+                for s, c in status_dist.items()
+            ) if len(status_dist) > 1 else ""
+            sorted_recs = sorted(edata, key=lambda r: str(r.get("created_at", "")), reverse=True)
+            return (
+                f"<div class='ai-section-title'>{ename} — {len(edata)} records</div>"
+                + (f"<div class='ai-stats-row'>{cards}</div>" if cards else "")
+                + _table(sorted_recs[:5], display_keys)
+                + f"<div class='ai-hint'>Showing 5 most recent records. Try \"analyze {ename.lower()}\" or \"latest {ename.lower()}\".</div>"
+            )
+    cards = "".join(_stat_card(name, len(records)) for name, records in context.items())
+    all_action = sum(
+        sum(1 for r in records if str(r.get("status","")).lower() in ("pending","critical","open","failed"))
+        for records in context.values()
+    )
+    return (
+        f"<div class='ai-greeting'>🤖 I'm your intelligent data assistant.</div>"
+        f"<div class='ai-stats-row'>{cards}</div>"
+        f"<div class='ai-hint'>I have <strong>{total_records} records</strong> across "
+        f"<strong>{len(entity_names)} entities</strong>"
+        + (f" (⚠️ {all_action} need action)" if all_action > 0 else "") +
+        f".</div>"
+        f"<ul class='ai-suggestions'>"
+        f"<li>📋 \"Show latest incidents\" or \"What was the most recent work order?\"</li>"
+        f"<li>📊 \"Analyze asset health\" or \"Breakdown sensor status\"</li>"
+        f"<li>🔍 \"Which items are critical?\" or \"Find pending requests\"</li>"
+        f"<li>💡 \"What should we improve?\" or \"Give me recommendations\"</li>"
+        f"<li>📈 \"Compare all entities\" or \"Status across all\"</li></ul>"
+    )
 
 
 SYSTEM_PROMPT = """You are an AI assistant for smart-city-ai-operations-platform-extre.
@@ -231,11 +682,9 @@ class ChatResponse(BaseModel):
 @router.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
     """Send a message to the AI model grounded in domain data."""
-    # Build domain context from repositories
+    # Build structured domain context from repositories
     domain_context = _build_domain_context()
     rag_ext = _search_rag_context(request.message)
-    if rag_ext:
-        domain_context += "\n\nExternal Knowledge:\n" + rag_ext
 
     # Try AI provider first, fall back to local data-aware engine
     try:
@@ -248,9 +697,14 @@ async def chat(request: ChatRequest):
             context_used=True,
         )
 
+    # Convert structured context to string for LLM
+    context_str = json.dumps(domain_context, default=str, indent=2)
+    if rag_ext:
+        context_str += "\n\nExternal Knowledge:\n" + rag_ext
+
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "system", "content": f"Current data context:\n{domain_context}"},
+        {"role": "system", "content": f"Current data context:\n{context_str}"},
     ]
 
     # Add conversation history
@@ -267,7 +721,7 @@ async def chat(request: ChatRequest):
         model=result["model"],
         provider=result.get("provider", ""),
         usage=result["usage"],
-        context_used=bool(domain_context.strip()),
+        context_used=bool(domain_context),
     )
 
 

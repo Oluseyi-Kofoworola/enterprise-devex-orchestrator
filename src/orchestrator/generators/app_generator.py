@@ -64,42 +64,116 @@ def _seed_value(field_spec, entity_name: str, row: int) -> str:
     ename_lower = entity_name.lower()
     ename_abbr = ename_lower[:3].upper()
 
+    # --- Realistic name pools ---
+    _first_names = ["Alice", "Bob", "Carlos", "Diana", "Erik", "Fatima", "Grace", "Hassan", "Irene", "James", "Kira", "Liam", "Maya", "Noah", "Olivia"]
+    _last_names = ["Chen", "Smith", "Garcia", "Patel", "Kim", "Johnson", "Williams", "Brown", "Jones", "Davis"]
+    _streets = ["Main St", "Oak Ave", "Elm Blvd", "Park Dr", "River Rd", "Industrial Pkwy", "Harbor View", "Tech Campus", "Central Plaza", "Lakeside Way", "Market St", "5th Avenue", "Broadway", "Commercial Blvd", "University Dr"]
+    _cities = ["Downtown", "Midtown", "Uptown", "Eastside", "Westside", "Northgate", "Southpoint", "Harbor District", "Tech Quarter", "Old Town", "Financial District", "Arts District", "Riverside", "Airport Zone", "Civic Center"]
+    _categories_pool = {
+        "category": ["infrastructure", "safety", "environmental", "maintenance", "security", "utilities", "transportation", "public-health", "emergency", "administration", "compliance", "operations"],
+        "type": ["electrical", "mechanical", "structural", "software", "network", "hydraulic", "thermal", "chemical", "environmental", "optical"],
+        "asset_type": ["traffic-light", "power-grid", "water-pump", "HVAC-unit", "EV-charger", "solar-panel", "security-camera", "bridge-sensor", "air-quality-monitor", "flood-gate"],
+    }
+
     # --- Non-string types ---
     if ftype == "float":
-        amounts = [49.99, 125.50, 29.95, 89.00, 210.75]
+        import hashlib
+        h = int(hashlib.md5(f"{ename_lower}-{name}-{row}".encode()).hexdigest()[:8], 16)
+        if "confidence" in name or "score" in name or "health" in name:
+            return f"{0.45 + (h % 55) / 100:.2f}"
+        if "latitude" in name or "lat" in name:
+            return f"{33.0 + (h % 800) / 100:.4f}"
+        if "longitude" in name or "lon" in name or "lng" in name:
+            return f"{-118.0 + (h % 500) / 100:.4f}"
+        if "damage" in name or "cost" in name or "budget" in name or "price" in name or "amount" in name:
+            amounts = [1250.0, 8500.0, 350.0, 22000.0, 4800.0, 15600.0, 970.0, 38000.0, 6200.0, 2100.0, 12500.0, 44000.0, 580.0, 19800.0, 7300.0]
+            return str(amounts[(row - 1) % len(amounts)])
+        if "time" in name or "minutes" in name or "duration" in name:
+            times = [12.5, 45.0, 8.0, 120.0, 30.0, 5.5, 90.0, 15.0, 60.0, 22.0, 180.0, 3.0, 75.0, 40.0, 10.0]
+            return str(times[(row - 1) % len(times)])
+        amounts = [49.99, 125.50, 29.95, 89.00, 210.75, 1500.00, 340.25, 78.50, 560.00, 15.99, 2400.00, 180.75, 95.00, 720.50, 45.00]
         return str(amounts[(row - 1) % len(amounts)])
     if ftype == "int":
-        return str(row * 10)
+        if "population" in name or "affected" in name:
+            pops = [150, 2500, 50, 12000, 800, 3200, 75, 500, 8000, 1800, 350, 15000, 420, 6500, 100]
+            return str(pops[(row - 1) % len(pops)])
+        if "count" in name or "capacity" in name:
+            return str(row * 25 + (row * 7) % 200)
+        if "year" in name or "lifespan" in name:
+            vals = [5, 12, 3, 20, 8, 15, 2, 25, 10, 7, 30, 1, 18, 6, 14]
+            return str(vals[(row - 1) % len(vals)])
+        return str(row * 10 + (row * 13) % 50)
     if ftype == "bool":
-        return "True" if row % 2 == 1 else "False"
+        # Vary more for larger datasets
+        return "True" if (row * 7 + 3) % 3 != 0 else "False"
     if ftype in ("list", "list[str]"):
-        return f'["{ename_lower}-ref-{row:03d}"]'
+        refs = [f'"{ename_lower}-ref-{(row * 3 + i):03d}"' for i in range(1, min(row % 3 + 2, 4))]
+        return f'[{", ".join(refs)}]'
     if ftype == "dict":
         return "{}"
     if ftype == "datetime":
-        return f'"2024-03-{10 + row}T{8 + row:02d}:{row * 15:02d}:00Z"'
+        day = 1 + (row - 1) % 28
+        hour = (row * 3) % 24
+        minute = (row * 17) % 60
+        month = 1 + (row - 1) // 28 % 3
+        return f'"2024-0{month}-{day:02d}T{hour:02d}:{minute:02d}:00Z"'
 
     # --- String type: contextual seed values based on field name patterns ---
     if name == "status" or name.endswith("_status") or name == "state":
-        statuses = ["pending", "in_progress", "completed"]
+        statuses = ["pending", "in_progress", "completed", "pending", "in_progress", "active",
+                     "completed", "pending", "active", "critical", "in_progress", "completed",
+                     "resolved", "pending", "in_progress"]
         return f'"{statuses[(row - 1) % len(statuses)]}"'
     if name.endswith("_id") or name == "id":
         ref = name.replace("_id", "").upper() if name.endswith("_id") else ename_abbr
         return f'"{ref}-{1000 + row}"'
     if name in ("priority", "severity", "urgency"):
-        levels = ["high", "medium", "low"]
+        levels = ["critical", "high", "medium", "low", "high", "critical", "medium", "high",
+                  "low", "medium", "critical", "high", "medium", "low", "high"]
         return f'"{levels[(row - 1) % len(levels)]}"'
     if name in ("level", "tier", "grade"):
-        grades = ["gold", "silver", "bronze"]
+        grades = ["gold", "silver", "bronze", "platinum", "gold", "silver", "bronze", "gold",
+                  "platinum", "silver", "gold", "bronze", "silver", "gold", "platinum"]
         return f'"{grades[(row - 1) % len(grades)]}"'
     if name in ("type", "category", "kind", "class") or name.endswith("_type") or name.endswith("_category"):
-        return f'"type-{chr(64 + row)}"'
+        pool = _categories_pool.get(name, _categories_pool.get("category"))
+        return f'"{pool[(row - 1) % len(pool)]}"'
     if name in ("name", "title", "label"):
-        return f'"{entity_name} #{row}"'
+        # Generate realistic names based on entity context
+        _descriptors = ["Critical", "Routine", "Emergency", "Scheduled", "Urgent",
+                       "Preventive", "Corrective", "Inspection", "Upgrade", "Assessment",
+                       "Priority", "Follow-up", "Recurring", "Ad-hoc", "Compliance"]
+        _subjects = [f"{ename_lower} operation", "maintenance task", "system check", "field inspection",
+                    "service call", "repair work", "safety audit", "resource allocation",
+                    "performance review", "capacity planning", "incident response",
+                    "quality assurance", "risk assessment", "compliance check", "workflow update"]
+        return f'"{_descriptors[(row - 1) % len(_descriptors)]} {_subjects[(row - 1) % len(_subjects)]}"'
     if name in ("description", "summary", "details", "notes", "comment", "remarks"):
-        return f'"Sample {name} for {ename_lower} record #{row}"'
+        _desc_templates = [
+            f"Reported at {{}} — requires immediate attention. Multiple systems affected.",
+            f"Scheduled maintenance for {{}} sector. Standard operating procedure applies.",
+            f"Environmental alert triggered by {{}} monitoring station. Readings above threshold.",
+            f"Citizen complaint regarding {{}} in residential area. Priority response needed.",
+            f"Automated detection: {{}} anomaly in grid sector. Diagnostic in progress.",
+            f"Follow-up inspection after {{}} repair completed. Verification pending.",
+            f"Capacity warning for {{}} infrastructure. Usage at 87% of rated limit.",
+            f"Emergency dispatch triggered by {{}} sensor cluster. Units en route.",
+            f"Routine calibration of {{}} equipment. Last serviced 90 days ago.",
+            f"Inter-agency coordination needed for {{}} zone upgrade project.",
+            f"Budget review requested for {{}} capital improvement program.",
+            f"Safety compliance audit for {{}} operations. Due by end of quarter.",
+            f"Performance degradation detected in {{}} subsystem. Root cause TBD.",
+            f"Public event impact assessment for {{}} district. Traffic rerouting planned.",
+            f"Vendor contract renewal for {{}} maintenance services. Evaluation in progress.",
+        ]
+        t = _desc_templates[(row - 1) % len(_desc_templates)]
+        return f'"{t.format(_cities[(row - 1) % len(_cities)])}"'
     if name in ("reason", "cause", "justification"):
-        return f'"Reason #{row} for {ename_lower}"'
+        reasons = ["Equipment failure", "Weather damage", "Scheduled upgrade", "Safety violation",
+                  "Capacity exceeded", "Age-related wear", "Software bug", "Power surge",
+                  "Vandalism", "Natural disaster", "Design flaw", "Human error",
+                  "Regulatory requirement", "Cost optimization", "Performance issue"]
+        return f'"{reasons[(row - 1) % len(reasons)]}"'
     if name in ("method", "approach", "technique", "strategy"):
         return f'"method-{row}"'
     if name in ("currency", "currency_code"):
@@ -109,18 +183,23 @@ def _seed_value(field_spec, entity_name: str, row: int) -> str:
         countries = ["US", "GB", "DE"]
         return f'"{countries[(row - 1) % len(countries)]}"'
     if name in ("region", "zone", "area"):
-        return f'"region-{row}"'
-    if name in ("location", "address", "place", "site"):
-        locations = ["Site Alpha", "Site Beta", "Site Gamma", "Site Delta", "Site Epsilon"]
-        return f'"{locations[(row - 1) % len(locations)]}"'
+        return f'"{_cities[(row - 1) % len(_cities)]}"'
+    if name in ("location", "address", "place", "site") or "location" in name or "address" in name:
+        return f'"{(row * 100 + 15)} {_streets[(row - 1) % len(_streets)]}, {_cities[(row - 1) % len(_cities)]}"'
     if name in ("email", "contact_email", "user_email"):
-        return f'"user{row}@example.com"'
-    if name in ("phone", "phone_number", "contact_phone"):
-        return f'"+1-555-010{row}"'
+        fn = _first_names[(row - 1) % len(_first_names)].lower()
+        ln = _last_names[(row - 1) % len(_last_names)].lower()
+        return f'"{fn}.{ln}@smartcity.gov"'
+    if name.endswith("_name") or name in ("reporter_name", "assigned_to", "operator", "technician", "requester", "agent_name", "user_name"):
+        fn = _first_names[(row - 1) % len(_first_names)]
+        ln = _last_names[(row - 1) % len(_last_names)]
+        return f'"{fn} {ln}"'
+    if name in ("phone", "phone_number", "contact_phone") or name.endswith("_phone"):
+        return f'"+1-555-{100 + row:03d}-{1000 + row * 111:04d}"'
     if name in ("url", "link", "website", "homepage") or name.endswith("_url"):
-        return f'"https://example.com/{ename_lower}/{row}"'
+        return f'"https://portal.smartcity.gov/{ename_lower}/{row:04d}"'
     if name in ("ip", "ip_address"):
-        return f'"192.168.1.{10 + row}"'
+        return f'"10.{(row // 256) % 256}.{row % 256}.{(row * 7) % 256}"'
     if name in ("version", "revision"):
         return f'"v1.{row}.0"'
     if name.startswith("serial") or name.endswith("_number") or name == "code":
@@ -130,18 +209,50 @@ def _seed_value(field_spec, entity_name: str, row: int) -> str:
         return f'"{colors[(row - 1) % len(colors)]}"'
     if name in ("tag", "tags"):
         return f'"tag-{row}"'
-    if name in ("role", "permission"):
-        roles = ["admin", "editor", "viewer"]
+    if name in ("role", "permission") or name.endswith("_role"):
+        roles = ["operator", "supervisor", "technician", "analyst", "manager",
+                "dispatcher", "inspector", "coordinator", "engineer", "administrator",
+                "auditor", "planner", "field-agent", "director", "specialist"]
         return f'"{roles[(row - 1) % len(roles)]}"'
     if name in ("source", "origin", "provider"):
-        return f'"source-{row}"'
+        sources = ["IoT-sensor", "citizen-report", "automated-scan", "field-inspection",
+                  "dispatch-system", "API-integration", "manual-entry", "SCADA",
+                  "mobile-app", "web-portal", "email", "hotline", "partner-feed", "satellite", "drone"]
+        return f'"{sources[(row - 1) % len(sources)]}"'
     if name in ("target", "destination"):
-        return f'"target-{row}"'
-    if "date" in name or name in ("created", "updated", "timestamp"):
-        return f'"2024-03-{10 + row}T{6 + row:02d}:00:00Z"'
+        return f'"{_cities[(row - 1) % len(_cities)]}"'
+    if "date" in name or name in ("created", "updated", "timestamp") or name.endswith("_date") or name.endswith("_at"):
+        day = 1 + (row - 1) % 28
+        hour = 6 + (row * 2) % 16
+        month = 1 + (row - 1) // 28 % 3
+        return f'"2024-0{month}-{day:02d}T{hour:02d}:00:00Z"'
     if "amount" in name or "price" in name or "cost" in name or name in ("fee", "total", "balance"):
-        amounts = [49.99, 125.50, 29.95, 89.00, 210.75]
+        amounts = [1250.0, 8500.0, 350.0, 22000.0, 4800.0, 15600.0, 970.0, 38000.0, 6200.0, 2100.0, 12500.0, 44000.0, 580.0, 19800.0, 7300.0]
         return str(amounts[(row - 1) % len(amounts)])
+    if "transcript" in name or "notes" in name:
+        _notes = [
+            "Initial assessment complete. Dispatching repair crew.",
+            "On-site inspection confirmed. Severity upgraded.",
+            "Monitoring active. No further escalation needed.",
+            "Parts ordered from vendor. ETA 48 hours.",
+            "Resolved via remote diagnostics. System restored.",
+            "Awaiting citizen follow-up. Case remains open.",
+            "Cross-department coordination in progress.",
+            "Final review pending supervisor approval.",
+            "Emergency protocol activated. All units notified.",
+            "Routine check passed. Next scheduled in 30 days.",
+            "Third-party contractor engaged for specialized repair.",
+            "Budget approval received. Work order created.",
+            "Environmental compliance verified. Report filed.",
+            "Training session completed for operations team.",
+            "System upgrade deployed. Performance metrics improving.",
+        ]
+        return f'"{_notes[(row - 1) % len(_notes)]}"'
+    if "manufacturer" in name or "vendor" in name or "brand" in name:
+        _mfg = ["Siemens", "GE Digital", "Honeywell", "Schneider Electric", "ABB",
+               "Cisco Systems", "Itron", "Sensus", "Trimble", "Telensa",
+               "Silver Spring", "Eaton", "Emerson", "Rockwell", "Yokogawa"]
+        return f'"{_mfg[(row - 1) % len(_mfg)]}"'
     # Generic fallback — uses field name + entity context
     return f'"{ename_lower}-{name}-{row}"'
 
@@ -1241,19 +1352,25 @@ async def {action}_{sn}({sn}_id: str, settings: Settings = Depends(get_settings)
             '',
             '_SEED: dict[str, list[dict]] = {',
         ]
+        _record_count = 12  # enough for meaningful analytics
         for idx, ent in enumerate(spec.entities):
             sn = _snake(ent.name)
             lines.append(f'    "{sn}": [')
-            # Generate 3 sample records per entity
-            for rid in range(1, 4):
+            for rid in range(1, _record_count + 1):
                 record_parts = [f'"id": "{sn}-{rid:03d}"']
                 for f in ent.fields:
                     if f.name == "created_at":
-                        continue  # appended below with consistent formatting
+                        continue  # appended below with realistic timestamps
                     val = _seed_value(f, ent.name, rid)
                     record_parts.append(f'"{f.name}": {val}')
-                hour = 8 + rid
-                record_parts.append(f'"created_at": "2024-03-{10+rid}T{hour:02d}:00:00Z"')
+                # Spread timestamps across Jan-Mar 2024 with varied times
+                day = 1 + (rid - 1) % 28
+                hour = 6 + (rid * 3) % 16
+                minute = (rid * 17) % 60
+                month = 1 + (rid - 1) // 10
+                if month > 3:
+                    month = 3
+                record_parts.append(f'"created_at": "2024-0{month}-{day:02d}T{hour:02d}:{minute:02d}:00Z"')
                 lines.append(f'        {{{", ".join(record_parts)}}},')
             lines.append(f'    ],')
         lines.append('}')
@@ -1428,9 +1545,28 @@ async def {action}_{sn}({sn}_id: str, settings: Settings = Depends(get_settings)
         .chat-status { font-size:11px; display:flex; align-items:center; gap:6px; }
         .chat-status .dot { width:8px; height:8px; border-radius:50%; }
         .chat-messages { flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:12px; background:var(--surface-alt); }
-        .chat-msg { max-width:80%; padding:10px 14px; border-radius:12px; font-size:13px; line-height:1.5; word-wrap:break-word; white-space:pre-wrap; }
-        .chat-msg.user { align-self:flex-end; background:var(--primary); color:white; border-bottom-right-radius:4px; }
-        .chat-msg.assistant { align-self:flex-start; background:var(--surface); border:1px solid var(--border); border-bottom-left-radius:4px; box-shadow:var(--shadow); }
+        .chat-msg { max-width:85%; padding:10px 14px; border-radius:12px; font-size:13px; line-height:1.6; word-wrap:break-word; }
+        .chat-msg.user { align-self:flex-end; background:var(--primary); color:white; border-bottom-right-radius:4px; white-space:pre-wrap; }
+        .chat-msg.assistant { align-self:flex-start; background:var(--surface); border:1px solid var(--border); border-bottom-left-radius:4px; box-shadow:var(--shadow); max-width:92%; }
+        .ai-table { width:100%; border-collapse:collapse; font-size:12px; margin:6px 0; }
+        .ai-table th { background:var(--surface-alt); padding:6px 8px; text-align:left; border-bottom:2px solid var(--border); font-weight:600; font-size:11px; text-transform:uppercase; color:var(--text-secondary); }
+        .ai-table td { padding:5px 8px; border-bottom:1px solid var(--border); }
+        .ai-table tr:hover td { background:rgba(0,120,212,.04); }
+        .ai-table code { background:var(--surface-alt); padding:1px 4px; border-radius:3px; font-size:11px; }
+        .ai-stats-row { display:flex; flex-wrap:wrap; gap:6px; margin:8px 0; }
+        .ai-stat { display:inline-flex; align-items:center; gap:4px; padding:4px 10px; border-radius:16px; border-left:3px solid; background:var(--surface-alt); font-size:12px; }
+        .ai-section { margin:8px 0; }
+        .ai-section-title { font-weight:600; font-size:14px; color:var(--primary); margin-bottom:6px; padding-bottom:4px; border-bottom:1px solid var(--border); }
+        .ai-greeting { font-size:14px; margin-bottom:8px; }
+        .ai-hint { font-size:12px; color:var(--text-secondary); margin:6px 0; padding:6px 10px; background:var(--surface-alt); border-radius:var(--radius); border-left:3px solid var(--primary); }
+        .ai-suggestions { margin:6px 0 0; padding-left:18px; font-size:12px; }
+        .ai-suggestions li { margin:3px 0; color:var(--text-secondary); }
+        .ai-bar-chart { margin:4px 0; }
+        .ai-bar-row { display:flex; align-items:center; gap:6px; margin:3px 0; font-size:12px; }
+        .ai-bar-label { min-width:80px; text-align:right; color:var(--text-secondary); text-transform:capitalize; }
+        .ai-bar-track { flex:1; height:16px; background:var(--surface-alt); border-radius:8px; overflow:hidden; }
+        .ai-bar-fill { height:100%; border-radius:8px; transition:width .3s; }
+        .ai-bar-val { min-width:24px; font-weight:600; }
         .chat-msg.system { align-self:center; background:var(--surface-alt); border:1px solid var(--border); color:var(--text-secondary); font-size:12px; text-align:center; max-width:90%; }
         .chat-input-bar { display:flex; gap:8px; padding:12px 16px; border-top:1px solid var(--border); background:var(--surface); }
         .chat-input { flex:1; padding:10px 14px; border:1px solid var(--border); border-radius:20px; font-size:13px; outline:none; resize:none; font-family:inherit; }
@@ -1919,7 +2055,11 @@ async def {action}_{sn}({sn}_id: str, settings: Settings = Depends(get_settings)
             const container = document.getElementById('chatMessages');
             const div = document.createElement('div');
             div.className = 'chat-msg ' + role;
-            div.textContent = content;
+            if (role === 'assistant' && (content.includes('<') && content.includes('>'))) {lb}
+                div.innerHTML = content;
+            {rb} else {lb}
+                div.textContent = content;
+            {rb}
             container.appendChild(div);
             container.scrollTop = container.scrollHeight;
         {rb}
@@ -3214,16 +3354,19 @@ def chat_completion(
         entity_context_lines = []
         for ent in entities:
             sn = _snake(ent.name)
-            plural = _snake(_plural(ent.name))
             entity_context_lines.append(
                 f'    try:\n'
                 f'        repo = get_repository("{sn}")\n'
                 f'        items = repo.list_all()\n'
-                f'        sections.append(f"{_plural(ent.name)} ({{len(items)}} records):")\n'
-                f'        for item in items[:5]:\n'
-                f'            sections.append(f"  - {{item}}")\n'
-                f'        if len(items) > 5:\n'
-                f'            sections.append(f"  ... and {{len(items) - 5}} more")\n'
+                f'        records = []\n'
+                f'        for item in items:\n'
+                f'            if hasattr(item, "__dict__"):\n'
+                f'                records.append({{k: v for k, v in item.__dict__.items() if not k.startswith("_")}})\n'
+                f'            elif isinstance(item, dict):\n'
+                f'                records.append(item)\n'
+                f'            else:\n'
+                f'                records.append({{"value": str(item)}})\n'
+                f'        result["{ent.name}"] = records\n'
                 f'    except Exception:\n'
                 f'        pass'
             )
@@ -3293,61 +3436,476 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 {search_rag_block}
 
-def _build_domain_context() -> str:
-    """Build RAG context from the app\'s own entity repositories."""
-    sections: list[str] = []
+def _build_domain_context() -> dict:
+    """Build structured domain context from the app\\'s own entity repositories."""
+    result: dict[str, list[dict]] = {{}}
 {entity_context_block}
-    return "\\n".join(sections) if sections else "No data available yet."
+    return result
 
 
-def _local_data_reply(question: str, context: str) -> str:
-    """Keyword-matching data-aware reply engine -- works without an AI provider."""
-    q = question.lower()
-    lines = context.split("\\n")
-    # Parse entity summaries from context
-    entity_data: dict[str, list[str]] = {{}}
-    current = ""
-    for line in lines:
-        if line.endswith("):"):
-            current = line
-            entity_data[current] = []
-        elif line.startswith("  - ") and current:
-            entity_data[current].append(line.strip("- ").strip())
+def _local_data_reply(question: str, context: dict) -> str:
+    """Smart analytical data engine with conversational reasoning -- works without an AI provider."""
+    import re as _re
+    from collections import Counter
 
-    # Count helpers
-    total = sum(len(v) for v in entity_data.values())
-    summaries = []
-    for header, records in entity_data.items():
-        summaries.append(f"• {{header}} {{len(records)}} shown")
+    q = question.lower().strip()
+    entity_names = list(context.keys())
+    total_records = sum(len(v) for v in context.values())
 
-    # Check for count/how many questions
-    if any(w in q for w in ("how many", "count", "total", "number of")):
-        parts = []
-        for header, records in entity_data.items():
-            parts.append(f"{{header}}")
-        return "Here are the current counts:\\n" + "\\n".join(parts) + f"\\n\\nTotal records across all entities: {{total}}."
+    # --- Intent detection ---
+    def _is_greeting():
+        return any(w in q for w in ("hello", "hi ", "hey", "good morning", "good afternoon", "greetings", "howdy")) or q in ("hi", "hey")
 
-    # Check for list/show questions
-    if any(w in q for w in ("list", "show", "display", "get all", "what are")):
-        for header, records in entity_data.items():
-            if any(w in header.lower() for w in q.split() if len(w) > 3):
-                items = "\\n".join(f"  • {{r}}" for r in records[:10])
-                return f"{{header}}\\n{{items}}"
-        return "Available data:\\n" + "\\n".join(summaries)
+    def _is_count():
+        return any(w in q for w in ("how many", "count", "total", "number of", "quantity"))
 
-    # Check for status/health questions
-    if any(w in q for w in ("status", "health", "overview", "summary", "dashboard")):
-        return f"System Overview:\\n\\n" + "\\n".join(summaries) + f"\\n\\nTotal records: {{total}}. All systems operational."
+    def _is_list():
+        return any(w in q for w in ("list", "show me", "show all", "display", "get all", "what are the", "give me"))
 
-    # Check for specific entity mentions
-    for header, records in entity_data.items():
-        entity_name = header.split("(")[0].strip().lower()
-        if any(w in q for w in entity_name.split() if len(w) > 3):
-            items = "\\n".join(f"  • {{r}}" for r in records[:8])
-            return f"{{header}}\\n{{items}}"
-            
-    # Default: provide overview
-    return f"I can help you explore your data. Here\\'s what\\'s available:\\n\\n" + "\\n".join(summaries) + f"\\n\\nTotal: {{total}} records. Try asking \\'how many\\', \\'show [entity]\\', or \\'status\\'."
+    def _is_status():
+        return any(w in q for w in ("status", "health", "overview", "summary", "dashboard", "report", "how is", "how are"))
+
+    def _is_analytics():
+        return any(w in q for w in ("analyze", "analyse", "trend", "insight", "breakdown", "distribution", "statistic", "average", "mean", "compare", "correlation", "pattern", "top", "bottom", "worst", "best", "highest", "lowest", "most", "least", "peak"))
+
+    def _is_help():
+        return any(w in q for w in ("help", "what can you", "capabilities", "what do you", "how do i", "how to"))
+
+    def _is_action():
+        return any(w in q for w in ("create", "add", "update", "delete", "remove", "fix", "resolve", "assign", "triage", "escalate", "dispatch", "approve", "schedule"))
+
+    def _is_filter():
+        return any(w in q for w in ("where", "which", "filter", "find", "with", "without", "that have", "that are", "pending", "active", "completed", "critical", "high", "low", "open", "closed"))
+
+    def _is_temporal():
+        return any(w in q for w in ("latest", "recent", "newest", "oldest", "last updated", "first", "when was", "most recent", "earliest", "last created", "last added", "new record", "updated record", "last record", "ago"))
+
+    def _is_recommendation():
+        return any(w in q for w in ("improve", "improvement", "suggest", "suggestion", "recommend", "recommendation", "future", "what should", "next step", "forecast", "optimize", "optimise", "enhance", "gap", "missing", "weakness", "opportunity", "priority action", "attention"))
+
+    def _is_crossentity():
+        return any(w in q for w in ("related", "belong", "associated", "linked", "connected", "between", "correlation", "correlate", "across entities", "across all", "comparison", "compare all"))
+
+    # --- Entity matching (flexible NLP) ---
+    def _find_entity() -> tuple[str, list[dict]]:
+        best_match = ("", [])
+        best_score = 0
+        for name in entity_names:
+            name_lower = name.lower()
+            score = 0
+            # Exact match
+            if name_lower in q or name_lower + "s" in q:
+                score = 10
+            elif name_lower.rstrip("s") in q:
+                score = 9
+            else:
+                # CamelCase split: "ServiceRequest" -> ["service", "request"]
+                words = _re.split(r'(?<=[a-z])(?=[A-Z])', name)
+                words = [w.lower() for w in words if w]
+                # snake_case split
+                snake_parts = name_lower.split("_")
+                all_tokens = set(words + snake_parts)
+                matched_tokens = sum(1 for w in all_tokens if len(w) > 2 and w in q)
+                if matched_tokens > 0:
+                    score = matched_tokens * 3
+                # Singular/plural variations
+                for w in all_tokens:
+                    if len(w) > 3:
+                        if w + "s" in q or w.rstrip("s") in q:
+                            score = max(score, 5)
+            if score > best_score:
+                best_score = score
+                best_match = (name, context[name])
+        return best_match
+
+    # --- HTML helpers ---
+    def _table(records: list[dict], keys: list[str] | None = None, max_rows: int = 10) -> str:
+        if not records:
+            return "<em>No records found.</em>"
+        keys = keys or [k for k in records[0].keys() if k != "id"][:6]
+        headers = "".join(f"<th>{{k.replace('_', ' ').title()}}</th>" for k in keys)
+        rows = ""
+        for r in records[:max_rows]:
+            cells = ""
+            for k in keys:
+                v = r.get(k, "")
+                if isinstance(v, list):
+                    v = ", ".join(str(x) for x in v[:3])
+                elif v is None:
+                    v = ""
+                cells += f"<td>{{v}}</td>"
+            rows += f"<tr>{{cells}}</tr>"
+        more = f"<tr><td colspan='{{len(keys)}}' style='text-align:center;color:#666;font-style:italic'>...and {{len(records) - max_rows}} more</td></tr>" if len(records) > max_rows else ""
+        return f"<table class='ai-table'><thead><tr>{{headers}}</tr></thead><tbody>{{rows}}{{more}}</tbody></table>"
+
+    def _stat_card(label: str, value, color: str = "#0078d4") -> str:
+        return f"<span class='ai-stat' style='border-color:{{color}}'><strong style='color:{{color}}'>{{value}}</strong> {{label}}</span>"
+
+    def _section(title: str, body: str) -> str:
+        return f"<div class='ai-section'><div class='ai-section-title'>{{title}}</div>{{body}}</div>"
+
+    def _status_breakdown(records: list[dict]) -> dict[str, int]:
+        statuses = [str(r.get("status", "unknown")).lower() for r in records]
+        return dict(Counter(statuses).most_common())
+
+    def _field_distribution(records: list[dict], field: str) -> dict[str, int]:
+        values = [str(r.get(field, "unknown")).lower() for r in records if r.get(field)]
+        return dict(Counter(values).most_common(10))
+
+    def _bar_chart(distribution: dict[str, int], color: str = "#0078d4") -> str:
+        if not distribution:
+            return ""
+        max_val = max(distribution.values())
+        bars = ""
+        for label, count in distribution.items():
+            pct = (count / max_val) * 100 if max_val else 0
+            bars += f"<div class='ai-bar-row'><span class='ai-bar-label'>{{label}}</span><div class='ai-bar-track'><div class='ai-bar-fill' style='width:{{pct}}%;background:{{color}}'></div></div><span class='ai-bar-val'>{{count}}</span></div>"
+        return f"<div class='ai-bar-chart'>{{bars}}</div>"
+
+    def _numeric_stats(records: list[dict], field: str) -> dict | None:
+        vals = []
+        for r in records:
+            v = r.get(field)
+            if v is not None:
+                try:
+                    vals.append(float(v))
+                except (ValueError, TypeError):
+                    pass
+        if not vals:
+            return None
+        return {{"min": min(vals), "max": max(vals), "avg": sum(vals)/len(vals), "count": len(vals)}}
+
+    # --- Responses ---
+
+    if _is_greeting():
+        cards = "".join(_stat_card(name, len(records)) for name, records in context.items())
+        return (
+            f"<div class='ai-greeting'>\U0001f44b Hello! I'm your intelligent data assistant for this platform.</div>"
+            f"<div class='ai-stats-row'>{{cards}}</div>"
+            f"<div class='ai-hint'>I can analyze <strong>{{total_records}} records</strong> across "
+            f"<strong>{{len(entity_names)}} entities</strong>. Try asking me:</div>"
+            f"<ul class='ai-suggestions'>"
+            f"<li>\\"How many incidents are critical?\\"</li>"
+            f"<li>\\"Show me a breakdown of asset status\\"</li>"
+            f"<li>\\"What needs attention right now?\\"</li>"
+            f"<li>\\"Analyze sensor health trends\\"</li></ul>"
+        )
+
+    if _is_help():
+        return (
+            f"<div class='ai-section-title'>\U0001f4a1 What I Can Do</div>"
+            f"<ul class='ai-suggestions'>"
+            f"<li><strong>Count & Summarize</strong> \u2014 \\"How many work orders are pending?\\"</li>"
+            f"<li><strong>Browse Data</strong> \u2014 \\"Show me all sensors\\" or \\"List critical incidents\\"</li>"
+            f"<li><strong>Analyze Patterns</strong> \u2014 \\"Breakdown incidents by status\\" or \\"Analyze asset health\\"</li>"
+            f"<li><strong>Find & Filter</strong> \u2014 \\"Which vehicles are active?\\" or \\"Find pending requests\\"</li>"
+            f"<li><strong>Temporal Queries</strong> \u2014 \\"Show latest incidents\\" or \\"What was the first work order?\\"</li>"
+            f"<li><strong>Cross-Entity</strong> \u2014 \\"Compare all entities\\" or \\"Status across all\\"</li>"
+            f"<li><strong>Recommendations</strong> \u2014 \\"What should we improve?\\" or \\"Future suggestions\\"</li>"
+            f"<li><strong>Action Guidance</strong> \u2014 \\"How do I create an incident?\\" or \\"How to triage?\\"</li></ul>"
+            f"<div class='ai-hint'>I have access to {{total_records}} records across: {{', '.join(entity_names)}}</div>"
+        )
+
+    # --- Temporal queries BEFORE action (so "latest updated" doesn't trigger action via "update") ---
+    if _is_temporal():
+        ename, edata = _find_entity()
+        if not ename and entity_names:
+            ename, edata = entity_names[0], context[entity_names[0]]
+        if edata:
+            is_oldest = any(w in q for w in ("oldest", "first", "earliest"))
+            sorted_records = sorted(edata, key=lambda r: str(r.get("created_at", r.get("updated_at", r.get("timestamp", "")))), reverse=not is_oldest)
+            direction = "Oldest" if is_oldest else "Most Recent"
+            top_records = sorted_records[:5]
+            display_keys = [k for k in top_records[0].keys() if k != "id"][:7]
+            # ensure created_at is included
+            if "created_at" not in display_keys:
+                display_keys.append("created_at")
+            return (
+                f"<div class='ai-section-title'>\U0001f552 {{direction}} {{ename}} Records</div>"
+                f"<div class='ai-hint'>Showing {{len(top_records)}} {{direction.lower()}} of {{len(edata)}} total records, sorted by timestamp.</div>"
+                + _table(top_records, display_keys)
+                + f"<div class='ai-hint'>Latest record: <strong>{{sorted_records[0].get('created_at', 'N/A')}}</strong></div>"
+            )
+        return f"<div class='ai-hint'>Specify an entity, e.g. \\"show latest incidents\\" or \\"oldest work orders\\"</div>"
+
+    if _is_action():
+        ename, edata = _find_entity()
+        if not ename:
+            ename = entity_names[0] if entity_names else "Resource"
+        sn = _re.sub(r'(?<=[a-z])(?=[A-Z])', '_', ename).lower()
+        plural = sn + "s"
+        return (
+            f"<div class='ai-section-title'>\U0001f527 API Actions for {{ename}}</div>"
+            f"<table class='ai-table'><thead><tr><th>Action</th><th>Method</th><th>Endpoint</th></tr></thead>"
+            f"<tbody>"
+            f"<tr><td>List all</td><td><code>GET</code></td><td><code>/api/v1/{{plural}}</code></td></tr>"
+            f"<tr><td>Get by ID</td><td><code>GET</code></td><td><code>/api/v1/{{plural}}/{{{{id}}}}</code></td></tr>"
+            f"<tr><td>Create</td><td><code>POST</code></td><td><code>/api/v1/{{plural}}</code></td></tr>"
+            f"<tr><td>Update</td><td><code>PUT</code></td><td><code>/api/v1/{{plural}}/{{{{id}}}}</code></td></tr>"
+            f"<tr><td>Delete</td><td><code>DELETE</code></td><td><code>/api/v1/{{plural}}/{{{{id}}}}</code></td></tr>"
+            f"</tbody></table>"
+            f"<div class='ai-hint'>Use the <strong>API Docs</strong> link in the footer for interactive testing.</div>"
+        )
+
+    if _is_filter():
+        ename, edata = _find_entity()
+        if not ename:
+            for name, records in context.items():
+                ename, edata = name, records
+                break
+        if edata:
+            filter_terms = [t for t in ("pending","active","completed","critical","high","low","open","closed","in_progress","healthy","unhealthy","degraded","failed") if t in q]
+            if filter_terms:
+                matched = [r for r in edata if any(t in json.dumps(r, default=str).lower() for t in filter_terms)]
+                desc = " & ".join(filter_terms)
+                if matched:
+                    display_keys = [k for k in matched[0].keys() if k != "id"][:6]
+                    return (
+                        f"<div class='ai-section-title'>\U0001f50d {{ename}} \u2014 \\"{{desc}}\\"</div>"
+                        f"<div class='ai-hint'>Found <strong>{{len(matched)}}</strong> of {{len(edata)}} records matching.</div>"
+                        + _table(matched, display_keys)
+                    )
+                else:
+                    return (
+                        f"<div class='ai-section-title'>{{ename}} \u2014 filter \\"{{desc}}\\"</div>"
+                        f"<div class='ai-hint'>No records match that filter. Current statuses:</div>"
+                        + _bar_chart(_status_breakdown(edata))
+                    )
+            else:
+                display_keys = [k for k in edata[0].keys() if k != "id"][:6] if edata else []
+                return f"<div class='ai-section-title'>{{ename}} ({{len(edata)}} records)</div>" + _table(edata, display_keys)
+        return f"<div class='ai-hint'>Specify an entity to filter, e.g. \\"which incidents are critical?\\"</div>"
+
+    if _is_count():
+        ename, edata = _find_entity()
+        if ename:
+            status_dist = _status_breakdown(edata)
+            cards = "".join(
+                _stat_card(s.title(), c, "#107c10" if s in ("completed","resolved","healthy") else "#d83b01" if s in ("critical","failed","unhealthy") else "#0078d4")
+                for s, c in status_dist.items()
+            )
+            return (
+                f"<div class='ai-section-title'>\U0001f4ca {{ename}} \u2014 {{len(edata)}} total records</div>"
+                f"<div class='ai-stats-row'>{{cards}}</div>"
+                + (_bar_chart(status_dist) if len(status_dist) > 1 else "")
+            )
+        else:
+            cards = "".join(_stat_card(name, len(records)) for name, records in context.items())
+            return (
+                f"<div class='ai-section-title'>\U0001f4ca Record Counts</div>"
+                f"<div class='ai-stats-row'>{{cards}}</div>"
+                + _stat_card("Total Records", total_records, "#107c10")
+            )
+
+    # --- Cross-entity comparison (must be before analytics to avoid "compare" collision) ---
+    if _is_crossentity():
+        parts = [f"<div class='ai-section-title'>\U0001f4ca Cross-Entity Comparison</div>"]
+        comparison_rows = ""
+        for name, records in context.items():
+            total = len(records)
+            status_dist = _status_breakdown(records)
+            needs_action = sum(v for k, v in status_dist.items() if k in ("pending","critical","open","failed","unhealthy","degraded"))
+            resolved = sum(v for k, v in status_dist.items() if k in ("completed","resolved","closed","healthy"))
+            in_progress = sum(v for k, v in status_dist.items() if k in ("in_progress","active"))
+            health_pct = (resolved * 100 // total) if total > 0 else 0
+            health_color = "#107c10" if health_pct >= 70 else "#d83b01" if health_pct < 40 else "#ffc107"
+            comparison_rows += (
+                f"<tr><td><strong>{{name}}</strong></td><td>{{total}}</td>"
+                f"<td style='color:#d83b01'>{{needs_action}}</td>"
+                f"<td style='color:#0078d4'>{{in_progress}}</td>"
+                f"<td style='color:#107c10'>{{resolved}}</td>"
+                f"<td style='color:{{health_color}}'>{{health_pct}}%</td></tr>"
+            )
+        parts.append(
+            f"<table class='ai-table'><thead><tr>"
+            f"<th>Entity</th><th>Total</th><th>\u26a0 Action</th><th>\U0001f504 Progress</th><th>\u2705 Done</th><th>Health</th>"
+            f"</tr></thead><tbody>{{comparison_rows}}</tbody></table>"
+        )
+        all_action = sum(
+            sum(1 for r in records if str(r.get('status','')).lower() in ('pending','critical','open','failed','unhealthy','degraded'))
+            for records in context.values()
+        )
+        worst_entity = max(context.items(), key=lambda x: sum(1 for r in x[1] if str(r.get('status','')).lower() in ('pending','critical','open','failed')))
+        parts.append(
+            f"<div class='ai-hint'>\U0001f4a1 <strong>{{all_action}}</strong> items need action across all entities. "
+            f"<strong>{{worst_entity[0]}}</strong> has the most items requiring attention.</div>"
+        )
+        return "".join(parts)
+
+    # --- Recommendation / improvement engine (must be before analytics) ---
+    if _is_recommendation():
+        parts = [f"<div class='ai-section-title'>\U0001f4a1 Platform Improvement Recommendations</div>"]
+        recommendations = []
+        high_action_entities = []
+        for name, records in context.items():
+            total = len(records)
+            if total == 0:
+                continue
+            status_dist = _status_breakdown(records)
+            needs_action = sum(v for k, v in status_dist.items() if k in ("pending","critical","open","failed","unhealthy","degraded"))
+            action_pct = needs_action * 100 // total if total > 0 else 0
+            if action_pct > 30:
+                high_action_entities.append((name, action_pct, needs_action))
+            if records and records[0].get("priority") or records[0].get("severity"):
+                field = "priority" if "priority" in records[0] else "severity"
+                dist = _field_distribution(records, field)
+                critical_count = sum(v for k, v in dist.items() if k in ("critical","high"))
+                if critical_count > total * 0.3:
+                    recommendations.append(
+                        f"\U0001f534 <strong>{{name}}</strong> has {{critical_count}} critical/high priority items "
+                        f"({{critical_count * 100 // total}}%) \u2014 consider adding more resources or automated triage."
+                    )
+        if high_action_entities:
+            for ename, pct, count in sorted(high_action_entities, key=lambda x: -x[1]):
+                recommendations.append(
+                    f"\u26a0\ufe0f <strong>{{ename}}</strong> has {{count}} items ({{pct}}%) pending action \u2014 "
+                    f"prioritize processing these to reduce backlog."
+                )
+        recommendations.extend([
+            f"\U0001f4c8 <strong>Automation</strong> \u2014 Set up automated status transitions for records idle >48 hours.",
+            f"\U0001f512 <strong>Security</strong> \u2014 Ensure all API endpoints use RBAC with Managed Identity authentication.",
+            f"\U0001f50d <strong>Monitoring</strong> \u2014 Add Azure Monitor alerts for entities with >50% pending items.",
+            f"\U0001f4ca <strong>Dashboards</strong> \u2014 Create per-team dashboards filtering by assigned_to or zone.",
+            f"\u26a1 <strong>Performance</strong> \u2014 Index frequently queried fields (status, priority, created_at) for faster lookups.",
+            f"\U0001f504 <strong>CI/CD</strong> \u2014 Add automated regression tests for all {{len(entity_names)}} entity endpoints.",
+        ])
+        parts.append("<ol class='ai-suggestions'>" + "".join(f"<li>{{r}}</li>" for r in recommendations) + "</ol>")
+        parts.append(
+            f"<div class='ai-hint'>\U0001f3af Based on analysis of {{total_records}} records across {{len(entity_names)}} entities. "
+            f"Ask about a specific entity for targeted recommendations.</div>"
+        )
+        return "".join(parts)
+
+    if _is_analytics():
+        ename, edata = _find_entity()
+        if not ename and entity_names:
+            ename, edata = entity_names[0], context[entity_names[0]]
+        if edata:
+            parts = [f"<div class='ai-section-title'>\U0001f4ca Analysis: {{ename}}</div>"]
+            status_dist = _status_breakdown(edata)
+            if len(status_dist) > 1:
+                parts.append(_section("Status Distribution", _bar_chart(status_dist)))
+            numeric_insights = []
+            if edata:
+                for key in edata[0].keys():
+                    stats = _numeric_stats(edata, key)
+                    if stats and stats["count"] > 1:
+                        numeric_insights.append(
+                            f"<tr><td>{{key.replace('_', ' ').title()}}</td>"
+                            f"<td>{{stats['min']:.1f}}</td><td>{{stats['max']:.1f}}</td>"
+                            f"<td>{{stats['avg']:.1f}}</td></tr>"
+                        )
+            if numeric_insights:
+                parts.append(_section("Numeric Statistics",
+                    f"<table class='ai-table'><thead><tr><th>Field</th><th>Min</th><th>Max</th><th>Avg</th></tr></thead>"
+                    f"<tbody>{{''.join(numeric_insights[:6])}}</tbody></table>"
+                ))
+            if edata:
+                for field in ("category","type","priority","severity","asset_type","zone_id","assigned_to"):
+                    if field in edata[0]:
+                        dist = _field_distribution(edata, field)
+                        if len(dist) > 1:
+                            parts.append(_section(f"By {{field.replace('_', ' ').title()}}", _bar_chart(dist, "#005a9e")))
+                            break
+            insights = []
+            needs_action = [r for r in edata if str(r.get("status","")).lower() in ("pending","critical","open","failed","unhealthy","degraded")]
+            if needs_action:
+                pct = len(needs_action) * 100 // len(edata)
+                insights.append(f"\u26a0\ufe0f <strong>{{len(needs_action)}}</strong> records ({{pct}}%) need attention")
+            resolved = [r for r in edata if str(r.get("status","")).lower() in ("completed","resolved","closed","healthy")]
+            if resolved:
+                pct = len(resolved) * 100 // len(edata)
+                insights.append(f"\u2705 <strong>{{len(resolved)}}</strong> records ({{pct}}%) are resolved/completed")
+            if insights:
+                parts.append(_section("\U0001f4a1 Key Insights", "<ul>" + "".join(f"<li>{{i}}</li>" for i in insights) + "</ul>"))
+            return "".join(parts)
+        return "<div class='ai-hint'>Specify an entity to analyze, e.g. \\"analyze incidents\\" or \\"breakdown sensor status\\".</div>"
+
+    if _is_list():
+        ename, edata = _find_entity()
+        if ename and edata:
+            display_keys = [k for k in edata[0].keys() if k != "id"][:6]
+            return f"<div class='ai-section-title'>{{ename}} ({{len(edata)}} records)</div>" + _table(edata, display_keys)
+        parts = [f"<div class='ai-section-title'>All Available Data</div>"]
+        for name, records in context.items():
+            keys = [k for k in records[0].keys() if k != "id"][:4] if records else []
+            parts.append(_section(f"{{name}} ({{len(records)}})", _table(records, keys, 3)))
+        return "".join(parts)
+
+    if _is_status():
+        parts = [f"<div class='ai-greeting'>\U0001f4cb Platform Status Overview</div>"]
+        cards = "".join(_stat_card(name, len(records)) for name, records in context.items())
+        parts.append(f"<div class='ai-stats-row'>{{cards}}</div>")
+        all_needs_action = 0
+        all_resolved = 0
+        for name, records in context.items():
+            dist = _status_breakdown(records)
+            all_needs_action += sum(v for k, v in dist.items() if k in ("pending","critical","open","failed","unhealthy","degraded"))
+            all_resolved += sum(v for k, v in dist.items() if k in ("completed","resolved","closed","healthy"))
+        action_color = "#d83b01" if all_needs_action > 0 else "#107c10"
+        parts.append(
+            f"<div class='ai-stats-row'>"
+            + _stat_card("Needs Action", all_needs_action, action_color)
+            + _stat_card("Resolved", all_resolved, "#107c10")
+            + _stat_card("Total", total_records, "#0078d4")
+            + f"</div>"
+        )
+        parts.append(f"<div class='ai-hint'>\u2705 All systems operational. Ask about a specific entity for deeper analysis.</div>")
+        return "".join(parts)
+
+    # Entity-specific mention fallback
+    ename, edata = _find_entity()
+    if ename and edata:
+        display_keys = [k for k in edata[0].keys() if k != "id"][:5]
+        status_dist = _status_breakdown(edata)
+        cards = "".join(
+            _stat_card(s.title(), c, "#107c10" if s in ("completed","resolved","healthy") else "#d83b01" if s in ("critical","failed") else "#0078d4")
+            for s, c in status_dist.items()
+        ) if len(status_dist) > 1 else ""
+        return (
+            f"<div class='ai-section-title'>{{ename}} \u2014 {{len(edata)}} records</div>"
+            + (f"<div class='ai-stats-row'>{{cards}}</div>" if cards else "")
+            + _table(edata, display_keys, 5)
+            + f"<div class='ai-hint'>Ask me to \\"analyze {{ename.lower()}}\\" for deeper insights, or \\"filter by status\\".</div>"
+        )
+
+    # Conversational fallback — smarter response based on question type
+    # Try to give useful data even for unexpected queries
+    if any(w in q for w in ("what", "tell", "explain", "describe", "about")):
+        ename, edata = _find_entity()
+        if ename and edata:
+            display_keys = [k for k in edata[0].keys() if k != "id"][:6]
+            status_dist = _status_breakdown(edata)
+            cards = "".join(
+                _stat_card(s.title(), c, "#107c10" if s in ("completed","resolved","healthy") else "#d83b01" if s in ("critical","failed") else "#0078d4")
+                for s, c in status_dist.items()
+            ) if len(status_dist) > 1 else ""
+            sorted_recs = sorted(edata, key=lambda r: str(r.get("created_at", "")), reverse=True)
+            return (
+                f"<div class='ai-section-title'>{{ename}} \u2014 {{len(edata)}} records</div>"
+                + (f"<div class='ai-stats-row'>{{cards}}</div>" if cards else "")
+                + _table(sorted_recs[:5], display_keys)
+                + f"<div class='ai-hint'>Showing 5 most recent records. Try \\"analyze {{ename.lower()}}\\" or \\"latest {{ename.lower()}}\\".</div>"
+            )
+    cards = "".join(_stat_card(name, len(records)) for name, records in context.items())
+    all_action = sum(
+        sum(1 for r in records if str(r.get("status","")).lower() in ("pending","critical","open","failed"))
+        for records in context.values()
+    )
+    return (
+        f"<div class='ai-greeting'>\U0001f916 I'm your intelligent data assistant.</div>"
+        f"<div class='ai-stats-row'>{{cards}}</div>"
+        f"<div class='ai-hint'>I have <strong>{{total_records}} records</strong> across "
+        f"<strong>{{len(entity_names)}} entities</strong>"
+        + (f" (\u26a0\ufe0f {{all_action}} need action)" if all_action > 0 else "") +
+        f".</div>"
+        f"<ul class='ai-suggestions'>"
+        f"<li>\U0001f4cb \\"Show latest incidents\\" or \\"What was the most recent work order?\\"</li>"
+        f"<li>\U0001f4ca \\"Analyze asset health\\" or \\"Breakdown sensor status\\"</li>"
+        f"<li>\U0001f50d \\"Which items are critical?\\" or \\"Find pending requests\\"</li>"
+        f"<li>\U0001f4a1 \\"What should we improve?\\" or \\"Give me recommendations\\"</li>"
+        f"<li>\U0001f4c8 \\"Compare all entities\\" or \\"Status across all\\"</li></ul>"
+    )
 
 
 SYSTEM_PROMPT = """You are an AI assistant for {spec.project_name}.
@@ -3388,11 +3946,9 @@ class ChatResponse(BaseModel):
 @router.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
     """Send a message to the AI model grounded in domain data."""
-    # Build domain context from repositories
+    # Build structured domain context from repositories
     domain_context = _build_domain_context()
     {"rag_ext = _search_rag_context(request.message)" if "rag" in ai_features else "rag_ext = ''"}
-    if rag_ext:
-        domain_context += "\\n\\nExternal Knowledge:\\n" + rag_ext
 
     # Try AI provider first, fall back to local data-aware engine
     try:
@@ -3405,9 +3961,14 @@ async def chat(request: ChatRequest):
             context_used=True,
         )
 
+    # Convert structured context to string for LLM
+    context_str = json.dumps(domain_context, default=str, indent=2)
+    if rag_ext:
+        context_str += "\\n\\nExternal Knowledge:\\n" + rag_ext
+
     messages = [
         {{"role": "system", "content": SYSTEM_PROMPT}},
-        {{"role": "system", "content": f"Current data context:\\n{{domain_context}}"}},
+        {{"role": "system", "content": f"Current data context:\\n{{context_str}}"}},
     ]
 
     # Add conversation history
@@ -3424,7 +3985,7 @@ async def chat(request: ChatRequest):
         model=result["model"],
         provider=result.get("provider", ""),
         usage=result["usage"],
-        context_used=bool(domain_context.strip()),
+        context_used=bool(domain_context),
     )
 
 
