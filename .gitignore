@@ -30,6 +30,8 @@ Thumbs.db
 .azure/
 
 # Generated scaffold outputs (disposable -- regenerate with `devex scaffold`)
+*-output/
+out-*/
 out/
 contract-review/
 slhs-voice-agent/
