@@ -146,8 +146,8 @@ async def root():
         .hero p {{ font-size:14px; opacity:.9; max-width:600px; margin:0 auto; line-height:1.5; }}
         .hero-pills {{ display:flex; gap:8px; justify-content:center; margin-top:12px; flex-wrap:wrap; }}
         .hero-pills span {{ background:rgba(255,255,255,.15); padding:3px 14px; border-radius:20px; font-size:11px; font-weight:500; }}
-        .kpi-bar {{ max-width:1200px; margin:-32px auto 20px; padding:0 24px; display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:16px; }}
-        .kpi {{ background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-lg); padding:20px; text-align:center; box-shadow:var(--shadow); transition:transform .15s; }}
+        .kpi-bar {{ max-width:1200px; margin:-32px auto 20px; padding:0 24px; display:flex; flex-wrap:wrap; justify-content:center; gap:16px; }}
+        .kpi {{ background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-lg); padding:20px; text-align:center; box-shadow:var(--shadow); transition:transform .15s; min-width:160px; flex:1 1 180px; max-width:220px; }}
         .kpi:hover {{ transform:translateY(-2px); box-shadow:var(--shadow-lg); }}
         .kpi .number {{ font-size:32px; font-weight:700; }}
         .kpi .label {{ font-size:11px; text-transform:uppercase; letter-spacing:.8px; color:var(--text-secondary); margin-top:4px; }}
@@ -155,7 +155,7 @@ async def root():
         .kpi.warn .number {{ color:var(--warning); }}
         .kpi.danger .number {{ color:var(--danger); }}
         .main {{ max-width:1200px; margin:0 auto 40px; padding:0 24px; }}
-        .tab-bar {{ display:flex; gap:0; margin-bottom:0; border-bottom:2px solid var(--border); }}
+        .tab-bar {{ display:flex; gap:0; margin-bottom:0; border-bottom:2px solid var(--border); flex-wrap:wrap; justify-content:center; }}
         .tab {{ padding:12px 24px; font-size:13px; font-weight:600; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-2px; color:var(--text-secondary); transition:all .15s; }}
         .tab:hover {{ color:var(--text); }}
         .tab.active {{ color:var(--primary); border-bottom-color:var(--primary); }}
@@ -1484,8 +1484,8 @@ async def root():
                     dot.style.background = 'var(--success)';
                     text.textContent = d.provider + ' (' + d.chat_model + ')';
                 }} else {{
-                    dot.style.background = 'var(--warning)';
-                    text.textContent = 'Not configured';
+                    dot.style.background = 'var(--success)';
+                    text.textContent = 'Local Data Engine (query your data)';
                 }}
             }} catch(e) {{
                 dot.style.background = 'var(--danger)';

@@ -62,7 +62,7 @@ async def triage_incident(incident_id: str, settings: Settings = Depends(get_set
     record = svc.triage(incident_id)
     if not record:
         raise HTTPException(status_code=404, detail="Incident not found")
-    return item
+    return record
 
 
 @router.post("/incidents/{incident_id}/dispatch", summary="AI-recommended dispatch with unit matching")
@@ -72,7 +72,7 @@ async def dispatch_incident(incident_id: str, settings: Settings = Depends(get_s
     record = svc.dispatch(incident_id)
     if not record:
         raise HTTPException(status_code=404, detail="Incident not found")
-    return item
+    return record
 
 
 @router.post("/incidents/{incident_id}/escalate", summary="Escalate to higher severity with AI justification")
@@ -82,7 +82,7 @@ async def escalate_incident(incident_id: str, settings: Settings = Depends(get_s
     record = svc.escalate(incident_id)
     if not record:
         raise HTTPException(status_code=404, detail="Incident not found")
-    return item
+    return record
 
 
 @router.post("/incidents/{incident_id}/resolve", summary="Close incident with resolution notes and response metrics")
@@ -92,7 +92,7 @@ async def resolve_incident(incident_id: str, settings: Settings = Depends(get_se
     record = svc.resolve(incident_id)
     if not record:
         raise HTTPException(status_code=404, detail="Incident not found")
-    return item
+    return record
 
 
 @router.post("/incidents/{incident_id}/correlate", summary="AI correlation with nearby incidents and sensor anomalies")
@@ -102,7 +102,7 @@ async def correlate_incident(incident_id: str, settings: Settings = Depends(get_
     record = svc.correlate(incident_id)
     if not record:
         raise HTTPException(status_code=404, detail="Incident not found")
-    return item
+    return record
 
 # --- Asset CRUD ---
 @router.get("/assets", response_model=list[AssetResponse], summary="List assets")
@@ -150,7 +150,7 @@ async def predict_asset(asset_id: str, settings: Settings = Depends(get_settings
     record = svc.predict(asset_id)
     if not record:
         raise HTTPException(status_code=404, detail="Asset not found")
-    return item
+    return record
 
 
 @router.post("/assets/{asset_id}/inspect", summary="Record inspection with AI-generated health assessment")
@@ -160,7 +160,7 @@ async def inspect_asset(asset_id: str, settings: Settings = Depends(get_settings
     record = svc.inspect(asset_id)
     if not record:
         raise HTTPException(status_code=404, detail="Asset not found")
-    return item
+    return record
 
 
 @router.post("/assets/{asset_id}/schedule_maintenance", summary="AI-recommended maintenance scheduling")
@@ -170,7 +170,7 @@ async def schedule_maintenance_asset(asset_id: str, settings: Settings = Depends
     record = svc.schedule_maintenance(asset_id)
     if not record:
         raise HTTPException(status_code=404, detail="Asset not found")
-    return item
+    return record
 
 
 @router.post("/assets/{asset_id}/decommission", summary="Retire asset with AI-generated replacement recommendation")
@@ -180,7 +180,7 @@ async def decommission_asset(asset_id: str, settings: Settings = Depends(get_set
     record = svc.decommission(asset_id)
     if not record:
         raise HTTPException(status_code=404, detail="Asset not found")
-    return item
+    return record
 
 # --- Sensor CRUD ---
 @router.get("/sensors", response_model=list[SensorResponse], summary="List sensors")
@@ -228,7 +228,7 @@ async def calibrate_sensor(sensor_id: str, settings: Settings = Depends(get_sett
     record = svc.calibrate(sensor_id)
     if not record:
         raise HTTPException(status_code=404, detail="Sensor not found")
-    return item
+    return record
 
 
 @router.post("/sensors/{sensor_id}/acknowledge_alert", summary="Acknowledge sensor threshold alert")
@@ -238,7 +238,7 @@ async def acknowledge_alert_sensor(sensor_id: str, settings: Settings = Depends(
     record = svc.acknowledge_alert(sensor_id)
     if not record:
         raise HTTPException(status_code=404, detail="Sensor not found")
-    return item
+    return record
 
 
 @router.post("/sensors/{sensor_id}/disable", summary="Temporarily disable sensor with reason")
@@ -248,7 +248,7 @@ async def disable_sensor(sensor_id: str, settings: Settings = Depends(get_settin
     record = svc.disable(sensor_id)
     if not record:
         raise HTTPException(status_code=404, detail="Sensor not found")
-    return item
+    return record
 
 # --- ServiceRequest CRUD ---
 @router.get("/service_requests", response_model=list[ServiceRequestResponse], summary="List servicerequests")
@@ -296,7 +296,7 @@ async def acknowledge_service_request(service_request_id: str, settings: Setting
     record = svc.acknowledge(service_request_id)
     if not record:
         raise HTTPException(status_code=404, detail="ServiceRequest not found")
-    return item
+    return record
 
 
 @router.post("/service_requests/{service_request_id}/assign", summary="Assign to maintenance team")
@@ -306,7 +306,7 @@ async def assign_service_request(service_request_id: str, settings: Settings = D
     record = svc.assign(service_request_id)
     if not record:
         raise HTTPException(status_code=404, detail="ServiceRequest not found")
-    return item
+    return record
 
 
 @router.post("/service_requests/{service_request_id}/complete", summary="Mark completed with resolution details")
@@ -316,7 +316,7 @@ async def complete_service_request(service_request_id: str, settings: Settings =
     record = svc.complete(service_request_id)
     if not record:
         raise HTTPException(status_code=404, detail="ServiceRequest not found")
-    return item
+    return record
 
 
 @router.post("/service_requests/{service_request_id}/reject", summary="Reject with AI-generated explanation")
@@ -326,7 +326,7 @@ async def reject_service_request(service_request_id: str, settings: Settings = D
     record = svc.reject(service_request_id)
     if not record:
         raise HTTPException(status_code=404, detail="ServiceRequest not found")
-    return item
+    return record
 
 
 @router.post("/service_requests/{service_request_id}/check_duplicate", summary="AI semantic duplicate detection")
@@ -336,7 +336,7 @@ async def check_duplicate_service_request(service_request_id: str, settings: Set
     record = svc.check_duplicate(service_request_id)
     if not record:
         raise HTTPException(status_code=404, detail="ServiceRequest not found")
-    return item
+    return record
 
 # --- TransitRoute CRUD ---
 @router.get("/transit_routes", response_model=list[TransitRouteResponse], summary="List transitroutes")
@@ -384,7 +384,7 @@ async def optimize_transit_route(transit_route_id: str, settings: Settings = Dep
     record = svc.optimize(transit_route_id)
     if not record:
         raise HTTPException(status_code=404, detail="TransitRoute not found")
-    return item
+    return record
 
 
 @router.post("/transit_routes/{transit_route_id}/reroute", summary="Activate alternative route due to incident")
@@ -394,7 +394,7 @@ async def reroute_transit_route(transit_route_id: str, settings: Settings = Depe
     record = svc.reroute(transit_route_id)
     if not record:
         raise HTTPException(status_code=404, detail="TransitRoute not found")
-    return item
+    return record
 
 
 @router.post("/transit_routes/{transit_route_id}/suspend", summary="Suspend route with AI impact analysis")
@@ -404,7 +404,7 @@ async def suspend_transit_route(transit_route_id: str, settings: Settings = Depe
     record = svc.suspend(transit_route_id)
     if not record:
         raise HTTPException(status_code=404, detail="TransitRoute not found")
-    return item
+    return record
 
 
 @router.post("/transit_routes/{transit_route_id}/restore", summary="Restore route to normal operations")
@@ -414,7 +414,7 @@ async def restore_transit_route(transit_route_id: str, settings: Settings = Depe
     record = svc.restore(transit_route_id)
     if not record:
         raise HTTPException(status_code=404, detail="TransitRoute not found")
-    return item
+    return record
 
 # --- Vehicle CRUD ---
 @router.get("/vehicles", response_model=list[VehicleResponse], summary="List vehicles")
@@ -462,7 +462,7 @@ async def deploy_vehicle(vehicle_id: str, settings: Settings = Depends(get_setti
     record = svc.deploy(vehicle_id)
     if not record:
         raise HTTPException(status_code=404, detail="Vehicle not found")
-    return item
+    return record
 
 
 @router.post("/vehicles/{vehicle_id}/recall", summary="Recall vehicle to depot")
@@ -472,7 +472,7 @@ async def recall_vehicle(vehicle_id: str, settings: Settings = Depends(get_setti
     record = svc.recall(vehicle_id)
     if not record:
         raise HTTPException(status_code=404, detail="Vehicle not found")
-    return item
+    return record
 
 
 @router.post("/vehicles/{vehicle_id}/refuel", summary="Log refueling with gallons and cost")
@@ -482,7 +482,7 @@ async def refuel_vehicle(vehicle_id: str, settings: Settings = Depends(get_setti
     record = svc.refuel(vehicle_id)
     if not record:
         raise HTTPException(status_code=404, detail="Vehicle not found")
-    return item
+    return record
 
 
 @router.post("/vehicles/{vehicle_id}/schedule_maintenance", summary="AI-predicted maintenance scheduling")
@@ -492,7 +492,7 @@ async def schedule_maintenance_vehicle(vehicle_id: str, settings: Settings = Dep
     record = svc.schedule_maintenance(vehicle_id)
     if not record:
         raise HTTPException(status_code=404, detail="Vehicle not found")
-    return item
+    return record
 
 # --- Zone CRUD ---
 @router.get("/zones", response_model=list[ZoneResponse], summary="List zones")
@@ -540,7 +540,7 @@ async def alert_zone(zone_id: str, settings: Settings = Depends(get_settings)):
     record = svc.alert(zone_id)
     if not record:
         raise HTTPException(status_code=404, detail="Zone not found")
-    return item
+    return record
 
 
 @router.post("/zones/{zone_id}/evacuate", summary="Initiate zone evacuation protocol")
@@ -550,7 +550,7 @@ async def evacuate_zone(zone_id: str, settings: Settings = Depends(get_settings)
     record = svc.evacuate(zone_id)
     if not record:
         raise HTTPException(status_code=404, detail="Zone not found")
-    return item
+    return record
 
 
 @router.post("/zones/{zone_id}/clear", summary="Clear zone alert status")
@@ -560,7 +560,7 @@ async def clear_zone(zone_id: str, settings: Settings = Depends(get_settings)):
     record = svc.clear(zone_id)
     if not record:
         raise HTTPException(status_code=404, detail="Zone not found")
-    return item
+    return record
 
 # --- WorkOrder CRUD ---
 @router.get("/work_orders", response_model=list[WorkOrderResponse], summary="List workorders")
@@ -608,7 +608,7 @@ async def approve_work_order(work_order_id: str, settings: Settings = Depends(ge
     record = svc.approve(work_order_id)
     if not record:
         raise HTTPException(status_code=404, detail="WorkOrder not found")
-    return item
+    return record
 
 
 @router.post("/work_orders/{work_order_id}/schedule", summary="Set maintenance window")
@@ -618,7 +618,7 @@ async def schedule_work_order(work_order_id: str, settings: Settings = Depends(g
     record = svc.schedule(work_order_id)
     if not record:
         raise HTTPException(status_code=404, detail="WorkOrder not found")
-    return item
+    return record
 
 
 @router.post("/work_orders/{work_order_id}/start", summary="Begin work execution")
@@ -628,7 +628,7 @@ async def start_work_order(work_order_id: str, settings: Settings = Depends(get_
     record = svc.start(work_order_id)
     if not record:
         raise HTTPException(status_code=404, detail="WorkOrder not found")
-    return item
+    return record
 
 
 @router.post("/work_orders/{work_order_id}/complete", summary="Complete with actual costs and notes")
@@ -638,7 +638,7 @@ async def complete_work_order(work_order_id: str, settings: Settings = Depends(g
     record = svc.complete(work_order_id)
     if not record:
         raise HTTPException(status_code=404, detail="WorkOrder not found")
-    return item
+    return record
 
 
 @router.post("/work_orders/{work_order_id}/cancel", summary="Cancel with AI impact assessment")
@@ -648,7 +648,7 @@ async def cancel_work_order(work_order_id: str, settings: Settings = Depends(get
     record = svc.cancel(work_order_id)
     if not record:
         raise HTTPException(status_code=404, detail="WorkOrder not found")
-    return item
+    return record
 
 # --- AuditLog CRUD ---
 @router.get("/audit_logs", response_model=list[AuditLogResponse], summary="List auditlogs")

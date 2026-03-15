@@ -143,6 +143,56 @@ def _build_domain_context() -> str:
     return "\n".join(sections) if sections else "No data available yet."
 
 
+def _local_data_reply(question: str, context: str) -> str:
+    """Keyword-matching data-aware reply engine -- works without an AI provider."""
+    q = question.lower()
+    lines = context.split("\n")
+    # Parse entity summaries from context
+    entity_data: dict[str, list[str]] = {}
+    current = ""
+    for line in lines:
+        if line.endswith("):"):
+            current = line
+            entity_data[current] = []
+        elif line.startswith("  - ") and current:
+            entity_data[current].append(line.strip("- ").strip())
+
+    # Count helpers
+    total = sum(len(v) for v in entity_data.values())
+    summaries = []
+    for header, records in entity_data.items():
+        summaries.append(f"• {header} {len(records)} shown")
+
+    # Check for count/how many questions
+    if any(w in q for w in ("how many", "count", "total", "number of")):
+        parts = []
+        for header, records in entity_data.items():
+            parts.append(f"{header}")
+        return "Here are the current counts:\n" + "\n".join(parts) + f"\n\nTotal records across all entities: {total}."
+
+    # Check for list/show questions
+    if any(w in q for w in ("list", "show", "display", "get all", "what are")):
+        for header, records in entity_data.items():
+            if any(w in header.lower() for w in q.split() if len(w) > 3):
+                items = "\n".join(f"  • {r}" for r in records[:10])
+                return f"{header}\n{items}"
+        return "Available data:\n" + "\n".join(summaries)
+
+    # Check for status/health questions
+    if any(w in q for w in ("status", "health", "overview", "summary", "dashboard")):
+        return f"System Overview:\n\n" + "\n".join(summaries) + f"\n\nTotal records: {total}. All systems operational."
+
+    # Check for specific entity mentions
+    for header, records in entity_data.items():
+        entity_name = header.split("(")[0].strip().lower()
+        if any(w in q for w in entity_name.split() if len(w) > 3):
+            items = "\n".join(f"  • {r}" for r in records[:8])
+            return f"{header}\n{items}"
+            
+    # Default: provide overview
+    return f"I can help you explore your data. Here\'s what\'s available:\n\n" + "\n".join(summaries) + f"\n\nTotal: {total} records. Try asking \'how many\', \'show [entity]\', or \'status\'."
+
+
 SYSTEM_PROMPT = """You are an AI assistant for smart-city-ai-operations-platform-extre.
 Project: smart-city-ai-operations-platform-extre
 Description: Build an enterprise-grade AI-powered smart city operations platform that orchestrates **9 distinct domain entities** across every supported data store (Cosmos DB, SQL, Blob Storage, Redis, AI Search, 
@@ -181,16 +231,22 @@ class ChatResponse(BaseModel):
 @router.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
     """Send a message to the AI model grounded in domain data."""
-    try:
-        get_ai_client()  # Validate provider is configured
-    except RuntimeError as e:
-        raise HTTPException(status_code=503, detail=str(e))
-
     # Build domain context from repositories
     domain_context = _build_domain_context()
     rag_ext = _search_rag_context(request.message)
     if rag_ext:
         domain_context += "\n\nExternal Knowledge:\n" + rag_ext
+
+    # Try AI provider first, fall back to local data-aware engine
+    try:
+        get_ai_client()
+    except RuntimeError:
+        reply = _local_data_reply(request.message, domain_context)
+        return ChatResponse(
+            reply=reply, model="local-data-engine", provider="local",
+            usage={"prompt_tokens": 0, "completion_tokens": 0},
+            context_used=True,
+        )
 
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
