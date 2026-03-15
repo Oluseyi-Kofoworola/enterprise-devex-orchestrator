@@ -169,7 +169,9 @@ See [`contract-review-intent.md`](contract-review-intent.md) as a comprehensive 
 
 ## Preview Dashboard Locally
 
-After scaffolding, preview the interactive dashboard before deploying:
+After scaffolding, run the **React frontend dashboard** and **backend API** separately:
+
+**Backend API** (serves data):
 
 ```powershell
 cd <output-dir>/src/app
@@ -177,7 +179,18 @@ pip install fastapi uvicorn pydantic pydantic-settings
 uvicorn main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-Open `http://127.0.0.1:8000`. The dashboard includes:
+**Frontend Dashboard** (in a separate terminal):
+
+```powershell
+cd <output-dir>/frontend
+npm install
+npm run dev
+```
+
+Open `http://localhost:3000` (or `http://localhost:5173`) for the **production React SPA**.
+API docs at `http://127.0.0.1:8000/docs`.
+
+The frontend dashboard includes:
 - **Summary metrics** with record counts, active items, and donut chart status distribution
 - **Entity tabs** with pre-seeded domain data and smart 5-7 column tables
 - **Type-aware rendering** — status badges, formatted dates, progress bars, currency, URLs

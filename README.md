@@ -35,8 +35,8 @@ devex scaffold --file intent.md -o ./smart-city-output
 | Layer | Generated Artifacts | Enterprise Grade |
 |-------|-------------------|-----------------|
 | **Infrastructure** | 10 Azure Bicep modules, parameterized per environment | Azure CAF naming, 12 enterprise tags |
-| **Backend API** | FastAPI with CRUD endpoints, Pydantic schemas, repository pattern | Managed Identity, Key Vault, non-root containers |
-| **Interactive Dashboard** | Production-grade UI with donut charts, type-aware rendering, column intelligence, status filters, CSV export | Domain-aware seed data, live status indicators |
+| **Backend API** | FastAPI with CRUD endpoints, Pydantic schemas, repository pattern, Swagger docs at `/docs` | Managed Identity, Key Vault, non-root containers |
+| **Frontend Dashboard** | React + Vite + TypeScript SPA with donut charts, type-aware rendering, column intelligence, status filters, CSV export | Served from the same Container App in production |
 | **React Frontend** | TypeScript SPA with smart column selection, donut charts, progress bars, grouped detail pages | Azure-compatible Dockerfile, configurable backend URL |
 | **CI/CD** | 4 GitHub Actions workflows (validate, deploy, CodeQL, Dependabot) | OIDC auth -- zero stored credentials |
 | **Tests** | 5 auto-generated pytest files per scaffold | Health, API, security, config, storage tests |
@@ -77,11 +77,16 @@ pip install -e ".[dev]"
 # 2. Generate a complete enterprise scaffold from your business intent
 devex scaffold --file examples/smart-city-intent.md -o ./smart-city-output
 
-# 3. Preview the interactive dashboard locally (no Azure required)
-cd smart-city-output/src/app
+# 3. Preview the frontend dashboard locally (no Azure required)
+cd smart-city-output/frontend
+npm install && npm run dev
+# Open http://localhost:3000 -- production React SPA dashboard
+
+# Backend API runs separately:
+cd ../src/app
 pip install fastapi uvicorn pydantic pydantic-settings
 uvicorn main:app --host 127.0.0.1 --port 8000 --reload
-# Open http://127.0.0.1:8000 -- create records, trigger actions, monitor health
+# API docs at http://127.0.0.1:8000/docs
 ```
 
 When ready, deploy to Azure with one more command:
@@ -234,8 +239,8 @@ output-dir/
   .devex/                     # State, versioning, and metadata
   .github/workflows/          # CI/CD pipelines (validate, deploy, codeql, dependabot)
   infra/bicep/                # Azure Bicep templates (main + modules + parameters)
-  src/app/                    # Backend application + domain services + Dockerfile
-  frontend/                   # React + Vite + TypeScript SPA + Dockerfile
+  src/app/                    # Backend API + domain services + Dockerfile
+  frontend/                   # React + Vite + TypeScript SPA (production dashboard)
   tests/                      # Auto-generated test suite (5 files)
   docs/                       # Architecture, security, WAF, governance, deployment docs
 ```

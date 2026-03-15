@@ -222,11 +222,11 @@ class TestAppGenerator:
         main = files["src/app/main.py"]
         assert "/health" in main
 
-    def test_main_has_html_root_response(self) -> None:
+    def test_main_has_spa_serving(self) -> None:
         files = self.gen.generate(_make_spec())
         main = files["src/app/main.py"]
-        assert "HTMLResponse" in main
-        assert "<!DOCTYPE html>" in main
+        assert "STATIC_DIR" in main
+        assert "StaticFiles" in main
 
     def test_main_supports_key_vault_uri(self) -> None:
         files = self.gen.generate(_make_spec())

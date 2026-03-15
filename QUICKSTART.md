@@ -95,22 +95,34 @@ my-first-output/
 
 ---
 
-## 5b. Preview Dashboard Locally
+## 5b. Preview the Frontend Dashboard Locally
 
-Before deploying to Azure, run the dashboard locally to verify everything works:
+Before deploying to Azure, run the **React frontend dashboard** and the **backend API** locally:
+
+**Start the backend API** (provides data to the frontend):
 
 ```powershell
-# Navigate to the generated app
 cd my-first-output/src/app
-
-# Install dependencies
 pip install fastapi uvicorn pydantic pydantic-settings
-
-# Start the local server
 uvicorn main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-Open `http://127.0.0.1:8000` in your browser. The dashboard is fully interactive:
+**Start the frontend dashboard** (in a separate terminal):
+
+```powershell
+cd my-first-output/frontend
+npm install
+npm run dev
+```
+
+Open `http://localhost:3000` (or `http://localhost:5173`) in your browser for the **production React SPA dashboard**.
+The backend API docs are available at `http://127.0.0.1:8000/docs`.
+
+| Dashboard | URL | Description |
+|-----------|-----|-------------|
+| **Frontend (React SPA)** | `http://localhost:3000` | Production dashboard with donut charts, status filters, CSV export, detail pages |
+| **Backend API Docs** | `http://127.0.0.1:8000/docs` | Swagger/OpenAPI docs for all REST endpoints |
+| **Health Check** | `http://127.0.0.1:8000/health` | Liveness probe |
 
 | Action | How |
 |--------|-----|
@@ -129,14 +141,9 @@ Open `http://127.0.0.1:8000` in your browser. The dashboard is fully interactive
 > **No database or Azure resources required.** Local mode uses in-memory storage
 > with auto-seeded data. Data resets on server restart.
 
-Alternatively, run with Docker:
-
-```powershell
-cd my-first-output/src/app
-docker build -t my-app .
-docker run -p 8000:8000 my-app
-# Open http://localhost:8000
-```
+**Production deployment**: In production (Azure Container App), the frontend is pre-built
+and served from the same container as the backend — no separate frontend server needed.
+The React SPA static files are bundled into `src/app/static/` at build time.
 
 ---
 

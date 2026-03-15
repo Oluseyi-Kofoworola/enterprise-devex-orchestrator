@@ -781,9 +781,12 @@ from datetime import datetime, timezone
 
 from azure.identity import DefaultAzureCredential
 from azure.keyvault.secrets import SecretClient
-from fastapi import FastAPI
+from pathlib import Path
+
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 {storage_imports}
 from api.v1.router import router as v1_router
 {ai_import}
@@ -903,14 +906,6 @@ async def health():
     }}
 
 
-# -- Root Endpoint (Enterprise Dashboard) ------
-@app.get("/")
-async def root():
-    \"\"\"Root endpoint -- enterprise dashboard.\"\"\"
-    {self._python_dashboard_block(spec)}
-    return HTMLResponse(content=html)
-
-
 # -- Key Vault Status ------------------------------------------------
 @app.get("/keyvault/status")
 async def keyvault_status():
@@ -943,6 +938,32 @@ async def startup():
 async def shutdown():
     \"\"\"Application shutdown tasks.\"\"\"
     logger.info(f"{{APP_NAME}} shutting down")
+
+
+# -- Frontend Static Files (React SPA) --------------------------------
+# Must be registered AFTER all API routes to avoid catch-all interference.
+STATIC_DIR = Path(__file__).parent / "static"
+
+if STATIC_DIR.is_dir():
+    app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="static-assets")
+
+    @app.get("/{{full_path:path}}")
+    async def serve_spa(request: Request, full_path: str):
+        \"\"\"Serve the React SPA -- falls back to index.html for client-side routing.\"\"\"
+        file_path = STATIC_DIR / full_path
+        if full_path and file_path.is_file():
+            return FileResponse(file_path)
+        return FileResponse(STATIC_DIR / "index.html")
+else:
+    @app.get("/")
+    async def root():
+        \"\"\"Root endpoint -- no frontend build found.\"\"\"
+        return HTMLResponse(
+            content="<h1>API is running</h1>"
+            "<p>Frontend not found. Build the frontend with <code>npm run build</code> "
+            "and copy <code>dist/</code> contents to <code>static/</code>.</p>"
+            f'<p><a href=\"/docs\">API Docs</a> | <a href=\"/health\">Health</a></p>'
+        )
 
 
 if __name__ == "__main__":
