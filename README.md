@@ -428,7 +428,9 @@ Describe an AI-powered business and the orchestrator automatically scaffolds **A
 
 ## Run Dashboard Locally (Before Azure Deployment)
 
-Every generated scaffold includes a fully functional dashboard. Preview it locally -- no Azure account, no database, no Docker required:
+Every generated scaffold includes a fully functional **React SPA dashboard** and a **FastAPI backend API**. Preview them locally -- no Azure account, no database, no Docker required.
+
+**Terminal 1 -- Start the backend API** (serves data to the frontend):
 
 ```powershell
 cd my-output/src/app
@@ -436,7 +438,24 @@ pip install fastapi uvicorn pydantic pydantic-settings
 uvicorn main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-Open `http://127.0.0.1:8000`. The dashboard is fully interactive:
+**Terminal 2 -- Start the frontend dashboard:**
+
+```powershell
+cd my-output/frontend
+npm install
+npm run dev
+```
+
+Open `http://localhost:3000` (or `http://localhost:5173`) for the **production React SPA dashboard**.
+Backend API docs are available at `http://127.0.0.1:8000/docs`.
+
+| Dashboard | URL | Description |
+|-----------|-----|-------------|
+| **Frontend (React SPA)** | `http://localhost:3000` | Production dashboard with donut charts, status filters, CSV export, detail pages |
+| **Backend API Docs** | `http://127.0.0.1:8000/docs` | Swagger/OpenAPI docs for all REST endpoints |
+| **Health Check** | `http://127.0.0.1:8000/health` | Liveness probe |
+
+The frontend dashboard is fully interactive:
 - **Summary bar** with total records, active count, entity count, and items needing attention
 - **Entity KPI cards** with donut charts showing status distribution per entity
 - **Smart tables** with 5-7 key columns (not all 18-20), type-aware rendering (badges, dates, progress bars, currency, URLs)
@@ -451,22 +470,16 @@ Open `http://127.0.0.1:8000`. The dashboard is fully interactive:
 
 > **In-memory storage with domain-aware seed data.** Every entity table is pre-populated with contextually appropriate data. CRUD operations work immediately. Data resets on restart.
 
+> **Production deployment**: In production (Azure Container App), the React SPA is pre-built and served from
+> the same container as the backend -- no separate frontend server needed.
+> Static files are bundled into `src/app/static/` at build time.
+
 ### Alternative: Docker
 
 ```powershell
 cd my-output/src/app
 docker build -t my-app .
 docker run -p 8000:8000 my-app
-```
-
-### Alternative: Full-stack (Backend + React SPA)
-
-```powershell
-# Terminal 1: Backend API
-cd my-output/src/app && uvicorn main:app --host 127.0.0.1 --port 8000 --reload
-
-# Terminal 2: React frontend
-cd my-output/frontend && npm install && npm run dev
 ```
 
 ---
