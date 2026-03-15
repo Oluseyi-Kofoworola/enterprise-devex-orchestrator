@@ -48,6 +48,8 @@ class ResourceType(str, Enum):
     PUBLIC_IP = "pip"
     APP_INSIGHTS = "appi"
     ACTION_GROUP = "ag"
+    OPENAI = "oai"
+    AI_SEARCH = "srch"
 
 
 # Region abbreviation lookup -- Azure CAF recommended short codes
@@ -144,6 +146,18 @@ RESOURCE_CONSTRAINTS: dict[ResourceType, dict[str, Any]] = {
         "pattern": r"^[a-z][a-z0-9-]+$",
         "alphanumeric_only": False,
     },
+    ResourceType.OPENAI: {
+        "min_length": 2,
+        "max_length": 64,
+        "pattern": r"^[a-zA-Z0-9][a-zA-Z0-9-]+$",
+        "alphanumeric_only": False,
+    },
+    ResourceType.AI_SEARCH: {
+        "min_length": 2,
+        "max_length": 60,
+        "pattern": r"^[a-z][a-z0-9-]+$",
+        "alphanumeric_only": False,
+    },
 }
 
 
@@ -183,6 +197,8 @@ DEFAULT_CONVENTIONS: dict[ResourceType, NamingConvention] = {
     ResourceType.SQL_SERVER: NamingConvention(ResourceType.SQL_SERVER, "{prefix}-{workload}-{env}-{region}"),
     ResourceType.REDIS_CACHE: NamingConvention(ResourceType.REDIS_CACHE, "{prefix}-{workload}-{env}-{region}"),
     ResourceType.APP_INSIGHTS: NamingConvention(ResourceType.APP_INSIGHTS, "{prefix}-{workload}-{env}-{region}"),
+    ResourceType.OPENAI: NamingConvention(ResourceType.OPENAI, "{prefix}-{workload}-{env}-{region}"),
+    ResourceType.AI_SEARCH: NamingConvention(ResourceType.AI_SEARCH, "{prefix}-{workload}-{env}-{region}"),
 }
 
 

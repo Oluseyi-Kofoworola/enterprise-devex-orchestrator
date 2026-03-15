@@ -221,6 +221,52 @@ POLICY_CATALOG: list[PolicyRule] = [
         check="Verify Container App scaling rules, multi-stage Dockerfile, ACR, and health probe configuration.",
         remediation="Run WAF assessment and address all Performance Efficiency pillar gaps. See docs/waf-report.md.",
     ),
+    # -- AI/Foundry Governance Policies --
+    PolicyRule(
+        id="AI-001",
+        name="Azure OpenAI Content Safety",
+        description="All AI workloads must have content safety filters enabled. Prompt injection detection must be active.",
+        severity=Severity.ERROR,
+        category="AI Safety",
+        check="Verify Azure OpenAI resource has content filtering enabled and system prompt guards against injection.",
+        remediation="Enable content safety filters on Azure OpenAI deployment. Add input validation and system prompt hardening.",
+    ),
+    PolicyRule(
+        id="AI-002",
+        name="AI Model Access via Managed Identity",
+        description="AI services must be accessed via Managed Identity with Cognitive Services OpenAI User role. No API keys in code.",
+        severity=Severity.ERROR,
+        category="AI Security",
+        check="Verify openai.bicep assigns Cognitive Services OpenAI User role to managed identity. No api-key auth.",
+        remediation="Use DefaultAzureCredential with get_bearer_token_provider for Azure OpenAI access. Remove any API key usage.",
+    ),
+    PolicyRule(
+        id="AI-003",
+        name="AI Audit Logging Required",
+        description="All AI model interactions must be logged for audit, compliance, and cost tracking.",
+        severity=Severity.WARNING,
+        category="AI Governance",
+        check="Verify Azure OpenAI diagnostic settings log Audit and RequestResponse categories to Log Analytics.",
+        remediation="Configure diagnostic settings on Azure OpenAI with Audit and RequestResponse log categories.",
+    ),
+    PolicyRule(
+        id="AI-004",
+        name="Responsible AI Documentation",
+        description="AI workloads must include Responsible AI documentation covering content safety, bias, and transparency.",
+        severity=Severity.WARNING,
+        category="AI Governance",
+        check="Verify docs/rai-notes.md exists with content safety, bias, and transparency sections.",
+        remediation="Generate Responsible AI documentation using DocsGenerator with AI-specific sections.",
+    ),
+    PolicyRule(
+        id="AI-005",
+        name="Token Budget and Rate Limiting",
+        description="AI workloads must implement token budget limits and rate limiting to prevent cost explosion.",
+        severity=Severity.WARNING,
+        category="AI Cost",
+        check="Verify max_tokens is set on completions and rate limiting is configured.",
+        remediation="Set max_tokens on all completion calls. Configure Azure OpenAI TPM/RPM limits in deployment.",
+    ),
 ]
 
 

@@ -83,6 +83,10 @@ class GovernanceReviewerAgent:
         # Check 8: Enterprise tagging standard compliance
         checks.extend(self._check_tagging_standards(spec))
 
+        # Check 9: AI governance (only for AI workloads)
+        if spec.uses_ai or spec.app_type.value in ("ai_agent", "ai_app"):
+            checks.extend(self._check_ai_governance(spec, plan))
+
         # Determine overall status
         failed = [c for c in checks if not c.passed]
         critical_failures = [c for c in failed if c.severity == "critical"]
@@ -475,6 +479,76 @@ class GovernanceReviewerAgent:
                 severity="low",
             )
         )
+
+        return checks
+
+    def _check_ai_governance(self, spec: IntentSpec, plan: PlanOutput) -> list[GovernanceCheck]:
+        """Check AI-specific governance requirements for AI workloads."""
+        checks = []
+        component_names = {c.name for c in plan.components}
+
+        # AI-GOV-001: Azure OpenAI component must be present
+        has_openai = "azure-openai" in component_names
+        checks.append(
+            GovernanceCheck(
+                check_id="AI-GOV-001",
+                name="Azure OpenAI component present",
+                passed=has_openai,
+                details="Azure OpenAI included in architecture"
+                if has_openai
+                else "AI workload requires Azure OpenAI component",
+                severity="critical" if not has_openai else "low",
+            )
+        )
+
+        # AI-GOV-002: Content safety threat in threat model
+        threat_descriptions = " ".join(t.description.lower() + " " + t.mitigation.lower() for t in plan.threat_model)
+        has_ai_threats = any(
+            kw in threat_descriptions
+            for kw in ["prompt injection", "data leakage", "token", "content safety", "ai"]
+        )
+        checks.append(
+            GovernanceCheck(
+                check_id="AI-GOV-002",
+                name="AI threat model coverage",
+                passed=has_ai_threats,
+                details="AI-specific threats addressed in threat model"
+                if has_ai_threats
+                else "Threat model should include AI-specific threats (prompt injection, data leakage, token abuse)",
+                severity="high" if not has_ai_threats else "low",
+            )
+        )
+
+        # AI-GOV-003: Managed Identity for AI services (no API keys)
+        has_mi = "managed-identity" in component_names
+        checks.append(
+            GovernanceCheck(
+                check_id="AI-GOV-003",
+                name="Managed Identity for AI services",
+                passed=has_mi,
+                details="AI services will use Managed Identity (passwordless)"
+                if has_mi
+                else "AI services must use Managed Identity, not API keys",
+                severity="critical" if not has_mi else "low",
+            )
+        )
+
+        # AI-GOV-004: AI Search for RAG workloads
+        ai_features = getattr(spec, "ai_features", [])
+        needs_search = "rag" in ai_features
+        has_search = "ai-search" in component_names
+        if needs_search:
+            checks.append(
+                GovernanceCheck(
+                    check_id="AI-GOV-004",
+                    name="AI Search for RAG grounding",
+                    passed=has_search,
+                    details="Azure AI Search included for RAG grounding"
+                    if has_search
+                    else "RAG workload requires Azure AI Search component",
+                    severity="high" if not has_search else "low",
+                )
+            )
 
         return checks
 

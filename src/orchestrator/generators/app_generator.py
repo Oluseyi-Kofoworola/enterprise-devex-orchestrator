@@ -507,6 +507,16 @@ class AppGenerator:
         files["src/app/domain/models.py"] = self._python_domain_models(spec)
         files["src/app/domain/repositories.py"] = self._python_repositories(spec)
         files["src/app/domain/seed_data.py"] = self._python_seed_data(spec)
+
+        # AI layer -- when uses_ai is True
+        if spec.uses_ai:
+            files["src/app/ai/__init__.py"] = '"""AI layer -- LLM clients, agents, and chat."""\n'
+            files["src/app/ai/client.py"] = self._python_ai_client(spec)
+            files["src/app/ai/chat.py"] = self._python_ai_chat(spec)
+            ai_features = getattr(spec, "ai_features", [])
+            if "agents" in ai_features:
+                files["src/app/ai/agent.py"] = self._python_ai_agent(spec)
+
         return files
 
     # ===============================================================
@@ -545,6 +555,12 @@ class AppGenerator:
         storage_imports = ""
         storage_client = ""
         storage_endpoint = ""
+        ai_import = ""
+        ai_router_mount = ""
+
+        if spec.uses_ai:
+            ai_import = "from ai.chat import router as ai_router"
+            ai_router_mount = 'app.include_router(ai_router, prefix="/api/v1/ai", tags=["ai"])'
 
         if DataStore.BLOB_STORAGE in spec.data_stores:
             storage_imports = """
@@ -607,7 +623,7 @@ from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, JSONResponse
 {storage_imports}
 from api.v1.router import router as v1_router
-
+{ai_import}
 # -- Configuration ----------------------------------------------------
 APP_NAME = "{spec.project_name}"
 VERSION = "1.0.0"
@@ -630,6 +646,7 @@ app = FastAPI(
 
 # -- Mount versioned API router --------------------------------------
 app.include_router(v1_router, prefix="/api/v1", tags=["v1"])
+{ai_router_mount}
 
 
 # -- Key Vault Client ------------------------------------------------
@@ -734,6 +751,15 @@ python-dotenv>=1.0.0
             reqs += "azure-storage-blob>=12.19.0\n"
         if DataStore.COSMOS_DB in spec.data_stores:
             reqs += "azure-cosmos>=4.5.0\n"
+
+        # AI dependencies
+        if spec.uses_ai:
+            reqs += "openai>=1.12.0\n"
+            ai_features = getattr(spec, "ai_features", [])
+            if "agents" in ai_features:
+                reqs += "semantic-kernel>=1.0.0\n"
+            if "rag" in ai_features or DataStore.AI_SEARCH in spec.data_stores:
+                reqs += "azure-search-documents>=11.6.0\n"
 
         return reqs
 
@@ -2799,3 +2825,251 @@ public class SeedData
         lines.append('}')
         lines.append('')
         return "\n".join(lines)
+
+    # ===============================================================
+    # AI Layer — OpenAI client, chat router, agent orchestration
+    # ===============================================================
+
+    def _python_ai_client(self, spec: IntentSpec) -> str:
+        """Generate Azure OpenAI client module with Managed Identity auth."""
+        ai_model = getattr(spec, "ai_model", "gpt-4o")
+        return f'''"""Azure OpenAI Client -- Managed Identity authentication.
+
+Provides a configured OpenAI client that uses DefaultAzureCredential
+for passwordless access to Azure OpenAI resources.
+"""
+
+from __future__ import annotations
+
+import os
+
+from azure.identity import DefaultAzureCredential, get_bearer_token_provider
+from openai import AzureOpenAI
+
+
+def get_openai_client() -> AzureOpenAI:
+    """Create an authenticated Azure OpenAI client."""
+    credential = DefaultAzureCredential(
+        managed_identity_client_id=os.getenv("AZURE_CLIENT_ID")
+    )
+    token_provider = get_bearer_token_provider(
+        credential, "https://cognitiveservices.azure.com/.default"
+    )
+
+    return AzureOpenAI(
+        azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT", ""),
+        azure_ad_token_provider=token_provider,
+        api_version="2024-06-01",
+    )
+
+
+# Default model deployment name
+CHAT_MODEL = os.getenv("AZURE_OPENAI_CHAT_DEPLOYMENT", "{ai_model}")
+EMBEDDINGS_MODEL = os.getenv("AZURE_OPENAI_EMBEDDINGS_DEPLOYMENT", "text-embedding-ada-002")
+'''
+
+    def _python_ai_chat(self, spec: IntentSpec) -> str:
+        """Generate AI chat router with streaming and history."""
+        ai_features = getattr(spec, "ai_features", [])
+        rag_import = ""
+        rag_grounding = ""
+        if "rag" in ai_features:
+            rag_import = """
+import os
+from azure.identity import DefaultAzureCredential
+from azure.search.documents import SearchClient
+"""
+            rag_grounding = """
+
+def _retrieve_context(query: str, top_k: int = 3) -> str:
+    \"\"\"Retrieve relevant documents from AI Search for RAG grounding.\"\"\"
+    credential = DefaultAzureCredential(
+        managed_identity_client_id=os.getenv("AZURE_CLIENT_ID")
+    )
+    search_client = SearchClient(
+        endpoint=os.getenv("AZURE_SEARCH_ENDPOINT", ""),
+        index_name=os.getenv("AZURE_SEARCH_INDEX", "documents"),
+        credential=credential,
+    )
+    results = search_client.search(search_text=query, top=top_k)
+    chunks = [doc.get("content", "") for doc in results]
+    return "\\n\\n".join(chunks)
+"""
+
+        system_prompt = f"You are a helpful AI assistant for {spec.project_name}."
+        rag_context_block = ""
+        if "rag" in ai_features:
+            rag_context_block = """
+    # RAG grounding: retrieve relevant documents
+    context = _retrieve_context(request.message)
+    if context:
+        messages.insert(1, {
+            "role": "system",
+            "content": f"Use the following context to answer:\\n\\n{context}",
+        })
+"""
+
+        return f'''"""AI Chat Router -- chat completions with conversation history."""
+
+from __future__ import annotations
+
+import logging
+from datetime import datetime, timezone
+
+from fastapi import APIRouter
+from pydantic import BaseModel, Field
+{rag_import}
+from ai.client import CHAT_MODEL, get_openai_client
+{rag_grounding}
+
+logger = logging.getLogger(__name__)
+router = APIRouter()
+
+
+class ChatRequest(BaseModel):
+    """Chat request with message and optional history."""
+
+    message: str = Field(..., description="User message", max_length=4000)
+    conversation_id: str = Field(default="", description="Conversation ID for history")
+    history: list[dict] = Field(default_factory=list, description="Previous messages")
+
+
+class ChatResponse(BaseModel):
+    """Chat response from the AI model."""
+
+    reply: str
+    model: str
+    usage: dict = Field(default_factory=dict)
+    timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+
+@router.post("/chat", response_model=ChatResponse)
+async def chat(request: ChatRequest):
+    """Send a message to the AI model and get a response."""
+    client = get_openai_client()
+
+    messages = [
+        {{"role": "system", "content": "{system_prompt}"}},
+    ]
+
+    # Add conversation history
+    for msg in request.history[-10:]:  # Keep last 10 messages
+        messages.append({{"role": msg.get("role", "user"), "content": msg.get("content", "")}})
+
+    messages.append({{"role": "user", "content": request.message}})
+{rag_context_block}
+    response = client.chat.completions.create(
+        model=CHAT_MODEL,
+        messages=messages,
+        max_tokens=1000,
+        temperature=0.7,
+    )
+
+    reply = response.choices[0].message.content or ""
+    logger.info("ai_chat.complete", extra={{"model": CHAT_MODEL, "tokens": response.usage.total_tokens if response.usage else 0}})
+
+    return ChatResponse(
+        reply=reply,
+        model=CHAT_MODEL,
+        usage={{
+            "prompt_tokens": response.usage.prompt_tokens if response.usage else 0,
+            "completion_tokens": response.usage.completion_tokens if response.usage else 0,
+            "total_tokens": response.usage.total_tokens if response.usage else 0,
+        }},
+    )
+
+
+@router.get("/models")
+async def list_models():
+    """List available AI model deployments."""
+    return {{
+        "chat_model": CHAT_MODEL,
+        "status": "available",
+    }}
+'''
+
+    def _python_ai_agent(self, spec: IntentSpec) -> str:
+        """Generate Semantic Kernel-based agent with tool-use."""
+        return f'''"""AI Agent -- Semantic Kernel agent with tool-calling capabilities.
+
+This module provides an agentic AI pattern using Semantic Kernel for:
+- Multi-step reasoning
+- Tool invocation (function calling)
+- Conversation planning
+"""
+
+from __future__ import annotations
+
+import logging
+import os
+
+from semantic_kernel import Kernel
+from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion
+from semantic_kernel.connectors.ai.open_ai.prompt_execution_settings.azure_chat_prompt_execution_settings import (
+    AzureChatPromptExecutionSettings,
+)
+from semantic_kernel.contents.chat_history import ChatHistory
+from semantic_kernel.functions import kernel_function
+
+logger = logging.getLogger(__name__)
+
+
+def create_kernel() -> Kernel:
+    """Create a Semantic Kernel with Azure OpenAI."""
+    kernel = Kernel()
+    kernel.add_service(
+        AzureChatCompletion(
+            deployment_name=os.getenv("AZURE_OPENAI_CHAT_DEPLOYMENT", "gpt-4o"),
+            endpoint=os.getenv("AZURE_OPENAI_ENDPOINT", ""),
+            # Uses DefaultAzureCredential via env
+        )
+    )
+    return kernel
+
+
+class DomainTools:
+    """Domain-specific tools the agent can invoke."""
+
+    @kernel_function(name="search_knowledge", description="Search the knowledge base for information")
+    def search_knowledge(self, query: str) -> str:
+        """Search domain knowledge base."""
+        return f"Knowledge base results for: {{query}}"
+
+    @kernel_function(name="get_status", description="Get current system status")
+    def get_status(self) -> str:
+        """Return system status."""
+        return "All systems operational."
+
+
+async def run_agent(user_message: str, history: list[dict] | None = None) -> str:
+    """Run the AI agent with tool-calling capabilities."""
+    kernel = create_kernel()
+    kernel.add_plugin(DomainTools(), plugin_name="domain")
+
+    chat_history = ChatHistory()
+    chat_history.add_system_message(
+        "You are an AI agent for {spec.project_name}. "
+        "Use the available tools to help answer questions."
+    )
+
+    if history:
+        for msg in history[-10:]:
+            if msg.get("role") == "user":
+                chat_history.add_user_message(msg.get("content", ""))
+            elif msg.get("role") == "assistant":
+                chat_history.add_assistant_message(msg.get("content", ""))
+
+    chat_history.add_user_message(user_message)
+
+    settings = AzureChatPromptExecutionSettings(
+        function_choice_behavior="auto",
+    )
+
+    result = await kernel.invoke_prompt(
+        prompt="{{{{$chat_history}}}}",
+        chat_history=chat_history,
+        settings=settings,
+    )
+
+    return str(result)
+'''

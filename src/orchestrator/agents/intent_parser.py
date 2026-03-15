@@ -45,8 +45,10 @@ IntentSpec schema.
 
 ## Rules
 1. Extract a kebab-case project name from the description (3-39 chars, lowercase, alphanumeric + hyphens).
-2. Identify the application type: api, web, worker, or function.
-3. Determine data stores needed: blob_storage, cosmos_db, sql, table_storage, or none.
+2. Identify the application type: api, web, worker, function, ai_agent, or ai_app.
+   - ai_agent: autonomous AI agent, multi-agent, tool-use patterns
+   - ai_app: chatbot, RAG, AI-powered app with LLM integration
+3. Determine data stores needed: blob_storage, cosmos_db, sql, table_storage, ai_search, or none.
 4. Assess security requirements:
    - Auth model: managed_identity (default), entra_id, api_key
    - Compliance: general (default), hipaa_guidance, soc2_guidance, fedramp_guidance
@@ -65,11 +67,13 @@ Return ONLY a JSON object matching the IntentSpec schema. No markdown, no explan
   "project_name": "string (kebab-case)",
   "description": "string (max 200 chars)",
   "raw_intent": "string (original input)",
-  "app_type": "api|web|worker|function",
+  "app_type": "api|web|worker|function|ai_agent|ai_app",
   "language": "python",
   "framework": "fastapi",
   "data_stores": ["blob_storage"],
   "uses_ai": false,
+  "ai_model": "gpt-4o",
+  "ai_features": [],
   "security": {
     "auth_model": "managed_identity",
     "compliance_framework": "general",
@@ -180,8 +184,34 @@ class IntentParserAgent:
         # Detect compliance
         compliance = self._detect_compliance(intent_lower)
 
-        # Detect AI usage
-        uses_ai = any(kw in intent_lower for kw in ["ai ", "ml ", "machine learning", "model", "llm", "gpt", "openai"])
+        # Detect AI usage and features
+        ai_keywords = ["ai ", "ml ", "machine learning", "llm", "gpt", "openai",
+                        "copilot", "chatbot", "chat bot", "foundry", "agent",
+                        "retrieval augmented", "embedding", "semantic search",
+                        "natural language", "prompt", "completion", "inference"]
+        uses_ai = any(kw in intent_lower for kw in ai_keywords) or bool(re.search(r'\brag\b', intent_lower))
+
+        # Detect specific AI features
+        ai_features: list[str] = []
+        if any(kw in intent_lower for kw in ["chat", "chatbot", "conversational", "assistant", "copilot"]):
+            ai_features.append("chat")
+        if any(kw in intent_lower for kw in ["embedding", "vector", "semantic search", "similarity"]):
+            ai_features.append("embeddings")
+        if any(kw in intent_lower for kw in ["retrieval augmented", "grounding", "knowledge base"]) or bool(re.search(r'\brag\b', intent_lower)):
+            ai_features.append("rag")
+        if any(kw in intent_lower for kw in ["agent", "agentic", "tool use", "function calling", "multi-agent", "autonomous"]):
+            ai_features.append("agents")
+        if any(kw in intent_lower for kw in ["content safety", "content filter", "moderation", "responsible ai"]):
+            ai_features.append("content-safety")
+        if uses_ai and not ai_features:
+            ai_features.append("chat")
+
+        # Detect AI model preference
+        ai_model = "gpt-4o"
+        if "gpt-4o-mini" in intent_lower or "mini" in intent_lower:
+            ai_model = "gpt-4o-mini"
+        elif "gpt-35" in intent_lower or "gpt-3.5" in intent_lower:
+            ai_model = "gpt-35-turbo"
 
         # Detect programming language
         language = self._detect_language(intent_lower)
@@ -225,6 +255,13 @@ class IntentParserAgent:
         entities = self._extract_entities(intent_lower, domain_type)
         endpoints = self._extract_endpoints(intent_lower, domain_type)
 
+        # Force AI flag for AI app types
+        if app_type in (AppType.AI_AGENT, AppType.AI_APP):
+            uses_ai = True
+            # Ensure AI Search is included for RAG patterns
+            if "rag" in ai_features and DataStore.AI_SEARCH not in data_stores:
+                data_stores.append(DataStore.AI_SEARCH)
+
         return IntentSpec(
             project_name=project_name,
             description=raw_intent[:200],
@@ -235,6 +272,8 @@ class IntentParserAgent:
             compute_target=compute_target,
             data_stores=data_stores,
             uses_ai=uses_ai,
+            ai_model=ai_model,
+            ai_features=ai_features,
             domain_type=domain_type,
             entities=entities,
             endpoints=endpoints,
@@ -325,6 +364,17 @@ class IntentParserAgent:
         def _has_word(keyword: str) -> bool:
             return bool(re.search(rf"\b{re.escape(keyword)}\b", intent))
 
+        # AI types take priority — they are specialized app types
+        if any(_has_word(kw) for kw in ["ai agent", "agentic", "multi-agent", "autonomous agent"]):
+            return AppType.AI_AGENT
+        if any(_has_word(kw) for kw in ["chatbot", "chat bot", "ai app", "ai application",
+                                         "copilot", "ai assistant", "llm app"]):
+            return AppType.AI_APP
+        # Check for general AI signals that warrant AI_APP
+        ai_signal = sum(1 for kw in ["ai", "openai", "gpt", "llm", "foundry",
+                                      "rag", "embedding", "inference"] if _has_word(kw))
+        if ai_signal >= 2:
+            return AppType.AI_APP
         if any(_has_word(kw) for kw in ["api", "rest", "endpoint", "microservice"]):
             return AppType.API
         if any(_has_word(kw) for kw in ["web", "frontend", "ui", "dashboard"]):
@@ -347,6 +397,10 @@ class IntentParserAgent:
             stores.append(DataStore.SQL)
         if any(kw in intent for kw in ["redis", "cache", "session"]):
             stores.append(DataStore.REDIS)
+        if any(kw in intent for kw in ["ai search", "vector search", "semantic search",
+                                        "search index", "retrieval augmented",
+                                        "knowledge base", "embedding"]) or bool(re.search(r'\brag\b', intent)):
+            stores.append(DataStore.AI_SEARCH)
         if not stores:
             stores.append(DataStore.BLOB_STORAGE)
         return stores

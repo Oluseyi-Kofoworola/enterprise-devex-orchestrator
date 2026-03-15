@@ -117,7 +117,7 @@ pip install -e ".[dev]"
 ```powershell
 devex --help
 devex version         # Shows: GitHub Copilot SDK (default provider)
-pytest tests/ -v      # 543 tests
+pytest tests/ -v      # 609 tests
 ```
 
 ---
@@ -198,6 +198,8 @@ The same engine generates production scaffolds for **any business domain** -- no
 | Smart city IoT (8 domains) | Sensor, Incident, Route, Request + 4 more | CRUD + dispatch, verify | Cosmos, SQL, Blob, Redis |
 | Propane delivery logistics | Delivery, Tank, Route, Customer | CRUD + optimize, schedule | Cosmos DB |
 | E-commerce returns | Order, Refund, Return, Customer | CRUD + process, approve | Cosmos DB |
+| AI customer support chatbot | ChatSession, KnowledgeArticle | CRUD + chat, RAG | AI Search |
+| Agentic document processor | Document, Task, Agent | CRUD + analyze, dispatch | Blob, AI Search |
 
 **Every scaffold gets the same enterprise treatment**: Bicep IaC, CI/CD, governance, WAF assessment, interactive dashboard, tests, and documentation.
 
@@ -357,7 +359,7 @@ src/orchestrator/
   standards/              # NamingEngine, TaggingEngine, WAFAssessor
   tools/                  # Azure validation, governance policies, template rendering
 
-tests/                    # Framework test suite (15 files, 543 tests)
+tests/                    # Framework test suite (16 files, 609 tests)
 examples/                 # Example intent files
 docs/                     # Framework documentation
 standards.yaml            # Enterprise standards configuration
@@ -379,6 +381,37 @@ Every scaffold ships with 8 layers of defense -- not optional, not configurable,
 | CI/CD | **OIDC federation** | No stored secrets |
 | Input | **Pydantic validation** | All API boundaries |
 | Governance | **STRIDE + 25 policies** | Automated threat model |
+| AI Safety | **Content filtering + token budgets** | Azure OpenAI content safety, rate limiting |
+
+---
+
+## AI & Foundry Workloads
+
+Describe an AI-powered business and the orchestrator automatically scaffolds **Azure OpenAI, AI Search, Semantic Kernel agents**, and a chat frontend -- with the same enterprise security baselines as every other workload.
+
+```
+"Build an AI-powered customer support copilot with RAG grounding
+ from our knowledge base. Use gpt-4o with content safety."
+```
+
+**What gets generated for AI workloads (in addition to standard artifacts):**
+
+| Layer | AI Artifacts | Details |
+|-------|-------------|---------|
+| **Infrastructure** | `openai.bicep`, `ai-search.bicep` | Azure OpenAI (S0) with model deployment, AI Search with semantic search |
+| **Backend** | `ai/client.py`, `ai/chat.py`, `ai/agent.py` | Managed Identity auth, chat router, Semantic Kernel agents with tool-calling |
+| **Frontend** | `ChatPage.tsx` | React chat interface with message history, streaming UI |
+| **Governance** | 5 AI policies (AI-001 to AI-005) | Content safety, Managed Identity for AI, audit logging, RAI docs, token budgets |
+| **Threat Model** | THREAT-007, THREAT-008 | Prompt injection / data leakage, token exhaustion |
+| **Architecture** | ADR-006, ADR-007, ADR-008 | Azure OpenAI + Foundry, AI Search for RAG, Semantic Kernel |
+
+**AI-specific app types:** `ai_agent` (autonomous agents, multi-agent, tool-use) and `ai_app` (chatbot, copilot, RAG apps).
+
+**AI features auto-detected:** `chat`, `embeddings`, `rag`, `agents`, `content-safety`.
+
+**Models supported:** `gpt-4o` (default), `gpt-4o-mini`, `gpt-35-turbo`.
+
+**Security:** All AI services use Managed Identity with `Cognitive Services OpenAI User` RBAC role -- no API keys. Content safety filters are enabled by default. Token budgets and rate limiting enforced via governance policies.
 
 ---
 

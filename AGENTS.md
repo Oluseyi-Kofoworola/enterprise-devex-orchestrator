@@ -143,10 +143,10 @@ All generated code must follow enterprise security baselines:
 - `validate_bicep` -- Validate generated Bicep syntax
 
 **Sub-generators:**
-- `BicepGenerator` -- 7 Bicep modules + parameters + enterprise naming/tagging
+- `BicepGenerator` -- 7+ Bicep modules + parameters + enterprise naming/tagging (includes Azure OpenAI + AI Search modules for AI workloads)
 - `CICDGenerator` -- 4 GitHub Actions workflows
-- `AppGenerator` -- FastAPI app + Docker + requirements with dynamic entity-driven services
-- `FrontendGenerator` -- Entity-driven React + Vite + TypeScript SPA (entity dashboards, API client, types, detail pages). Dynamic entity-driven generation for all domains via semantic extraction.
+- `AppGenerator` -- FastAPI app + Docker + requirements with dynamic entity-driven services. AI workloads get `ai/client.py` (Managed Identity auth), `ai/chat.py` (chat router with RAG), `ai/agent.py` (Semantic Kernel agents with tool-calling)
+- `FrontendGenerator` -- Entity-driven React + Vite + TypeScript SPA (entity dashboards, API client, types, detail pages, AI chat page). Dynamic entity-driven generation for all domains via semantic extraction.
 - `DocsGenerator` -- 7 documentation files + standards reference + improvement suggestions
 - `TestGenerator` -- Auto-generated pytest test suite (health, API, security, config, storage)
 - `AlertGenerator` -- Azure Monitor alert rules (Bicep) + action groups + alerting runbook
@@ -176,7 +176,7 @@ All generated code must follow enterprise security baselines:
 
 | Component | Description |
 |-----------|-------------|
-| `NamingEngine` | Azure CAF naming conventions (20 resource types, 34 region abbreviations) |
+| `NamingEngine` | Azure CAF naming conventions (22 resource types incl. OpenAI + AI Search, 34 region abbreviations) |
 | `TaggingEngine` | Enterprise tagging (7 required + 5 optional tags with regex validation) |
 | `EnterpriseStandardsConfig` | YAML-driven config (`standards.yaml`) for naming, tagging, governance |
 | `StateManager` | Persistent state in `.devex/state.json` -- drift detection, file manifests, audit trail |

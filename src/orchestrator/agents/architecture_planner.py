@@ -298,6 +298,28 @@ class ArchitecturePlannerAgent:
                         security_controls=["Managed Identity Access", "Encryption at Rest", "HTTPS Only"],
                     )
                 )
+            elif store == DataStore.AI_SEARCH:
+                components.append(
+                    ComponentSpec(
+                        name="ai-search",
+                        azure_service="Azure AI Search",
+                        purpose="Vector and semantic search for RAG patterns and knowledge retrieval",
+                        bicep_module="ai-search.bicep",
+                        security_controls=["Managed Identity", "RBAC Access", "HTTPS Only", "Private Endpoint"],
+                    )
+                )
+
+        # Add AI service components when uses_ai is True
+        if spec.uses_ai:
+            components.append(
+                ComponentSpec(
+                    name="azure-openai",
+                    azure_service="Azure OpenAI Service",
+                    purpose="LLM inference for chat, embeddings, and AI agent capabilities",
+                    bicep_module="openai.bicep",
+                    security_controls=["Managed Identity", "Content Safety Filters", "RBAC Access", "Private Endpoint"],
+                )
+            )
 
         return components
 
@@ -350,13 +372,36 @@ class ArchitecturePlannerAgent:
             decisions.append(
                 ArchitectureDecision(
                     id="ADR-006",
-                    title="Use Azure AI Foundry for AI/ML integration",
+                    title="Use Azure OpenAI + AI Foundry for AI workloads",
                     status="Accepted",
-                    context="Workload requires AI capabilities. Need enterprise-grade AI platform with content safety and monitoring.",
-                    decision="Use Azure AI Foundry (formerly Azure AI Studio) for model hosting and inference, with content safety filters enabled.",
-                    consequences="Requires Azure AI Foundry resource provisioning. Content safety may filter edge cases. Provides audit trail.",
+                    context="Workload requires AI/LLM capabilities. Need enterprise-grade AI platform with content safety, model management, and audit trail.",
+                    decision="Deploy Azure OpenAI for model inference with content safety filters. Use AI Foundry for model management, prompt engineering, and evaluation. All access via Managed Identity with RBAC.",
+                    consequences="Requires Azure OpenAI resource and model deployment. Content safety filters may block edge cases. Provides full audit trail and responsible AI controls.",
                 )
             )
+            ai_features = getattr(spec, "ai_features", [])
+            if "rag" in ai_features:
+                decisions.append(
+                    ArchitectureDecision(
+                        id="ADR-007",
+                        title="Use Azure AI Search for RAG grounding",
+                        status="Accepted",
+                        context="RAG pattern requires vector search for document grounding to reduce hallucination.",
+                        decision="Deploy Azure AI Search with vector index for semantic retrieval. Documents are embedded via Azure OpenAI embeddings model and indexed for similarity search.",
+                        consequences="Additional search index cost. Requires document ingestion pipeline. Significantly improves answer accuracy and reduces hallucination.",
+                    )
+                )
+            if "agents" in ai_features:
+                decisions.append(
+                    ArchitectureDecision(
+                        id="ADR-008",
+                        title="Use Semantic Kernel for agent orchestration",
+                        status="Accepted",
+                        context="Agentic workload requires tool-use, planning, and multi-step reasoning.",
+                        decision="Use Semantic Kernel SDK for agent orchestration with Azure OpenAI. Agents can invoke tools, plan multi-step actions, and maintain conversation state.",
+                        consequences="Adds Semantic Kernel dependency. Enables flexible agent patterns with tool-calling and function invocation.",
+                    )
+                )
 
         return decisions
 
@@ -406,7 +451,25 @@ class ArchitecturePlannerAgent:
                     id="THREAT-006",
                     category="Tampering",
                     description="Prompt injection attacks to manipulate AI behavior or extract training data.",
-                    mitigation="Content safety filters. Input validation. Output sanitization. System prompt hardening.",
+                    mitigation="Content safety filters. Input validation. Output sanitization. System prompt hardening. Prompt injection detection.",
+                    residual_risk="Medium",
+                )
+            )
+            threats.append(
+                ThreatEntry(
+                    id="THREAT-007",
+                    category="Information Disclosure",
+                    description="AI model leaks sensitive data from training data, system prompts, or grounding documents.",
+                    mitigation="Retrieval-scoped grounding. System prompt protection. Output filtering. User-scoped data access. No PII in prompts.",
+                    residual_risk="Medium",
+                )
+            )
+            threats.append(
+                ThreatEntry(
+                    id="THREAT-008",
+                    category="Denial of Service",
+                    description="Token exhaustion or cost explosion from excessive or malicious AI API calls.",
+                    mitigation="Rate limiting. Token budget per request. Cost alerts. Max token limits on completions. API Management throttling.",
                     residual_risk="Medium",
                 )
             )
@@ -483,12 +546,18 @@ class ArchitecturePlannerAgent:
                 diagram += "    MI -->|RBAC| TS\n"
 
         if spec.uses_ai:
-            diagram += """
-    subgraph "AI Services"
-        AOAI[Azure AI Foundry]
+            ai_model = getattr(spec, "ai_model", "gpt-4o")
+            diagram += f"""
+    subgraph \"AI Services\"
+        AOAI[\"Azure OpenAI<br/>{ai_model}\"]
+        CSAF[Content Safety]
     end
     MI -->|RBAC| AOAI
+    AOAI --> CSAF
 """
+            if DataStore.AI_SEARCH in spec.data_stores:
+                diagram += "    MI -->|RBAC| AISRCH[AI Search]\n"
+                diagram += "    AOAI -->|Embeddings| AISRCH\n"
 
         diagram += """
     subgraph "CI/CD"

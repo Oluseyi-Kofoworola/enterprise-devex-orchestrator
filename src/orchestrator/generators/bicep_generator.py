@@ -70,6 +70,12 @@ class BicepGenerator:
         if DataStore.SQL in spec.data_stores:
             files["infra/bicep/modules/sql.bicep"] = self._sql_module(spec)
 
+        # AI service modules
+        if spec.uses_ai:
+            files["infra/bicep/modules/openai.bicep"] = self._openai_module(spec)
+        if DataStore.AI_SEARCH in spec.data_stores:
+            files["infra/bicep/modules/ai-search.bicep"] = self._ai_search_module(spec)
+
         # Parameters
         files["infra/bicep/parameters/dev.parameters.json"] = self._parameters(spec, "dev")
 
@@ -319,6 +325,45 @@ module sqlDb 'modules/sql.bicep' = {
 param entraAdminObjectId string
 """
 
+        # AI service modules
+        ai_modules = ""
+        ai_outputs = ""
+        if spec.uses_ai:
+            ai_modules += f"""
+module openai 'modules/openai.bicep' = {{
+  name: 'openai-deployment'
+  params: {{
+    location: location
+    openaiName: '${{projectName}}-openai'
+    managedIdentityPrincipalId: identity.outputs.principalId
+    logAnalyticsWorkspaceId: logAnalytics.outputs.workspaceId
+    tags: tags
+  }}
+}}
+"""
+            ai_outputs += """
+output openaiEndpoint string = openai.outputs.openaiEndpoint
+output openaiName string = openai.outputs.openaiName
+output chatDeploymentName string = openai.outputs.chatDeploymentName
+"""
+        if DataStore.AI_SEARCH in spec.data_stores:
+            ai_modules += f"""
+module aiSearch 'modules/ai-search.bicep' = {{
+  name: 'ai-search-deployment'
+  params: {{
+    location: location
+    searchName: '${{projectName}}-search'
+    managedIdentityPrincipalId: identity.outputs.principalId
+    logAnalyticsWorkspaceId: logAnalytics.outputs.workspaceId
+    tags: tags
+  }}
+}}
+"""
+            ai_outputs += """
+output searchEndpoint string = aiSearch.outputs.searchEndpoint
+output searchName string = aiSearch.outputs.searchName
+"""
+
         return f"""// ===================================================================
 // Enterprise DevEx Orchestrator -- Main Deployment
 // Project: {spec.project_name}
@@ -386,8 +431,10 @@ module keyVault 'modules/keyvault.bicep' = {{
   }}
 }}
 {storage_section}{compute_module}
+// -- AI Services ---------------------------------------------------
+{ai_modules}
 // -- Outputs --------------------------------------------------------
-{compute_outputs}
+{compute_outputs}{ai_outputs}
 output keyVaultName string = keyVault.outputs.keyVaultName
 output logAnalyticsWorkspaceId string = logAnalytics.outputs.workspaceId
 output managedIdentityClientId string = identity.outputs.clientId
@@ -1040,6 +1087,236 @@ output serverName string = sqlServer.name
 output serverFqdn string = sqlServer.properties.fullyQualifiedDomainName
 output databaseName string = database.name
 output serverId string = sqlServer.id
+"""
+
+    def _openai_module(self, spec: IntentSpec) -> str:
+        """Generate Azure OpenAI Bicep module."""
+        ai_model = getattr(spec, "ai_model", "gpt-4o")
+        ai_features = getattr(spec, "ai_features", [])
+
+        # Map model name to deployment config
+        model_map = {
+            "gpt-4o": ("gpt-4o", "2024-08-06", "GlobalStandard"),
+            "gpt-4o-mini": ("gpt-4o-mini", "2024-07-18", "GlobalStandard"),
+            "gpt-35-turbo": ("gpt-35-turbo", "0613", "Standard"),
+        }
+        model_name, model_version, sku_name = model_map.get(ai_model, model_map["gpt-4o"])
+
+        embeddings_deployment = ""
+        if "embeddings" in ai_features or "rag" in ai_features:
+            embeddings_deployment = """
+// -- Embeddings Model Deployment ------------------------------------
+resource embeddingsDeployment 'Microsoft.CognitiveServices/accounts/deployments@2024-04-01-preview' = {
+  parent: openai
+  name: 'text-embedding-ada-002'
+  sku: {
+    name: 'Standard'
+    capacity: 30
+  }
+  properties: {
+    model: {
+      format: 'OpenAI'
+      name: 'text-embedding-ada-002'
+      version: '2'
+    }
+  }
+  dependsOn: [chatDeployment]
+}
+
+output embeddingsDeploymentName string = embeddingsDeployment.name
+"""
+
+        return f"""// ===================================================================
+// Azure OpenAI Module
+// Enterprise-grade LLM inference with content safety and RBAC access.
+// ===================================================================
+
+@description('Azure region')
+param location string
+
+@description('Azure OpenAI account name')
+param openaiName string
+
+@description('Managed Identity principal ID for RBAC')
+param managedIdentityPrincipalId string
+
+@description('Log Analytics workspace ID for diagnostics')
+param logAnalyticsWorkspaceId string
+
+@description('Tags for all resources')
+param tags object
+
+// -- Azure OpenAI Account ------------------------------------------
+resource openai 'Microsoft.CognitiveServices/accounts@2024-04-01-preview' = {{
+  name: openaiName
+  location: location
+  kind: 'OpenAI'
+  sku: {{
+    name: 'S0'
+  }}
+  properties: {{
+    customSubDomainName: openaiName
+    publicNetworkAccess: 'Enabled'
+    networkAcls: {{
+      defaultAction: 'Allow'
+    }}
+  }}
+  tags: tags
+}}
+
+// -- Chat Model Deployment ------------------------------------------
+resource chatDeployment 'Microsoft.CognitiveServices/accounts/deployments@2024-04-01-preview' = {{
+  parent: openai
+  name: '{model_name}'
+  sku: {{
+    name: '{sku_name}'
+    capacity: 30
+  }}
+  properties: {{
+    model: {{
+      format: 'OpenAI'
+      name: '{model_name}'
+      version: '{model_version}'
+    }}
+  }}
+}}
+{embeddings_deployment}
+// -- RBAC: Cognitive Services OpenAI User ---------------------------
+resource openaiRbac 'Microsoft.Authorization/roleAssignments@2022-04-01' = {{
+  scope: openai
+  name: guid(openai.id, managedIdentityPrincipalId, 'Cognitive Services OpenAI User')
+  properties: {{
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd')
+    principalId: managedIdentityPrincipalId
+    principalType: 'ServicePrincipal'
+  }}
+}}
+
+// -- Diagnostic Settings --------------------------------------------
+resource diagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {{
+  scope: openai
+  name: '${{openaiName}}-diagnostics'
+  properties: {{
+    workspaceId: logAnalyticsWorkspaceId
+    logs: [
+      {{
+        category: 'Audit'
+        enabled: true
+      }}
+      {{
+        category: 'RequestResponse'
+        enabled: true
+      }}
+    ]
+    metrics: [
+      {{
+        category: 'AllMetrics'
+        enabled: true
+      }}
+    ]
+  }}
+}}
+
+output openaiEndpoint string = openai.properties.endpoint
+output openaiName string = openai.name
+output openaiId string = openai.id
+output chatDeploymentName string = chatDeployment.name
+"""
+
+    def _ai_search_module(self, spec: IntentSpec) -> str:
+        """Generate Azure AI Search Bicep module."""
+        return """// ===================================================================
+// Azure AI Search Module
+// Vector and semantic search for RAG patterns and knowledge retrieval.
+// ===================================================================
+
+@description('Azure region')
+param location string
+
+@description('AI Search service name')
+param searchName string
+
+@description('Managed Identity principal ID for RBAC')
+param managedIdentityPrincipalId string
+
+@description('Log Analytics workspace ID for diagnostics')
+param logAnalyticsWorkspaceId string
+
+@description('Tags for all resources')
+param tags object
+
+@description('AI Search SKU')
+@allowed(['basic', 'standard', 'standard2'])
+param searchSku string = 'basic'
+
+// -- AI Search Service ----------------------------------------------
+resource search 'Microsoft.Search/searchServices@2024-03-01-preview' = {
+  name: searchName
+  location: location
+  sku: {
+    name: searchSku
+  }
+  properties: {
+    replicaCount: 1
+    partitionCount: 1
+    hostingMode: 'default'
+    publicNetworkAccess: 'enabled'
+    semanticSearch: 'free'
+    authOptions: {
+      aadOrApiKey: {
+        aadAuthFailureMode: 'http401WithBearerChallenge'
+      }
+    }
+  }
+  tags: tags
+}
+
+// -- RBAC: Search Index Data Contributor ----------------------------
+resource searchDataContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  scope: search
+  name: guid(search.id, managedIdentityPrincipalId, 'Search Index Data Contributor')
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '8ebe5a00-799e-43f5-93ac-243d3dce84a7')
+    principalId: managedIdentityPrincipalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+// -- RBAC: Search Service Contributor -------------------------------
+resource searchServiceContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  scope: search
+  name: guid(search.id, managedIdentityPrincipalId, 'Search Service Contributor')
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7ca78c08-252a-4471-8644-bb5ff32d4ba0')
+    principalId: managedIdentityPrincipalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+// -- Diagnostic Settings --------------------------------------------
+resource diagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
+  scope: search
+  name: '${searchName}-diagnostics'
+  properties: {
+    workspaceId: logAnalyticsWorkspaceId
+    logs: [
+      {
+        category: 'OperationLogs'
+        enabled: true
+      }
+    ]
+    metrics: [
+      {
+        category: 'AllMetrics'
+        enabled: true
+      }
+    ]
+  }
+}
+
+output searchEndpoint string = 'https://${search.name}.search.windows.net'
+output searchName string = search.name
+output searchId string = search.id
 """
 
     def _container_app_module(self, spec: IntentSpec) -> str:

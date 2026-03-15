@@ -18,6 +18,8 @@ class AppType(str, Enum):
     WEB = "web"
     WORKER = "worker"
     FUNCTION = "function"
+    AI_AGENT = "ai_agent"
+    AI_APP = "ai_app"
 
 
 class DomainType(str, Enum):
@@ -61,6 +63,7 @@ class DataStore(str, Enum):
     SQL = "sql"
     TABLE_STORAGE = "table_storage"
     REDIS = "redis"
+    AI_SEARCH = "ai_search"
     NONE = "none"
 
 
@@ -184,6 +187,11 @@ class IntentSpec(BaseModel):
         default_factory=lambda: [DataStore.BLOB_STORAGE], description="Required data stores"
     )
     uses_ai: bool = Field(default=False, description="Whether the workload uses AI/ML services")
+    ai_model: str = Field(default="gpt-4o", description="AI model to deploy (gpt-4o, gpt-4o-mini, gpt-35-turbo)")
+    ai_features: list[str] = Field(
+        default_factory=list,
+        description="AI capabilities: chat, embeddings, rag, agents, content-safety",
+    )
 
     # -- Security --------------------------------------------------
     security: SecurityRequirements = Field(default_factory=SecurityRequirements)

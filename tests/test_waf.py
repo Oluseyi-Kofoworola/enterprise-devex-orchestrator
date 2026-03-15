@@ -721,4 +721,4 @@ class TestWAFPolicies:
         """Verify total policy count increased after WAF addition."""
         from src.orchestrator.tools.policy_engine import POLICY_CATALOG
 
-        assert len(POLICY_CATALOG) == 20  # 15 original + 5 WAF
+        assert len(POLICY_CATALOG) == 25  # 15 original + 5 WAF + 5 AI
