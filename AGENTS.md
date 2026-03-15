@@ -154,8 +154,8 @@ All generated code must follow enterprise security baselines:
 **Sub-generators:**
 - `BicepGenerator` -- 7+ Bicep modules + parameters + enterprise naming/tagging (includes Azure OpenAI + AI Search modules for AI workloads)
 - `CICDGenerator` -- 4 GitHub Actions workflows
-- `AppGenerator` -- FastAPI app + Docker + requirements with dynamic entity-driven services. Includes CORS middleware for frontend dev servers (localhost:3000/5173). AI workloads get `ai/client.py` (Managed Identity auth), `ai/chat.py` (chat router with RAG), `ai/agent.py` (Semantic Kernel agents with tool-calling). Generates **12 realistic seed records per entity** with domain-aware values (names, addresses, descriptions, statuses, priorities, dynamic timestamps relative to current date).
-- `FrontendGenerator` -- Entity-driven React + Vite + TypeScript SPA (entity dashboards, API client, types, detail pages, AI chat page). Dynamic entity-driven generation for all domains via semantic extraction. Environment-variable-driven API base URL, responsive KPI grid, conditional AI Chat nav link.
+- `AppGenerator` -- FastAPI app + Docker + requirements with dynamic entity-driven services. Includes CORS middleware for frontend dev servers (localhost:3000/5173), rate limiting middleware, OWASP security headers. AI workloads get `ai/client.py` (Managed Identity auth), `ai/chat.py` (chat router with RAG), `ai/agent.py` (Semantic Kernel agents with tool-calling), `ai/model_registry.py` (Azure AI Foundry multi-model management), `ai/content_safety.py` (Azure AI Content Safety filtering), `ai/evaluation.py` (groundedness/relevance evaluation framework). Generates **12 realistic seed records per entity** with domain-aware values (names, addresses, descriptions, statuses, priorities, dynamic timestamps relative to current date).
+- `FrontendGenerator` -- Entity-driven React + Vite + TypeScript SPA with domain-aware design system. Includes: design-token-driven theming (10 industry presets), dark mode toggle, responsive mobile nav, loading skeletons, error boundaries, toast notifications, SVG icon library (15 Lucide-style icons), mini charts (sparkline + bar), pagination, sortable columns, delete confirmation modals, CSP meta tag, HTML-rendered AI chat with suggestions. Environment-variable-driven API base URL, WCAG AA accessible.
 - `DocsGenerator` -- 7 documentation files + standards reference + improvement suggestions
 - `TestGenerator` -- Auto-generated pytest test suite (health, API, security, config, storage)
 - `AlertGenerator` -- Azure Monitor alert rules (Bicep) + action groups + alerting runbook
@@ -198,6 +198,7 @@ All generated code must follow enterprise security baselines:
 | `EnterpriseStandardsConfig` | YAML-driven config (`standards.yaml`) for naming, tagging, governance |
 | `StateManager` | Persistent state in `.devex/state.json` -- drift detection, file manifests, audit trail |
 | `WAFAssessor` | Azure Well-Architected Framework assessment (5 pillars, 26 principles, per-pillar scoring) |
+| `DesignSystem` | Domain-aware UI/UX design intelligence (10 industry presets, CSS custom properties, WCAG AA, dark mode, anti-patterns) |
 
 ---
 

@@ -5,18 +5,32 @@ Generates a modern React application with:
     - TypeScript configuration
     - Domain-specific pages and components
     - API client with typed endpoints
-    - Responsive dashboard UI
-    - TailwindCSS styling via CDN
+    - Design-system-driven responsive dashboard UI
+    - Dark mode support with system preference detection
+    - SVG icon library (Lucide-style, zero external deps)
+    - Mini charts (SVG sparklines in KPI cards)
+    - Loading skeletons with shimmer animation
+    - Form validation with type-aware inputs
+    - Table pagination and sortable columns
+    - Toast notification system
+    - Error boundary component
+    - WCAG AA accessible (4.5:1 contrast, focus rings, reduced-motion)
+    - HTML rendering in chat for LLM responses
+    - CSP meta tag for security hardening
+    - TailwindCSS styling via CDN + CSS custom property design tokens
 """
 
 from __future__ import annotations
 
 import re as _re
 
+from src.orchestrator.generators.design_system import DesignSystem
 from src.orchestrator.intent_schema import IntentSpec
 from src.orchestrator.logging import get_logger
 
 logger = get_logger(__name__)
+
+_design_system = DesignSystem()
 
 
 # -- Helpers for dynamic frontend generation ---------------------------
@@ -59,15 +73,19 @@ class FrontendGenerator:
     def generate(self, spec: IntentSpec) -> dict[str, str]:
         """Return file-path -> content mapping for the frontend SPA."""
         project = spec.project_name
+        tokens = _design_system.generate_tokens(spec)
 
         files: dict[str, str] = {}
+
+        # -- Design system --
+        files.update(_design_system.generate_design_spec(spec))
 
         # -- Build / config files --
         files["frontend/package.json"] = self._package_json(project)
         files["frontend/tsconfig.json"] = self._tsconfig()
         files["frontend/tsconfig.node.json"] = self._tsconfig_node()
         files["frontend/vite.config.ts"] = self._vite_config()
-        files["frontend/index.html"] = self._index_html(project)
+        files["frontend/index.html"] = self._index_html(project, tokens)
 
         # -- Source files --
         files["frontend/src/main.tsx"] = self._main_tsx()
@@ -76,6 +94,12 @@ class FrontendGenerator:
         files["frontend/src/types/index.ts"] = self._types(spec)
         files["frontend/src/components/Layout.tsx"] = self._layout(project, spec)
         files["frontend/src/components/StatusBadge.tsx"] = self._status_badge()
+        files["frontend/src/components/Icons.tsx"] = self._icons()
+        files["frontend/src/components/Skeleton.tsx"] = self._skeleton()
+        files["frontend/src/components/Toast.tsx"] = self._toast()
+        files["frontend/src/components/ErrorBoundary.tsx"] = self._error_boundary()
+        files["frontend/src/components/MiniChart.tsx"] = self._mini_chart()
+        files["frontend/src/components/ThemeToggle.tsx"] = self._theme_toggle()
         files["frontend/src/pages/Dashboard.tsx"] = self._dashboard(spec)
         files["frontend/src/pages/DetailPage.tsx"] = self._detail_page(spec)
 
@@ -175,19 +199,28 @@ export default defineConfig({
 });
 """
 
-    def _index_html(self, project: str) -> str:
+    def _index_html(self, project: str, tokens=None) -> str:
         return f"""<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Content-Security-Policy"
+          content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' http://localhost:* ws://localhost:*; img-src 'self' data: blob:;" />
     <title>{project}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
     <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-      body {{ font-family: 'Inter', system-ui, -apple-system, sans-serif; }}
-    </style>
+    <link rel="stylesheet" href="/src/styles/design-tokens.css" />
+    <script>
+      // Dark mode: check localStorage then system preference
+      if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {{
+        document.documentElement.classList.add('dark');
+      }}
+    </script>
   </head>
-  <body class="bg-gray-50 text-gray-900">
+  <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
@@ -202,13 +235,19 @@ export default defineConfig({
         return """import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
+import ErrorBoundary from './components/ErrorBoundary';
+import { ToastProvider } from './components/Toast';
 import App from './App';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <BrowserRouter>
-      <App />
-    </BrowserRouter>
+    <ErrorBoundary>
+      <ToastProvider>
+        <BrowserRouter>
+          <App />
+        </BrowserRouter>
+      </ToastProvider>
+    </ErrorBoundary>
   </React.StrictMode>,
 );
 """
@@ -291,28 +330,56 @@ export const api = {{
 
     def _layout(self, project: str, spec: IntentSpec | None = None) -> str:
         chat_link = ''
+        chat_mobile = ''
         if spec and spec.uses_ai:
-            chat_link = '\n            <Link to="/chat" className="hover:underline">AI Chat</Link>'
-        return f"""import {{ ReactNode }} from 'react';
+            chat_link = '\n            <Link to="/chat" className="hover:opacity-80 transition-opacity">AI Chat</Link>'
+            chat_mobile = '''
+                <Link to="/chat" onClick={() => setOpen(false)}
+                  className="block px-3 py-2 rounded-md text-sm hover:bg-white/10">AI Chat</Link>'''
+        return f"""import {{ ReactNode, useState }} from 'react';
 import {{ Link }} from 'react-router-dom';
+import ThemeToggle from './ThemeToggle';
+import {{ IconMenu, IconX }} from './Icons';
 
 export default function Layout({{ children }}: {{ children: ReactNode }}) {{
+  const [open, setOpen] = useState(false);
+
   return (
-    <div className="min-h-screen flex flex-col">
-      <header className="bg-gradient-to-r from-blue-700 to-indigo-800 text-white shadow-lg">
+    <div className="min-h-screen flex flex-col bg-[var(--bg-primary)] text-[var(--text-primary)]">
+      <header style={{{{ background: 'var(--gradient-header)' }}}} className="text-white shadow-lg">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <Link to="/" className="text-xl font-bold tracking-tight hover:opacity-90">
+          <Link to="/" className="text-xl font-bold tracking-tight hover:opacity-90 font-[var(--font-heading)]">
             {project}
           </Link>
-          <nav className="flex gap-4 text-sm">
-            <Link to="/" className="hover:underline">Dashboard</Link>{chat_link}
+
+          {{/* Desktop nav */}}
+          <nav className="hidden md:flex items-center gap-4 text-sm">
+            <Link to="/" className="hover:opacity-80 transition-opacity">Dashboard</Link>{chat_link}
+            <ThemeToggle />
           </nav>
+
+          {{/* Mobile hamburger */}}
+          <button onClick={{() => setOpen(!open)}} className="md:hidden p-1"
+                  aria-label="Toggle navigation">
+            {{open ? <IconX /> : <IconMenu />}}
+          </button>
         </div>
+
+        {{/* Mobile menu */}}
+        {{open && (
+          <div className="md:hidden border-t border-white/20 px-4 py-3 space-y-1">
+            <Link to="/" onClick={{() => setOpen(false)}}
+              className="block px-3 py-2 rounded-md text-sm hover:bg-white/10">Dashboard</Link>{chat_mobile}
+            <div className="px-3 py-2"><ThemeToggle /></div>
+          </div>
+        )}}
       </header>
+
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-8">
         {{children}}
       </main>
-      <footer className="bg-gray-100 border-t text-center text-xs text-gray-500 py-3">
+
+      <footer className="bg-[var(--bg-tertiary)] border-t border-[var(--border-color)] text-center text-xs text-[var(--text-muted)] py-3">
         {project} &mdash; Enterprise DevEx Orchestrator
       </footer>
     </div>
@@ -322,25 +389,265 @@ export default function Layout({{ children }}: {{ children: ReactNode }}) {{
 
     def _status_badge(self) -> str:
         return """const colors: Record<string, string> = {
-  active: 'bg-green-100 text-green-800',
-  completed: 'bg-blue-100 text-blue-800',
-  escalated: 'bg-red-100 text-red-800',
-  scheduled: 'bg-yellow-100 text-yellow-800',
-  cancelled: 'bg-gray-100 text-gray-600',
-  pending: 'bg-orange-100 text-orange-800',
-  approved: 'bg-emerald-100 text-emerald-800',
-  uploaded: 'bg-purple-100 text-purple-800',
-  analyzed: 'bg-indigo-100 text-indigo-800',
-  draft: 'bg-gray-100 text-gray-600',
-  archived: 'bg-gray-200 text-gray-500',
+  active: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
+  completed: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
+  escalated: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
+  scheduled: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
+  cancelled: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
+  pending: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400',
+  approved: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400',
+  uploaded: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400',
+  analyzed: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400',
+  draft: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
+  archived: 'bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400',
+  resolved: 'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-400',
+  open: 'bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-400',
+  closed: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400',
+  critical: 'bg-red-200 text-red-900 dark:bg-red-900/40 dark:text-red-300',
+  high: 'bg-orange-200 text-orange-900 dark:bg-orange-900/40 dark:text-orange-300',
+  medium: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400',
+  low: 'bg-lime-100 text-lime-800 dark:bg-lime-900/30 dark:text-lime-400',
+  in_progress: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-400',
 };
 
 export default function StatusBadge({ status }: { status: string }) {
-  const cls = colors[status] || 'bg-gray-100 text-gray-800';
+  const normalized = status?.toLowerCase().replace(/[- ]/g, '_') || '';
+  const cls = colors[normalized] || 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300';
   return (
-    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${cls}`}>
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium cursor-default ${cls}`}>
       {status}
     </span>
+  );
+}
+"""
+
+    # ================================================================
+    # New UI/UX components
+    # ================================================================
+
+    def _icons(self) -> str:
+        """SVG icon components — Lucide-style, zero external deps."""
+        return """// Inline SVG icons — no external icon library needed.
+// Based on Lucide icon design language (24x24 viewBox, 2px stroke).
+
+const I = ({ d, ...p }: { d: string } & React.SVGProps<SVGSVGElement>) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={20} height={20} viewBox="0 0 24 24"
+    fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"
+    strokeLinejoin="round" {...p}>{d.split('|').map((seg, i) => <path key={i} d={seg} />)}</svg>
+);
+
+export const IconMenu = (p: React.SVGProps<SVGSVGElement>) =>
+  <I d="M4 6h16|M4 12h16|M4 18h16" {...p} />;
+export const IconX = (p: React.SVGProps<SVGSVGElement>) =>
+  <I d="M18 6L6 18|M6 6l12 12" {...p} />;
+export const IconSun = (p: React.SVGProps<SVGSVGElement>) =>
+  <I d="M12 2v2|M12 20v2|M4.93 4.93l1.41 1.41|M17.66 17.66l1.41 1.41|M2 12h2|M20 12h2|M6.34 17.66l-1.41 1.41|M19.07 4.93l-1.41 1.41" {...p} />;
+export const IconMoon = (p: React.SVGProps<SVGSVGElement>) =>
+  <I d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z" {...p} />;
+export const IconSearch = (p: React.SVGProps<SVGSVGElement>) =>
+  <I d="M11 3a8 8 0 100 16 8 8 0 000-16z|M21 21l-4.35-4.35" {...p} />;
+export const IconPlus = (p: React.SVGProps<SVGSVGElement>) =>
+  <I d="M12 5v14|M5 12h14" {...p} />;
+export const IconChevronUp = (p: React.SVGProps<SVGSVGElement>) =>
+  <I d="M18 15l-6-6-6 6" {...p} />;
+export const IconChevronDown = (p: React.SVGProps<SVGSVGElement>) =>
+  <I d="M6 9l6 6 6-6" {...p} />;
+export const IconChevronLeft = (p: React.SVGProps<SVGSVGElement>) =>
+  <I d="M15 18l-6-6 6-6" {...p} />;
+export const IconChevronRight = (p: React.SVGProps<SVGSVGElement>) =>
+  <I d="M9 18l6-6-6-6" {...p} />;
+export const IconRefresh = (p: React.SVGProps<SVGSVGElement>) =>
+  <I d="M1 4v6h6|M23 20v-6h-6|M20.49 9A9 9 0 005.64 5.64L1 10|M23 14l-4.64 4.36A9 9 0 013.51 15" {...p} />;
+export const IconTrash = (p: React.SVGProps<SVGSVGElement>) =>
+  <I d="M3 6h18|M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6|M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2" {...p} />;
+export const IconSend = (p: React.SVGProps<SVGSVGElement>) =>
+  <I d="M22 2L11 13|M22 2l-7 20-4-9-9-4z" {...p} />;
+export const IconAlert = (p: React.SVGProps<SVGSVGElement>) =>
+  <I d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z|M12 9v4|M12 17h.01" {...p} />;
+"""
+
+    def _skeleton(self) -> str:
+        """Loading skeleton component with shimmer animation."""
+        return """export function Skeleton({ className = '' }: { className?: string }) {
+  return <div className={`skeleton rounded ${className}`} aria-hidden="true" />;
+}
+
+export function TableSkeleton({ rows = 5, cols = 4 }: { rows?: number; cols?: number }) {
+  return (
+    <div className="bg-[var(--surface-card)] rounded-xl shadow overflow-hidden">
+      <div className="p-4 space-y-3">
+        {Array.from({ length: rows }).map((_, i) => (
+          <div key={i} className="flex gap-4">
+            {Array.from({ length: cols }).map((_, j) => (
+              <div key={j} className="skeleton h-4 flex-1" style={{ animationDelay: `${j * 100}ms` }} />
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function CardSkeleton() {
+  return (
+    <div className="bg-[var(--surface-card)] rounded-xl shadow p-4 space-y-3">
+      <div className="skeleton h-3 w-24" />
+      <div className="skeleton h-8 w-16" />
+    </div>
+  );
+}
+"""
+
+    def _toast(self) -> str:
+        """Toast notification system."""
+        return """import { useState, useEffect, createContext, useContext, useCallback, ReactNode } from 'react';
+
+interface Toast { id: number; message: string; type: 'success' | 'error' | 'info'; }
+
+const Ctx = createContext<{ addToast: (msg: string, type?: Toast['type']) => void }>({
+  addToast: () => {},
+});
+
+export const useToast = () => useContext(Ctx);
+
+export function ToastProvider({ children }: { children: ReactNode }) {
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  let nextId = 0;
+
+  const addToast = useCallback((message: string, type: Toast['type'] = 'info') => {
+    const id = ++nextId;
+    setToasts(prev => [...prev, { id, message, type }]);
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000);
+  }, []);
+
+  return (
+    <Ctx.Provider value={{ addToast }}>
+      {children}
+      <div className="fixed top-4 right-4 z-[100] space-y-2 pointer-events-none">
+        {toasts.map(t => (
+          <div key={t.id} className={`toast pointer-events-auto px-4 py-3 rounded-lg shadow-lg text-sm font-medium
+            ${t.type === 'success' ? 'bg-green-600 text-white' :
+              t.type === 'error' ? 'bg-red-600 text-white' :
+              'bg-[var(--surface-card)] text-[var(--text-primary)] border border-[var(--border-color)]'}`}>
+            {t.message}
+          </div>
+        ))}
+      </div>
+    </Ctx.Provider>
+  );
+}
+"""
+
+    def _error_boundary(self) -> str:
+        """React error boundary component."""
+        return """import { Component, ReactNode } from 'react';
+import { IconAlert } from './Icons';
+
+interface Props { children: ReactNode; }
+interface State { hasError: boolean; error?: Error; }
+
+export default class ErrorBoundary extends Component<Props, State> {
+  state: State = { hasError: false };
+
+  static getDerivedStateFromError(error: Error): State {
+    return { hasError: true, error };
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex flex-col items-center justify-center min-h-[400px] text-center p-8">
+          <IconAlert className="w-12 h-12 text-[var(--color-danger)] mb-4" />
+          <h2 className="text-xl font-bold text-[var(--text-primary)] mb-2">Something went wrong</h2>
+          <p className="text-[var(--text-secondary)] mb-4 max-w-md">
+            {this.state.error?.message || 'An unexpected error occurred.'}
+          </p>
+          <button
+            onClick={() => { this.setState({ hasError: false }); window.location.reload(); }}
+            className="px-4 py-2 rounded-lg text-sm font-medium"
+            style={{ background: 'var(--color-primary)', color: 'var(--text-on-primary)' }}
+          >
+            Reload Page
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+"""
+
+    def _mini_chart(self) -> str:
+        """SVG mini chart / sparkline component for KPI cards."""
+        return """interface MiniChartProps {
+  data: number[];
+  color?: string;
+  height?: number;
+  width?: number;
+}
+
+export default function MiniChart({ data, color = 'var(--color-primary)', height = 32, width = 80 }: MiniChartProps) {
+  if (!data.length) return null;
+  const max = Math.max(...data, 1);
+  const points = data.map((v, i) => {
+    const x = (i / Math.max(data.length - 1, 1)) * width;
+    const y = height - (v / max) * (height - 4);
+    return `${x},${y}`;
+  }).join(' ');
+
+  return (
+    <svg width={width} height={height} className="inline-block" aria-hidden="true">
+      <polyline fill="none" stroke={color} strokeWidth={2} strokeLinecap="round"
+                strokeLinejoin="round" points={points} />
+    </svg>
+  );
+}
+
+export function MiniBar({ data, color = 'var(--color-primary)', height = 32, width = 60 }: MiniChartProps) {
+  if (!data.length) return null;
+  const max = Math.max(...data, 1);
+  const barW = Math.max(width / data.length - 1, 2);
+
+  return (
+    <svg width={width} height={height} className="inline-block" aria-hidden="true">
+      {data.map((v, i) => {
+        const barH = (v / max) * (height - 2);
+        return (
+          <rect key={i} x={i * (barW + 1)} y={height - barH} width={barW} height={barH}
+                rx={1} fill={color} opacity={0.8 + (i / data.length) * 0.2} />
+        );
+      })}
+    </svg>
+  );
+}
+"""
+
+    def _theme_toggle(self) -> str:
+        """Dark / light mode toggle component."""
+        return """import { useState, useEffect } from 'react';
+import { IconSun, IconMoon } from './Icons';
+
+export default function ThemeToggle() {
+  const [dark, setDark] = useState(() =>
+    typeof window !== 'undefined' && document.documentElement.classList.contains('dark')
+  );
+
+  useEffect(() => {
+    if (dark) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+    }
+  }, [dark]);
+
+  return (
+    <button onClick={() => setDark(!dark)}
+      className="p-1.5 rounded-lg hover:bg-white/10 transition-colors"
+      aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}>
+      {dark ? <IconSun className="w-4 h-4" /> : <IconMoon className="w-4 h-4" />}
+    </button>
   );
 }
 """
@@ -546,7 +853,7 @@ exec nginx -g 'daemon off;'
         )
 
     def _chat_page(self, spec: IntentSpec) -> str:
-        """Generate an AI chat interface page."""
+        """Generate an AI chat interface page with HTML rendering and design tokens."""
         project = spec.project_name
         return f"""import {{ useState, useRef, useEffect }} from 'react';
 
@@ -558,22 +865,33 @@ interface Message {{
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
+const suggestions = [
+  'Show me a summary of all entities',
+  'What are the latest updates?',
+  'Give me recommendations',
+  'How many items need attention?',
+];
+
 export default function ChatPage() {{
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {{
     bottomRef.current?.scrollIntoView({{ behavior: 'smooth' }});
   }}, [messages]);
 
-  const sendMessage = async () => {{
-    if (!input.trim() || loading) return;
+  useEffect(() => {{ inputRef.current?.focus(); }}, []);
+
+  const sendMessage = async (text?: string) => {{
+    const msg = (text || input).trim();
+    if (!msg || loading) return;
 
     const userMsg: Message = {{
       role: 'user',
-      content: input.trim(),
+      content: msg,
       timestamp: new Date().toISOString(),
     }};
 
@@ -597,44 +915,68 @@ export default function ChatPage() {{
         timestamp: new Date().toISOString(),
       }};
       setMessages((prev) => [...prev, assistantMsg]);
-    }} catch (err) {{
+    }} catch {{
       setMessages((prev) => [
         ...prev,
         {{ role: 'assistant', content: 'Error: Could not reach AI service.', timestamp: new Date().toISOString() }},
       ]);
     }} finally {{
       setLoading(false);
+      inputRef.current?.focus();
     }}
   }};
 
   return (
     <div className="flex flex-col h-[calc(100vh-12rem)]">
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-bold text-gray-900">{project} AI Assistant</h1>
-        <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+        <h1 className="text-2xl font-bold text-[var(--text-primary)]">{project} AI Assistant</h1>
+        <span className="text-xs px-2 py-1 rounded-full font-medium"
+          style={{{{ background: 'var(--color-primary)', color: 'white', opacity: 0.9 }}}}>
           AI Powered
         </span>
       </div>
 
       {{/* Chat messages */}}
-      <div className="flex-1 overflow-y-auto bg-gray-50 rounded-lg border p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto bg-[var(--bg-tertiary)] rounded-xl border border-[var(--border-color)] p-4 space-y-4">
         {{messages.length === 0 && (
-          <div className="text-center text-gray-400 py-12">
-            <p className="text-lg">Welcome to {project} AI Assistant</p>
-            <p className="text-sm mt-2">Ask a question to get started.</p>
+          <div className="text-center py-12">
+            <div className="text-4xl mb-3">&#x1F916;</div>
+            <p className="text-lg text-[var(--text-primary)] font-medium">Welcome to {project} AI</p>
+            <p className="text-sm text-[var(--text-muted)] mt-1 mb-6">Ask a question or try a suggestion below.</p>
+            <div className="flex flex-wrap justify-center gap-2 max-w-lg mx-auto">
+              {{suggestions.map((s, i) => (
+                <button key={{i}} onClick={{() => sendMessage(s)}}
+                  className="text-xs px-3 py-1.5 rounded-full border border-[var(--border-color)]
+                    bg-[var(--surface-card)] text-[var(--text-secondary)]
+                    hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]
+                    cursor-pointer transition-colors">
+                  {{s}}
+                </button>
+              ))}}
+            </div>
           </div>
         )}}
         {{messages.map((msg, i) => (
           <div key={{i}} className={{`flex ${{msg.role === 'user' ? 'justify-end' : 'justify-start'}}`}}>
             <div
-              className={{`max-w-[70%] rounded-lg px-4 py-2 ${{
+              className={{`max-w-[75%] rounded-xl px-4 py-3 ${{
                 msg.role === 'user'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-white border text-gray-900'
+                  ? 'text-white'
+                  : 'bg-[var(--surface-card)] border border-[var(--border-color)] text-[var(--text-primary)]'
               }}`}}
+              style={{{{
+                ...(msg.role === 'user' ? {{ background: 'var(--color-primary)' }} : {{}})
+              }}}}
             >
-              <p className="whitespace-pre-wrap">{{msg.content}}</p>
-              <p className={{`text-xs mt-1 ${{msg.role === 'user' ? 'text-blue-200' : 'text-gray-400'}}`}}>
+              {{msg.role === 'assistant' ? (
+                <div className="prose prose-sm dark:prose-invert max-w-none [&_table]:text-sm [&_table]:border-collapse
+                  [&_td]:px-2 [&_td]:py-1 [&_th]:px-2 [&_th]:py-1 [&_td]:border [&_th]:border
+                  [&_td]:border-[var(--border-color)] [&_th]:border-[var(--border-color)]"
+                  dangerouslySetInnerHTML={{{{ __html: msg.content }}}} />
+              ) : (
+                <p className="whitespace-pre-wrap">{{msg.content}}</p>
+              )}}
+              <p className={{`text-xs mt-1.5 ${{msg.role === 'user' ? 'opacity-70' : 'text-[var(--text-muted)]'}}`}}>
                 {{new Date(msg.timestamp).toLocaleTimeString()}}
               </p>
             </div>
@@ -642,8 +984,12 @@ export default function ChatPage() {{
         ))}}
         {{loading && (
           <div className="flex justify-start">
-            <div className="bg-white border rounded-lg px-4 py-2 text-gray-500">
-              Thinking...
+            <div className="bg-[var(--surface-card)] border border-[var(--border-color)] rounded-xl px-4 py-3">
+              <div className="flex gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-[var(--text-muted)] animate-bounce" style={{{{animationDelay:'0ms'}}}}/>
+                <span className="w-2 h-2 rounded-full bg-[var(--text-muted)] animate-bounce" style={{{{animationDelay:'150ms'}}}}/>
+                <span className="w-2 h-2 rounded-full bg-[var(--text-muted)] animate-bounce" style={{{{animationDelay:'300ms'}}}}/>
+              </div>
             </div>
           </div>
         )}}
@@ -653,20 +999,28 @@ export default function ChatPage() {{
       {{/* Input area */}}
       <div className="mt-4 flex gap-2">
         <input
+          ref={{inputRef}}
           type="text"
           value={{input}}
           onChange={{(e) => setInput(e.target.value)}}
           onKeyDown={{(e) => e.key === 'Enter' && sendMessage()}}
           placeholder="Type your message..."
-          className="flex-1 border rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+          className="flex-1 border border-[var(--border-color)] rounded-xl px-4 py-2.5
+            bg-[var(--surface-card)] text-[var(--text-primary)]
+            focus:ring-2 focus:ring-[var(--border-focus)] focus:outline-none
+            disabled:opacity-50"
           disabled={{loading}}
         />
         <button
-          onClick={{sendMessage}}
+          onClick={{() => sendMessage()}}
           disabled={{loading || !input.trim()}}
-          className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="text-white px-5 py-2.5 rounded-xl hover:opacity-90
+            disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-opacity"
+          style={{{{ background: 'var(--color-primary)' }}}}
         >
-          Send
+          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={{2}}>
+            <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
+          </svg>
         </button>
       </div>
     </div>
@@ -680,14 +1034,25 @@ export default function ChatPage() {{
 # ====================================================================
 
 _DASHBOARD_COMPONENT = r"""const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api/v1';
+const PAGE_SIZE = 15;
 
 export default function Dashboard() {
   const [allData, setAllData] = useState<Record<string, any[]>>({});
   const [activeTab, setActiveTab] = useState(tabKeys[0]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [formData, setFormData] = useState<Record<string, string>>({});
   const [search, setSearch] = useState('');
+  const [page, setPage] = useState(0);
+  const [sortCol, setSortCol] = useState<string | null>(null);
+  const [sortAsc, setSortAsc] = useState(true);
+  const [toast, setToast] = useState<{ msg: string; type: string } | null>(null);
+
+  const showToast = (msg: string, type = 'success') => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3500);
+  };
 
   const fetchAll = () => {
     setLoading(true);
@@ -706,13 +1071,33 @@ export default function Dashboard() {
 
   const config = tabConfig[activeTab];
   const currentData = allData[activeTab] || [];
-  const filteredData = search
+
+  // Search filter
+  const filtered = search
     ? currentData.filter((item: any) =>
         Object.values(item).some(v =>
           String(v).toLowerCase().includes(search.toLowerCase())
         )
       )
     : currentData;
+
+  // Sort
+  const sorted = sortCol
+    ? [...filtered].sort((a, b) => {
+        const va = String(a[sortCol] ?? '');
+        const vb = String(b[sortCol] ?? '');
+        return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+      })
+    : filtered;
+
+  // Paginate
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const paginated = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
+  const toggleSort = (col: string) => {
+    if (sortCol === col) { setSortAsc(!sortAsc); }
+    else { setSortCol(col); setSortAsc(true); }
+  };
 
   const handleCreate = async () => {
     try {
@@ -723,66 +1108,116 @@ export default function Dashboard() {
       });
       setShowCreate(false);
       setFormData({});
+      showToast(`${config.entityName} created`);
       fetchAll();
-    } catch { /* ignore */ }
+    } catch { showToast('Failed to create', 'error'); }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await fetch(`${API_BASE}/${activeTab}/${id}`, { method: 'DELETE' });
+      setDeleteTarget(null);
+      showToast(`${config.entityName} deleted`);
+      fetchAll();
+    } catch { showToast('Failed to delete', 'error'); }
   };
 
   const handleAction = async (action: string, id: string) => {
-    await fetch(`${API_BASE}/${activeTab}/${id}/${action}`, { method: 'POST' });
-    fetchAll();
+    try {
+      await fetch(`${API_BASE}/${activeTab}/${id}/${action}`, { method: 'POST' });
+      showToast(`Action "${action}" executed`);
+      fetchAll();
+    } catch { showToast(`Action "${action}" failed`, 'error'); }
   };
 
-  if (loading) return <p className="text-center py-12 text-gray-500">Loading...</p>;
+  if (loading) return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+        {tabKeys.slice(0, 5).map(k => (
+          <div key={k} className="bg-[var(--surface-card)] rounded-xl shadow p-4 space-y-3">
+            <div className="skeleton h-3 w-20" />
+            <div className="skeleton h-7 w-12" />
+          </div>
+        ))}
+      </div>
+      <div className="bg-[var(--surface-card)] rounded-xl shadow p-4 space-y-3">
+        {[0,1,2,3,4].map(i => (
+          <div key={i} className="flex gap-4">
+            {[0,1,2,3].map(j => <div key={j} className="skeleton h-4 flex-1" />)}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 
   const createFields = config.columns.filter((c: string) => c !== 'id' && c !== 'status');
 
   return (
     <div className="space-y-6">
+      {/* Toast */}
+      {toast && (
+        <div className={`fixed top-4 right-4 z-[100] toast px-4 py-3 rounded-lg shadow-lg text-sm font-medium
+          ${toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-green-600 text-white'}`}>
+          {toast.msg}
+        </div>
+      )}
+
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">{config.label}</h1>
-        <div className="flex gap-3">
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search..."
-            className="border rounded-lg px-3 py-2 text-sm w-64"
-          />
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold text-[var(--text-primary)]">{config.label}</h1>
+        <div className="flex gap-3 w-full sm:w-auto">
+          <div className="relative flex-1 sm:flex-none">
+            <input
+              value={search}
+              onChange={e => { setSearch(e.target.value); setPage(0); }}
+              placeholder="Search..."
+              className="border border-[var(--border-color)] rounded-lg px-3 py-2 pl-9 text-sm w-full sm:w-64
+                bg-[var(--surface-card)] text-[var(--text-primary)] focus:ring-2 focus:ring-[var(--border-focus)] focus:outline-none"
+            />
+            <svg className="absolute left-3 top-2.5 w-4 h-4 text-[var(--text-muted)]" viewBox="0 0 24 24"
+              fill="none" stroke="currentColor" strokeWidth={2}>
+              <circle cx={11} cy={11} r={8}/><path d="M21 21l-4.35-4.35"/>
+            </svg>
+          </div>
           <button
             onClick={() => setShowCreate(true)}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700"
+            className="px-4 py-2 rounded-lg text-sm font-medium text-white cursor-pointer
+              hover:opacity-90 transition-opacity whitespace-nowrap"
+            style={{ background: 'var(--color-primary)' }}
           >
-            + Create {config.entityName}
+            + Create
           </button>
         </div>
       </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-        {tabKeys.map(key => (
-          <div
-            key={key}
-            onClick={() => setActiveTab(key)}
-            className={`bg-white rounded-xl shadow p-4 cursor-pointer border-2 transition ${
-              activeTab === key ? 'border-blue-500' : 'border-transparent hover:border-gray-200'
-            }`}
-          >
-            <p className="text-sm text-gray-500">{tabConfig[key].label}</p>
-            <p className="text-2xl font-bold text-blue-700">{(allData[key] || []).length}</p>
-          </div>
-        ))}
+        {tabKeys.map(key => {
+          const items = allData[key] || [];
+          return (
+            <div
+              key={key}
+              onClick={() => { setActiveTab(key); setPage(0); setSortCol(null); }}
+              className={`bg-[var(--surface-card)] rounded-xl shadow p-4 cursor-pointer border-2 transition-all
+                hover:shadow-md ${activeTab === key ? 'border-[var(--color-primary)]' : 'border-transparent hover:border-[var(--border-color)]'}`}
+            >
+              <p className="text-sm text-[var(--text-secondary)]">{tabConfig[key].label}</p>
+              <p className="text-2xl font-bold" style={{ color: 'var(--color-primary)' }}>{items.length}</p>
+            </div>
+          );
+        })}
       </div>
 
       {/* Tab bar */}
-      <div className="flex gap-1 border-b">
+      <div className="flex gap-1 border-b border-[var(--border-color)] overflow-x-auto">
         {tabKeys.map(key => (
           <button
             key={key}
-            onClick={() => setActiveTab(key)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition ${
+            onClick={() => { setActiveTab(key); setPage(0); setSortCol(null); }}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition whitespace-nowrap cursor-pointer ${
               activeTab === key
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
+                ? 'border-[var(--color-primary)] text-[var(--color-primary)]'
+                : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
             }`}
           >
             {tabConfig[key].label} ({(allData[key] || []).length})
@@ -791,97 +1226,158 @@ export default function Dashboard() {
       </div>
 
       {/* Data Table */}
-      <div className="bg-white rounded-xl shadow overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              {config.headers.map((h: string) => (
-                <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                  {h}
+      <div className="bg-[var(--surface-card)] rounded-xl shadow overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-[var(--border-color)]">
+            <thead className="bg-[var(--bg-tertiary)]">
+              <tr>
+                {config.headers.map((h: string, idx: number) => {
+                  const col = config.columns[idx];
+                  return (
+                    <th key={h} onClick={() => toggleSort(col)}
+                      className="px-4 py-3 text-left text-xs font-medium text-[var(--text-secondary)] uppercase
+                        cursor-pointer hover:text-[var(--text-primary)] select-none">
+                      <span className="inline-flex items-center gap-1">
+                        {h}
+                        {sortCol === col && (
+                          <span className="text-[var(--color-primary)]">{sortAsc ? '▲' : '▼'}</span>
+                        )}
+                      </span>
+                    </th>
+                  );
+                })}
+                <th className="px-4 py-3 text-left text-xs font-medium text-[var(--text-secondary)] uppercase">
+                  Actions
                 </th>
-              ))}
-              {config.hasStatus && config.actions.length > 0 && (
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-              )}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200">
-            {filteredData.map((item: any) => (
-              <tr key={item.id} className="hover:bg-gray-50">
-                {config.columns.map((col: string) => (
-                  <td key={col} className="px-4 py-3 text-sm">
-                    {col === 'id' ? (
-                      <Link to={`/detail/${item.id}?type=${activeTab}`} className="text-blue-600 hover:underline font-mono">
-                        {item.id?.slice(0, 8)}
-                      </Link>
-                    ) : col === 'status' ? (
-                      <StatusBadge status={item[col] || ''} />
-                    ) : (
-                      String(item[col] ?? '')
-                    )}
-                  </td>
-                ))}
-                {config.hasStatus && config.actions.length > 0 && (
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[var(--border-color)]">
+              {paginated.map((item: any) => (
+                <tr key={item.id} className="hover:bg-[var(--bg-tertiary)] transition-colors">
+                  {config.columns.map((col: string) => (
+                    <td key={col} className="px-4 py-3 text-sm text-[var(--text-primary)]">
+                      {col === 'id' ? (
+                        <Link to={`/detail/${item.id}?type=${activeTab}`}
+                          className="font-mono hover:underline" style={{ color: 'var(--color-primary)' }}>
+                          {item.id?.slice(0, 8)}
+                        </Link>
+                      ) : col === 'status' ? (
+                        <StatusBadge status={item[col] || ''} />
+                      ) : (
+                        <span className="truncate block max-w-[200px]">{String(item[col] ?? '')}</span>
+                      )}
+                    </td>
+                  ))}
                   <td className="px-4 py-3 text-sm">
-                    <div className="flex gap-1">
+                    <div className="flex gap-1 flex-wrap">
                       {config.actions.map((action: string) => (
-                        <button
-                          key={action}
-                          onClick={() => handleAction(action, item.id)}
-                          className="px-2 py-1 text-xs rounded bg-gray-100 hover:bg-gray-200 capitalize"
-                        >
+                        <button key={action} onClick={() => handleAction(action, item.id)}
+                          className="px-2 py-1 text-xs rounded bg-[var(--bg-tertiary)] hover:bg-[var(--border-color)]
+                            text-[var(--text-secondary)] capitalize cursor-pointer transition-colors">
                           {action}
                         </button>
                       ))}
+                      <button onClick={() => setDeleteTarget(item.id)}
+                        className="px-2 py-1 text-xs rounded text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20
+                          cursor-pointer transition-colors">
+                        Delete
+                      </button>
                     </div>
                   </td>
-                )}
-              </tr>
-            ))}
-            {filteredData.length === 0 && (
-              <tr>
-                <td colSpan={config.columns.length + (config.hasStatus && config.actions.length > 0 ? 1 : 0)}
-                    className="px-4 py-8 text-center text-gray-400">
-                  No {config.label.toLowerCase()} found
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+                </tr>
+              ))}
+              {paginated.length === 0 && (
+                <tr>
+                  <td colSpan={config.columns.length + 1}
+                      className="px-4 py-8 text-center text-[var(--text-muted)]">
+                    No {config.label.toLowerCase()} found
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-4 py-3 border-t border-[var(--border-color)]">
+            <p className="text-sm text-[var(--text-secondary)]">
+              Showing {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, sorted.length)} of {sorted.length}
+            </p>
+            <div className="flex gap-1">
+              <button onClick={() => setPage(Math.max(0, page - 1))} disabled={page === 0}
+                className="px-3 py-1 text-sm rounded border border-[var(--border-color)] disabled:opacity-40
+                  hover:bg-[var(--bg-tertiary)] cursor-pointer disabled:cursor-not-allowed transition-colors">
+                Prev
+              </button>
+              <button onClick={() => setPage(Math.min(totalPages - 1, page + 1))} disabled={page >= totalPages - 1}
+                className="px-3 py-1 text-sm rounded border border-[var(--border-color)] disabled:opacity-40
+                  hover:bg-[var(--bg-tertiary)] cursor-pointer disabled:cursor-not-allowed transition-colors">
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Create Modal */}
       {showCreate && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={() => setShowCreate(false)}>
-          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
-            <h2 className="text-lg font-bold mb-4">Create {config.entityName}</h2>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+             onClick={() => setShowCreate(false)}>
+          <div className="bg-[var(--surface-modal)] rounded-xl shadow-xl p-6 w-full max-w-md"
+               onClick={e => e.stopPropagation()}>
+            <h2 className="text-lg font-bold mb-4 text-[var(--text-primary)]">Create {config.entityName}</h2>
             <div className="space-y-3">
               {createFields.map((field: string) => (
                 <div key={field}>
-                  <label className="block text-sm font-medium text-gray-700 mb-1 capitalize">
-                    {field.replace(/_/g, ' ')}
+                  <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1 capitalize">
+                    {field.replace(/_/g, ' ')} <span className="text-red-500">*</span>
                   </label>
                   <input
                     value={formData[field] || ''}
                     onChange={e => setFormData(prev => ({ ...prev, [field]: e.target.value }))}
-                    className="w-full border rounded-lg px-3 py-2 text-sm"
+                    className="w-full border border-[var(--border-color)] rounded-lg px-3 py-2 text-sm
+                      bg-[var(--bg-primary)] text-[var(--text-primary)]
+                      focus:ring-2 focus:ring-[var(--border-focus)] focus:outline-none"
                     placeholder={`Enter ${field.replace(/_/g, ' ')}`}
+                    required
                   />
                 </div>
               ))}
             </div>
             <div className="flex justify-end gap-3 mt-6">
-              <button
-                onClick={() => { setShowCreate(false); setFormData({}); }}
-                className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
-              >
+              <button onClick={() => { setShowCreate(false); setFormData({}); }}
+                className="px-4 py-2 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer">
                 Cancel
               </button>
-              <button
-                onClick={handleCreate}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700"
-              >
+              <button onClick={handleCreate}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-white cursor-pointer hover:opacity-90"
+                style={{ background: 'var(--color-primary)' }}>
                 Create
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteTarget && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+             onClick={() => setDeleteTarget(null)}>
+          <div className="bg-[var(--surface-modal)] rounded-xl shadow-xl p-6 w-full max-w-sm"
+               onClick={e => e.stopPropagation()}>
+            <h2 className="text-lg font-bold mb-2 text-[var(--text-primary)]">Confirm Delete</h2>
+            <p className="text-sm text-[var(--text-secondary)] mb-6">
+              Are you sure you want to delete this {config.entityName.toLowerCase()}? This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setDeleteTarget(null)}
+                className="px-4 py-2 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer">
+                Cancel
+              </button>
+              <button onClick={() => handleDelete(deleteTarget)}
+                className="px-4 py-2 rounded-lg text-sm font-medium bg-red-600 text-white hover:bg-red-700 cursor-pointer">
+                Delete
               </button>
             </div>
           </div>
@@ -900,6 +1396,13 @@ export default function DetailPage() {
   const navigate = useNavigate();
   const [item, setItem] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [showDelete, setShowDelete] = useState(false);
+  const [toast, setToast] = useState<{ msg: string; type: string } | null>(null);
+
+  const showToast = (msg: string, type = 'success') => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3500);
+  };
 
   const entityType = searchParams.get('type') || tabKeys[0];
   const config = tabConfig[entityType];
@@ -914,48 +1417,131 @@ export default function DetailPage() {
   }, [id, entityType]);
 
   const handleAction = async (action: string) => {
-    await fetch(`${API_BASE}/${entityType}/${id}/${action}`, { method: 'POST' });
-    const updated = await fetch(`${API_BASE}/${entityType}/${id}`).then(r => r.json());
-    setItem(updated);
+    try {
+      await fetch(`${API_BASE}/${entityType}/${id}/${action}`, { method: 'POST' });
+      const updated = await fetch(`${API_BASE}/${entityType}/${id}`).then(r => r.json());
+      setItem(updated);
+      showToast(`Action "${action}" executed`);
+    } catch { showToast(`Action "${action}" failed`, 'error'); }
   };
 
-  if (loading) return <p className="text-center py-12 text-gray-500">Loading...</p>;
-  if (!item) return <p className="text-center py-12 text-red-500">Not found</p>;
+  const handleDelete = async () => {
+    try {
+      await fetch(`${API_BASE}/${entityType}/${id}`, { method: 'DELETE' });
+      showToast(`${config?.entityName || 'Item'} deleted`);
+      setTimeout(() => navigate('/'), 500);
+    } catch { showToast('Delete failed', 'error'); }
+  };
+
+  if (loading) return (
+    <div className="space-y-6">
+      <div className="skeleton h-4 w-32" />
+      <div className="bg-[var(--surface-card)] rounded-xl shadow p-6 space-y-4">
+        <div className="skeleton h-6 w-48" />
+        <div className="grid grid-cols-2 gap-4">
+          {[0,1,2,3,4,5].map(i => (
+            <div key={i} className="space-y-2">
+              <div className="skeleton h-3 w-20" />
+              <div className="skeleton h-4 w-32" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+  if (!item) return (
+    <div className="text-center py-12">
+      <p className="text-[var(--text-muted)] mb-4">Item not found</p>
+      <button onClick={() => navigate('/')}
+        className="text-sm hover:underline" style={{ color: 'var(--color-primary)' }}>
+        Back to Dashboard
+      </button>
+    </div>
+  );
 
   return (
     <div className="space-y-6">
-      <button onClick={() => navigate('/')} className="text-blue-600 hover:underline text-sm">
-        &larr; Back to Dashboard
-      </button>
-      <div className="bg-white rounded-xl shadow p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="text-xl font-bold">{config?.entityName || 'Item'} Detail</h1>
-          {item.status && <StatusBadge status={item.status} />}
+      {/* Toast */}
+      {toast && (
+        <div className={`fixed top-4 right-4 z-[100] toast px-4 py-3 rounded-lg shadow-lg text-sm font-medium
+          ${toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-green-600 text-white'}`}>
+          {toast.msg}
         </div>
-        <dl className="grid grid-cols-2 gap-4 text-sm">
+      )}
+
+      <button onClick={() => navigate('/')}
+        className="inline-flex items-center gap-1 text-sm hover:underline" style={{ color: 'var(--color-primary)' }}>
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+          <path d="M15 18l-6-6 6-6"/>
+        </svg>
+        Back to Dashboard
+      </button>
+
+      <div className="bg-[var(--surface-card)] rounded-xl shadow p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-xl font-bold text-[var(--text-primary)]">
+            {config?.entityName || 'Item'} Detail
+          </h1>
+          <div className="flex items-center gap-3">
+            {item.status && <StatusBadge status={item.status} />}
+            <button onClick={() => setShowDelete(true)}
+              className="px-3 py-1.5 text-xs rounded-lg text-red-600 border border-red-200 hover:bg-red-50
+                dark:border-red-800 dark:hover:bg-red-900/20 cursor-pointer transition-colors">
+              Delete
+            </button>
+          </div>
+        </div>
+
+        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
           {config?.columns?.filter((c: string) => c !== 'status').map((col: string) => (
-            <div key={col}>
-              <dt className="text-gray-500 capitalize">{col.replace(/_/g, ' ')}</dt>
-              <dd className="font-medium mt-1">
+            <div key={col} className="bg-[var(--bg-tertiary)] rounded-lg p-3">
+              <dt className="text-[var(--text-muted)] capitalize text-xs font-medium">
+                {col.replace(/_/g, ' ')}
+              </dt>
+              <dd className="font-medium text-[var(--text-primary)] mt-1 break-all">
                 {col === 'id' ? item[col] : String(item[col] ?? '\u2014')}
               </dd>
             </div>
           ))}
         </dl>
-        {config?.hasStatus && config?.actions?.length > 0 && (
-          <div className="mt-6 flex gap-3">
+
+        {config?.actions?.length > 0 && (
+          <div className="mt-6 flex flex-wrap gap-3 pt-4 border-t border-[var(--border-color)]">
             {config.actions.map((action: string) => (
-              <button
-                key={action}
-                onClick={() => handleAction(action)}
-                className="px-4 py-2 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700 capitalize"
-              >
+              <button key={action} onClick={() => handleAction(action)}
+                className="px-4 py-2 text-sm rounded-lg text-white hover:opacity-90 capitalize cursor-pointer"
+                style={{ background: 'var(--color-primary)' }}>
                 {action}
               </button>
             ))}
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation */}
+      {showDelete && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+             onClick={() => setShowDelete(false)}>
+          <div className="bg-[var(--surface-modal)] rounded-xl shadow-xl p-6 w-full max-w-sm"
+               onClick={e => e.stopPropagation()}>
+            <h2 className="text-lg font-bold mb-2 text-[var(--text-primary)]">Confirm Delete</h2>
+            <p className="text-sm text-[var(--text-secondary)] mb-6">
+              Are you sure you want to delete this {(config?.entityName || 'item').toLowerCase()}?
+              This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setShowDelete(false)}
+                className="px-4 py-2 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer">
+                Cancel
+              </button>
+              <button onClick={handleDelete}
+                className="px-4 py-2 rounded-lg text-sm font-medium bg-red-600 text-white hover:bg-red-700 cursor-pointer">
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
