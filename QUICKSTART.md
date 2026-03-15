@@ -114,11 +114,16 @@ Open `http://127.0.0.1:8000` in your browser. The dashboard is fully interactive
 
 | Action | How |
 |--------|-----|
-| **View data** | Entity tabs show pre-seeded domain-aware data |
-| **Create record** | Click "+" button, fill the modal form, submit |
+| **Summary bar** | Total records, active count, entity count, items needing attention |
+| **Entity KPI cards** | Donut charts showing status distribution per entity |
+| **View data** | Smart tables with 5-7 key columns and type-aware rendering (badges, dates, progress bars) |
+| **Filter by status** | Click status filter pills above the table |
+| **Create record** | Click "+" button, fill the type-aware modal form (date pickers, number inputs, textareas) |
 | **Update status** | Click a row, use action buttons (dispatch, approve, verify) |
-| **Delete record** | Click a row, press Delete |
+| **Delete record** | Click a row, press Delete with confirmation modal |
+| **Export CSV** | Click the download icon to export entity data |
 | **Search** | Type in the search box above each table |
+| **Detail page** | Click any row — grouped field sections with breadcrumb navigation |
 | **Health check** | Green dot in header = server healthy |
 
 > **No database or Azure resources required.** Local mode uses in-memory storage
@@ -167,7 +172,10 @@ The [`examples/`](examples/) folder includes additional intent files:
 devex scaffold --file examples/contract-review-intent.md -o ./contract-review
 devex scaffold --file examples/doc-intelligence-intent.md -o ./doc-intelligence
 devex scaffold --file examples/propane-delivery-intent.md -o ./propane-delivery
+devex scaffold --file examples/metro-command-intent.md -o ./metro-command-output
 ```
+
+The Metro Command intent (`metro-command-intent.md`) is the recommended showcase example — 14 entities, all 6 data stores, 8 AI agents, and demonstrates the full production dashboard with donut charts, type-aware rendering, and grouped detail pages.
 
 Each generates a full scaffold with CI/CD workflows ready to push and deploy. The orchestrator uses semantic extraction to discover entities and endpoints from any business domain -- no hardcoded templates.
 

@@ -36,8 +36,8 @@ devex scaffold --file intent.md -o ./smart-city-output
 |-------|-------------------|-----------------|
 | **Infrastructure** | 10 Azure Bicep modules, parameterized per environment | Azure CAF naming, 12 enterprise tags |
 | **Backend API** | FastAPI with CRUD endpoints, Pydantic schemas, repository pattern | Managed Identity, Key Vault, non-root containers |
-| **Interactive Dashboard** | Entity-driven UI with create, update, delete, search, health monitoring | Domain-aware seed data, live status indicators |
-| **React Frontend** | TypeScript SPA with API client, entity dashboards, detail pages | Azure-compatible Dockerfile, configurable backend URL |
+| **Interactive Dashboard** | Production-grade UI with donut charts, type-aware rendering, column intelligence, status filters, CSV export | Domain-aware seed data, live status indicators |
+| **React Frontend** | TypeScript SPA with smart column selection, donut charts, progress bars, grouped detail pages | Azure-compatible Dockerfile, configurable backend URL |
 | **CI/CD** | 4 GitHub Actions workflows (validate, deploy, CodeQL, Dependabot) | OIDC auth -- zero stored credentials |
 | **Tests** | 5 auto-generated pytest files per scaffold | Health, API, security, config, storage tests |
 | **Governance** | 25-policy validation + STRIDE threat model | Automated compliance evidence |
@@ -59,7 +59,7 @@ The orchestrator is built on **GitHub Copilot SDK** as its default AI backbone -
 Most code generators produce **stubs**. This orchestrator produces **working applications**:
 
 - **Semantic, not keyword-based** -- A 5-phase NLP pipeline (section-header analysis, noun-phrase extraction, business-object pattern matching, merge/rank, EntitySpec building) reads your intent and discovers domain entities, infers field types, and generates appropriate API routes. Handles up to **20 entities** with **25 fields each**, safe singular/plural normalization (preserves "status", "address", "class"), multi-parameter endpoint paths, 10+ field type aliases (string→str, integer→int, boolean→bool, timestamp→datetime), and 45 heading name aliases for flexible intent file formatting. Write about *propane delivery* and get `Tank`, `Delivery`, `Route` entities with `serial_number`, `capacity`, `level` fields. Write about *pet adoption* and get `Animal`, `Application`, `FosterHome` with `breed`, `age`, `medical_status`.
-- **Interactive dashboards** -- Every scaffold includes a fully functional dashboard where you can create records, update statuses via action buttons, search, and monitor health -- not a static landing page.
+- **Production-grade dashboards** -- Every scaffold includes a production dashboard with donut charts for status distribution, type-aware cell rendering (badges, dates, progress bars, currency, URLs), smart column selection (5-7 key columns per entity, not all 18-20), status filter pills, CSV export, grouped detail pages with breadcrumb navigation, and a pretty project display name -- not a static landing page.
 - **Smart AI chatbot** -- 11 intent handlers (greeting, help, temporal, cross-entity comparison, recommendation, count, analytics, list, filter, action, status) with HTML-formatted responses, stat cards, bar charts, and data-driven suggestions. Works without any AI provider -- pure Python analysis on 12 realistic seed records per entity.
 - **Domain-aware seed data** -- 12 records per entity with contextually appropriate values from 15+ realistic name pools. Smart city sensors get GPS coordinates and zone IDs, not "item-001".
 - **Enterprise governance by default** -- 25 policies validated automatically. No scaffold ships without passing governance.
@@ -118,7 +118,7 @@ pip install -e ".[dev]"
 ```powershell
 devex --help
 devex version         # Shows: GitHub Copilot SDK (default provider)
-pytest tests/ -v      # 609 tests
+pytest tests/ -v      # 636 tests
 ```
 
 ---
@@ -202,8 +202,9 @@ The same engine generates production scaffolds for **any business domain** -- no
 | AI customer support chatbot | ChatSession, KnowledgeArticle | CRUD + chat, RAG | AI Search |
 | Agentic document processor | Document, Task, Agent | CRUD + analyze, dispatch | Blob, AI Search |
 | Extreme stress test (15 entities) | Patient, Claim, Provider, Appointment + 11 more | 100+ endpoints with multi-param paths | All 6 data stores |
+| Metro Command (14 entities) | Incident, Asset, Sensor, Vehicle, Zone + 9 more | 100+ endpoints with 8 AI agents | All 6 data stores |
 
-**Every scaffold gets the same enterprise treatment**: Bicep IaC, CI/CD, governance, WAF assessment, interactive dashboard, tests, and documentation.
+**Every scaffold gets the same enterprise treatment**: Bicep IaC, CI/CD, governance, WAF assessment, production dashboard with donut charts, tests, and documentation.
 
 ## Example Intent Files
 
@@ -217,6 +218,7 @@ Ready-to-run examples are in [`examples/`](examples/):
 | [`doc-intelligence-intent.md`](examples/doc-intelligence-intent.md) | Document processing service |
 | [`propane-delivery-intent.md`](examples/propane-delivery-intent.md) | Propane delivery logistics |
 | [`smart-city-intent.md`](examples/smart-city-intent.md) | Smart city operations (stress test — 6 data stores, 9 entities, 10 Bicep modules) |
+| [`metro-command-intent.md`](examples/metro-command-intent.md) | Metro Command AI operations (14 entities, all 6 data stores, 8 AI agents, production UI showcase) |
 | [`extreme-healthcare-intent.md`](examples/extreme-healthcare-intent.md) | Extreme stress test — 15 entities, 25 fields/entity, all 6 data stores, multi-param endpoints |
 
 See [`examples/README.md`](examples/README.md) for details on each example.
@@ -302,6 +304,7 @@ Each agent has a distinct role, instruction set, and tool access. See [`AGENTS.m
 | Voice Agent | 5 Bicep modules | 76 files | ~10 seconds |
 | Contract Review | 6 Bicep modules, Blob + Cosmos | 77 files | ~5 seconds |
 | Smart City (stress test) | 10 Bicep modules, 6 data stores, 9 entities | 86+ files | ~5 seconds |
+| Metro Command (showcase) | 10 Bicep modules, 6 data stores, 14 entities | 91+ files | ~5 seconds |
 
 **What those seconds replace:**
 
@@ -362,7 +365,7 @@ src/orchestrator/
   standards/              # NamingEngine, TaggingEngine, WAFAssessor
   tools/                  # Azure validation, governance policies, template rendering
 
-tests/                    # Framework test suite (16 files, 609 tests)
+tests/                    # Framework test suite (16 files, 636 tests)
 examples/                 # Example intent files
 docs/                     # Framework documentation
 standards.yaml            # Enterprise standards configuration
@@ -429,9 +432,15 @@ uvicorn main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
 Open `http://127.0.0.1:8000`. The dashboard is fully interactive:
-- **Create** records via modal forms with type-aware inputs
+- **Summary bar** with total records, active count, entity count, and items needing attention
+- **Entity KPI cards** with donut charts showing status distribution per entity
+- **Smart tables** with 5-7 key columns (not all 18-20), type-aware rendering (badges, dates, progress bars, currency, URLs)
+- **Status filter pills** for quick filtering by status value
+- **Create** records via type-aware modal forms (date pickers, number inputs, email fields, textareas)
 - **Update** status via workflow action buttons (dispatch, approve, verify)
-- **Delete** records from detail view
+- **Delete** records with centered confirmation modal
+- **CSV export** for any entity table
+- **Grouped detail pages** with breadcrumb navigation and field sections (General, Metrics, Location, AI, References, Dates)
 - **Search** and filter across all entity types
 - **Monitor** health with live status indicator and auto-refresh
 
@@ -529,6 +538,28 @@ Extension points:
 ---
 
 ## Changelog
+
+### v2.0.0
+
+- **Feature**: Production-grade dashboard UI overhaul
+  - **Column intelligence** — Smart selection of 5-7 key columns per entity (priority-based), instead of dumping all 18-20 fields
+  - **DonutChart** — SVG donut charts on entity KPI cards showing actual status distribution (active, pending, resolved, etc.)
+  - **ProgressBar** — Horizontal progress bar for percentage/score fields, color-coded (green >80%, yellow >40%, red below)
+  - **Type-aware cell rendering** (`RenderCell`) — badges for status, formatted dates, boolean icons, progress bars for percentages, currency formatting, external link icons for URLs, mailto for emails, locale-formatted numbers, truncated mono for ID refs
+  - **Status filter pills** — Dynamic filter pills from unique status values per entity
+  - **Summary metrics bar** — Total records, active items, entity count, items needing attention
+  - **CSV export** — Export any entity table as CSV
+  - **Type-aware create modal** — Date pickers, number inputs, email fields, URL fields, textareas for descriptions, boolean selects
+  - **Grouped detail pages** — Fields organized into logical sections (General, Metrics & Costs, Location, AI & Intelligence, References, Dates & Timestamps)
+  - **Breadcrumb navigation** — Dashboard > Entity > Item name
+  - **Pretty project name** — Display name derived from project slug (no more raw kebab-case in header/footer)
+  - **Better delete modals** — Centered with red trash icon, backdrop blur
+  - **Actions hidden until row hover** — Cleaner table appearance
+  - **Enhanced pagination** — First/Prev/Page X of Y/Next/Last buttons
+  - **Loading skeletons** — Skeleton components used in detail page loading state
+  - 8 new icons: Filter, Download, Check, Clock, ExternalLink, Activity, Eye, BarChart
+- **Feature**: Metro Command example intent (`examples/metro-command-intent.md`) — 14 entities, all 6 data stores, 8 AI agents, production dashboard showcase
+- **Tests**: 636 tests passing (up from 609)
 
 ### v1.9.0
 
@@ -655,7 +686,7 @@ MIT
 
 ---
 
-*Enterprise DevEx Orchestrator v1.7.0*
+*Enterprise DevEx Orchestrator v2.0.0*
 
 
 

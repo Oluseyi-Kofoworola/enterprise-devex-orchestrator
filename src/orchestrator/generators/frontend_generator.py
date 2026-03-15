@@ -67,6 +67,100 @@ def _ts_type(python_type: str) -> str:
     return _TS_TYPE_MAP.get(python_type, "string")
 
 
+# -- Column intelligence for smart dashboard rendering ----------------
+
+_PRIORITY_NAMES = [
+    'name', 'title', 'username', 'display_name', 'label',
+    'status', 'severity', 'priority',
+    'type', 'category', 'role', 'channel', 'route_type',
+    'zone_type', 'asset_type', 'vehicle_type', 'sensor_type',
+    'work_type', 'notification_type', 'query_type', 'event_type',
+    'email', 'department',
+]
+
+_SKIP_DISPLAY = {
+    'latitude', 'longitude', 'created_at', 'updated_at', 'created_by',
+    'correlation_id', 'session_id', 'ip_address', 'vin_number',
+    'firmware_version', 'calibration_date', 'protocol',
+    'ai_triage_notes', 'ai_justification', 'ai_optimization_notes',
+    'ai_trend_summary', 'ai_suggested_resolution', 'resolution_notes',
+    'completion_notes', 'audio_transcript', 'last_message_preview',
+    'prompt_text', 'completion_text', 'response_text', 'query_text',
+    'sensor_ids', 'zone_ids', 'emergency_contacts', 'assigned_zones',
+    'notification_preferences', 'content_safety_categories',
+    'domain_entities_referenced', 'feedback_comment',
+}
+
+
+def _detect_field_type(name: str, python_type: str) -> str:
+    """Detect rendering hint for a field."""
+    if name in ('status', 'priority', 'severity'):
+        return 'badge'
+    if name.endswith('_id') and name != 'id':
+        return 'id_ref'
+    if name.endswith('_url') or name == 'action_url':
+        return 'url'
+    if name.endswith('_date') or name.endswith('_at') or name in (
+        'install_date', 'scheduled_date',
+    ):
+        return 'date'
+    if any(name.endswith(s) for s in (
+        '_pct', '_score', '_level', '_percentage', '_index',
+    )):
+        return 'pct'
+    if any(name.endswith(s) for s in (
+        '_cost', '_revenue', '_price', '_budget', '_damage',
+    )):
+        return 'currency'
+    if python_type == 'bool':
+        return 'bool'
+    if name == 'email' or name.endswith('_email'):
+        return 'email'
+    if name in ('latitude', 'longitude'):
+        return 'latlng'
+    if python_type in ('int', 'float') and not name.endswith('_id'):
+        return 'number'
+    return 'text'
+
+
+def _select_display_columns(
+    columns: list[str],
+    field_types: dict[str, str],
+) -> list[str]:
+    """Select 5-7 key columns for table display."""
+    display = ['id']
+    remaining = [c for c in columns if c != 'id']
+
+    # Phase 1: priority fields in order of importance
+    for pname in _PRIORITY_NAMES:
+        if pname in remaining and pname not in _SKIP_DISPLAY and len(display) < 7:
+            display.append(pname)
+            remaining.remove(pname)
+
+    # Phase 2: fill with remaining visible fields
+    for col in remaining:
+        if len(display) >= 7:
+            break
+        if col not in _SKIP_DISPLAY and field_types.get(col) not in ('latlng',):
+            display.append(col)
+
+    return display
+
+
+def _pretty_name(slug: str) -> str:
+    """Convert kebab-case project slug to display name."""
+    # Remove common suffixes
+    clean = slug
+    for suffix in ('-dev', '-staging', '-prod', '-output'):
+        if clean.endswith(suffix):
+            clean = clean[: -len(suffix)]
+    # Truncate overly long names (from intent descriptions)
+    parts = clean.split('-')
+    if len(parts) > 5:
+        parts = parts[:5]
+    return ' '.join(p.capitalize() for p in parts)
+
+
 class FrontendGenerator:
     """Generates a React + Vite + TypeScript SPA frontend."""
 
@@ -329,6 +423,7 @@ export const api = {{
         return base
 
     def _layout(self, project: str, spec: IntentSpec | None = None) -> str:
+        display = _pretty_name(project)
         chat_link = ''
         chat_mobile = ''
         if spec and spec.uses_ai:
@@ -349,7 +444,7 @@ export default function Layout({{ children }}: {{ children: ReactNode }}) {{
       <header style={{{{ background: 'var(--gradient-header)' }}}} className="text-white shadow-lg">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <Link to="/" className="text-xl font-bold tracking-tight hover:opacity-90 font-[var(--font-heading)]">
-            {project}
+            {display}
           </Link>
 
           {{/* Desktop nav */}}
@@ -380,7 +475,7 @@ export default function Layout({{ children }}: {{ children: ReactNode }}) {{
       </main>
 
       <footer className="bg-[var(--bg-tertiary)] border-t border-[var(--border-color)] text-center text-xs text-[var(--text-muted)] py-3">
-        {project} &mdash; Enterprise DevEx Orchestrator
+        {display} &mdash; Enterprise DevEx Orchestrator
       </footer>
     </div>
   );
@@ -464,6 +559,22 @@ export const IconSend = (p: React.SVGProps<SVGSVGElement>) =>
   <I d="M22 2L11 13|M22 2l-7 20-4-9-9-4z" {...p} />;
 export const IconAlert = (p: React.SVGProps<SVGSVGElement>) =>
   <I d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z|M12 9v4|M12 17h.01" {...p} />;
+export const IconFilter = (p: React.SVGProps<SVGSVGElement>) =>
+  <I d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" {...p} />;
+export const IconDownload = (p: React.SVGProps<SVGSVGElement>) =>
+  <I d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4|M7 10l5 5 5-5|M12 15V3" {...p} />;
+export const IconCheck = (p: React.SVGProps<SVGSVGElement>) =>
+  <I d="M20 6L9 17l-5-5" {...p} />;
+export const IconClock = (p: React.SVGProps<SVGSVGElement>) =>
+  <I d="M12 2a10 10 0 100 20 10 10 0 000-20z|M12 6v6l4 2" {...p} />;
+export const IconExternalLink = (p: React.SVGProps<SVGSVGElement>) =>
+  <I d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6|M15 3h6v6|M10 14L21 3" {...p} />;
+export const IconActivity = (p: React.SVGProps<SVGSVGElement>) =>
+  <I d="M22 12h-4l-3 9L9 3l-3 9H2" {...p} />;
+export const IconEye = (p: React.SVGProps<SVGSVGElement>) =>
+  <I d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" {...p} />;
+export const IconBarChart = (p: React.SVGProps<SVGSVGElement>) =>
+  <I d="M12 20V10|M18 20V4|M6 20v-4" {...p} />;
 """
 
     def _skeleton(self) -> str:
@@ -578,7 +689,7 @@ export default class ErrorBoundary extends Component<Props, State> {
 """
 
     def _mini_chart(self) -> str:
-        """SVG mini chart / sparkline component for KPI cards."""
+        """SVG mini chart / sparkline / donut components for dashboard."""
         return """interface MiniChartProps {
   data: number[];
   color?: string;
@@ -618,6 +729,61 @@ export function MiniBar({ data, color = 'var(--color-primary)', height = 32, wid
         );
       })}
     </svg>
+  );
+}
+
+const DONUT_COLORS = [
+  'var(--chart-1, #22c55e)', 'var(--chart-2, #3b82f6)', 'var(--chart-3, #f59e0b)',
+  'var(--chart-4, #ef4444)', 'var(--chart-5, #8b5cf6)', 'var(--chart-6, #06b6d4)',
+  'var(--chart-7, #ec4899)', 'var(--chart-8, #6b7280)',
+];
+
+interface DonutProps {
+  segments: { label: string; value: number }[];
+  size?: number;
+}
+
+export function DonutChart({ segments, size = 64 }: DonutProps) {
+  const total = segments.reduce((s, seg) => s + seg.value, 0);
+  if (!total) return null;
+  const r = (size - 8) / 2;
+  const cx = size / 2;
+  const cy = size / 2;
+  const circumference = 2 * Math.PI * r;
+  let offset = 0;
+
+  return (
+    <div className="relative inline-flex items-center justify-center" style={{ width: size, height: size }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="transform -rotate-90">
+        {segments.map((seg, i) => {
+          const pct = seg.value / total;
+          const dash = pct * circumference;
+          const gap = circumference - dash;
+          const el = (
+            <circle key={i} cx={cx} cy={cy} r={r} fill="none" strokeWidth={6}
+              stroke={DONUT_COLORS[i % DONUT_COLORS.length]}
+              strokeDasharray={`${dash} ${gap}`} strokeDashoffset={-offset}
+              strokeLinecap="round" className="transition-all duration-500" />
+          );
+          offset += dash;
+          return el;
+        })}
+      </svg>
+      <span className="absolute text-xs font-bold text-[var(--text-primary)]">{total}</span>
+    </div>
+  );
+}
+
+export function ProgressBar({ value, max = 100, color }: { value: number; max?: number; color?: string }) {
+  const pct = Math.min(100, Math.max(0, (value / max) * 100));
+  const barColor = color || (pct > 80 ? 'var(--color-success, #22c55e)' : pct > 40 ? 'var(--color-warning, #f59e0b)' : 'var(--color-danger, #ef4444)');
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex-1 h-1.5 bg-[var(--bg-tertiary)] rounded-full overflow-hidden" style={{ maxWidth: 64 }}>
+        <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: barColor }} />
+      </div>
+      <span className="text-xs tabular-nums">{Math.round(value)}{max === 100 ? '%' : ''}</span>
+    </div>
   );
 }
 """
@@ -745,13 +911,17 @@ exec nginx -g 'daemon off;'
         for ent in spec.entities:
             slug = _snake(_plural(ent.name))
             # Build columns: id first, then entity fields (deduped)
-            columns = ["id"]
+            all_columns = ["id"]
             seen = {"id"}
+            field_type_map: dict[str, str] = {"id": "text"}
             for f in ent.fields:
                 if f.name not in seen:
-                    columns.append(f.name)
+                    all_columns.append(f.name)
                     seen.add(f.name)
-            headers = [c.replace("_", " ").title() for c in columns]
+                    field_type_map[f.name] = _detect_field_type(f.name, f.type)
+
+            display_columns = _select_display_columns(all_columns, field_type_map)
+            headers = {c: c.replace("_", " ").title() for c in all_columns}
             has_status = any(f.name == "status" for f in ent.fields)
 
             # Collect action endpoints
@@ -767,8 +937,10 @@ exec nginx -g 'daemon off;'
             lines.append(f"  '{slug}': {{")
             lines.append(f"    label: '{_plural(ent.name)}',")
             lines.append(f"    entityName: '{ent.name}',")
-            lines.append(f"    columns: {columns},")
+            lines.append(f"    displayColumns: {display_columns},")
+            lines.append(f"    allColumns: {all_columns},")
             lines.append(f"    headers: {headers},")
+            lines.append(f"    fieldMeta: {field_type_map},")
             lines.append(f"    hasStatus: {'true' if has_status else 'false'},")
             lines.append(f"    actions: {actions},")
             lines.append("  },")
@@ -830,13 +1002,20 @@ exec nginx -g 'daemon off;'
     def _dynamic_dashboard(self, spec: IntentSpec) -> str:
         """Generate a fully interactive, entity-driven Dashboard component."""
         tab_config = self._dynamic_tab_config(spec)
-        # The Dashboard component is static — only tabConfig varies
+        display_name = _pretty_name(spec.project_name)
         return (
-            "import { useEffect, useState } from 'react';\n"
+            "import { useEffect, useState, useMemo } from 'react';\n"
             "import { Link } from 'react-router-dom';\n"
             "import StatusBadge from '../components/StatusBadge';\n"
+            "import { DonutChart, ProgressBar } from '../components/MiniChart';\n"
+            "import { useToast } from '../components/Toast';\n"
+            "import { IconSearch, IconPlus, IconChevronLeft, IconChevronRight, IconTrash,\n"
+            "         IconFilter, IconDownload, IconRefresh, IconActivity, IconCheck, IconClock,\n"
+            "         IconExternalLink, IconBarChart } from '../components/Icons';\n"
+            "import { CardSkeleton, TableSkeleton } from '../components/Skeleton';\n"
             "\n"
             + tab_config + "\n\n"
+            f"const DISPLAY_NAME = '{display_name}';\n\n"
             + _DASHBOARD_COMPONENT
         )
 
@@ -845,8 +1024,12 @@ exec nginx -g 'daemon off;'
         tab_config = self._dynamic_tab_config(spec)
         return (
             "import { useEffect, useState } from 'react';\n"
-            "import { useParams, useNavigate, useSearchParams } from 'react-router-dom';\n"
+            "import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';\n"
             "import StatusBadge from '../components/StatusBadge';\n"
+            "import { ProgressBar } from '../components/MiniChart';\n"
+            "import { useToast } from '../components/Toast';\n"
+            "import { IconChevronLeft, IconChevronRight, IconTrash, IconCheck, IconClock, IconExternalLink } from '../components/Icons';\n"
+            "import { CardSkeleton } from '../components/Skeleton';\n"
             "\n"
             + tab_config + "\n\n"
             + _DETAIL_PAGE_COMPONENT
@@ -856,6 +1039,7 @@ exec nginx -g 'daemon off;'
         """Generate an AI chat interface page with HTML rendering and design tokens."""
         project = spec.project_name
         return f"""import {{ useState, useRef, useEffect }} from 'react';
+import {{ IconSend }} from '../components/Icons';
 
 interface Message {{
   role: 'user' | 'assistant';
@@ -1018,9 +1202,7 @@ export default function ChatPage() {{
             disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-opacity"
           style={{{{ background: 'var(--color-primary)' }}}}
         >
-          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={{2}}>
-            <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
-          </svg>
+          <IconSend width={{20}} height={{20}} />
         </button>
       </div>
     </div>
@@ -1034,7 +1216,67 @@ export default function ChatPage() {{
 # ====================================================================
 
 _DASHBOARD_COMPONENT = r"""const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api/v1';
-const PAGE_SIZE = 15;
+const PAGE_SIZE = 12;
+
+// -- Type-aware cell renderer --
+function RenderCell({ col, value, fieldType }: { col: string; value: any; fieldType: string }) {
+  if (value == null || value === '') return <span className="text-[var(--text-muted)]">—</span>;
+  switch (fieldType) {
+    case 'badge':
+      return <StatusBadge status={String(value)} />;
+    case 'date':
+      try { return <span className="tabular-nums whitespace-nowrap">{new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>; }
+      catch { return <span>{String(value)}</span>; }
+    case 'bool':
+      return value === true || value === 'true'
+        ? <span className="inline-flex items-center gap-1 text-green-600 dark:text-green-400"><IconCheck width={14} height={14} /> Yes</span>
+        : <span className="text-[var(--text-muted)]">No</span>;
+    case 'pct':
+      return <ProgressBar value={Number(value)} />;
+    case 'currency':
+      return <span className="tabular-nums">${Number(value).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>;
+    case 'url':
+      return <a href={String(value)} target="_blank" rel="noopener noreferrer"
+        className="inline-flex items-center gap-1 hover:underline" style={{ color: 'var(--color-primary)' }}>
+        <IconExternalLink width={12} height={12} /> Link</a>;
+    case 'email':
+      return <a href={`mailto:${value}`} className="hover:underline" style={{ color: 'var(--color-primary)' }}>{String(value)}</a>;
+    case 'number':
+      return <span className="tabular-nums">{Number(value).toLocaleString()}</span>;
+    case 'id_ref':
+      return <span className="font-mono text-xs text-[var(--text-secondary)]">{String(value).slice(0, 8)}</span>;
+    default:
+      return <span className="truncate block max-w-[220px]" title={String(value)}>{String(value)}</span>;
+  }
+}
+
+// -- Status color helper for donut --
+function getStatusSegments(items: any[]): { label: string; value: number }[] {
+  const counts: Record<string, number> = {};
+  items.forEach(item => {
+    const s = String(item.status || item.priority || item.severity || 'other').toLowerCase();
+    counts[s] = (counts[s] || 0) + 1;
+  });
+  return Object.entries(counts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6)
+    .map(([label, value]) => ({ label, value }));
+}
+
+// -- CSV export helper --
+function exportCSV(data: any[], columns: string[], entityName: string) {
+  const header = columns.join(',');
+  const rows = data.map(item => columns.map(c => {
+    const v = String(item[c] ?? '').replace(/"/g, '""');
+    return `"${v}"`;
+  }).join(','));
+  const csv = [header, ...rows].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `${entityName}.csv`; a.click();
+  URL.revokeObjectURL(url);
+}
 
 export default function Dashboard() {
   const [allData, setAllData] = useState<Record<string, any[]>>({});
@@ -1044,15 +1286,12 @@ export default function Dashboard() {
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [formData, setFormData] = useState<Record<string, string>>({});
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
   const [page, setPage] = useState(0);
   const [sortCol, setSortCol] = useState<string | null>(null);
   const [sortAsc, setSortAsc] = useState(true);
-  const [toast, setToast] = useState<{ msg: string; type: string } | null>(null);
-
-  const showToast = (msg: string, type = 'success') => {
-    setToast({ msg, type });
-    setTimeout(() => setToast(null), 3500);
-  };
+  const [showFilters, setShowFilters] = useState(false);
+  const { addToast } = useToast();
 
   const fetchAll = () => {
     setLoading(true);
@@ -1072,21 +1311,33 @@ export default function Dashboard() {
   const config = tabConfig[activeTab];
   const currentData = allData[activeTab] || [];
 
+  // Unique statuses for filter
+  const statuses = useMemo(() => {
+    const s = new Set<string>();
+    currentData.forEach(item => { if (item.status) s.add(item.status); });
+    return Array.from(s).sort();
+  }, [currentData]);
+
+  // Status filter
+  const statusFiltered = statusFilter !== 'all'
+    ? currentData.filter(item => item.status === statusFilter)
+    : currentData;
+
   // Search filter
   const filtered = search
-    ? currentData.filter((item: any) =>
+    ? statusFiltered.filter((item: any) =>
         Object.values(item).some(v =>
           String(v).toLowerCase().includes(search.toLowerCase())
         )
       )
-    : currentData;
+    : statusFiltered;
 
   // Sort
   const sorted = sortCol
     ? [...filtered].sort((a, b) => {
-        const va = String(a[sortCol] ?? '');
-        const vb = String(b[sortCol] ?? '');
-        return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+        const va = a[sortCol]; const vb = b[sortCol];
+        if (typeof va === 'number' && typeof vb === 'number') return sortAsc ? va - vb : vb - va;
+        return sortAsc ? String(va ?? '').localeCompare(String(vb ?? '')) : String(vb ?? '').localeCompare(String(va ?? ''));
       })
     : filtered;
 
@@ -1099,6 +1350,11 @@ export default function Dashboard() {
     else { setSortCol(col); setSortAsc(true); }
   };
 
+  // Summary metrics
+  const totalItems = tabKeys.reduce((sum, k) => sum + (allData[k] || []).length, 0);
+  const activeItems = tabKeys.reduce((sum, k) => sum + (allData[k] || []).filter(i => ['active', 'open', 'in_progress'].includes(String(i.status || '').toLowerCase())).length, 0);
+  const criticalItems = tabKeys.reduce((sum, k) => sum + (allData[k] || []).filter(i => ['critical', 'escalated', 'high'].includes(String(i.status || i.severity || i.priority || '').toLowerCase())).length, 0);
+
   const handleCreate = async () => {
     try {
       await fetch(`${API_BASE}/${activeTab}`, {
@@ -1108,179 +1364,236 @@ export default function Dashboard() {
       });
       setShowCreate(false);
       setFormData({});
-      showToast(`${config.entityName} created`);
+      addToast(`${config.entityName} created`, 'success');
       fetchAll();
-    } catch { showToast('Failed to create', 'error'); }
+    } catch { addToast('Failed to create', 'error'); }
   };
 
   const handleDelete = async (id: string) => {
     try {
       await fetch(`${API_BASE}/${activeTab}/${id}`, { method: 'DELETE' });
       setDeleteTarget(null);
-      showToast(`${config.entityName} deleted`);
+      addToast(`${config.entityName} deleted`, 'success');
       fetchAll();
-    } catch { showToast('Failed to delete', 'error'); }
+    } catch { addToast('Failed to delete', 'error'); }
   };
 
   const handleAction = async (action: string, id: string) => {
     try {
       await fetch(`${API_BASE}/${activeTab}/${id}/${action}`, { method: 'POST' });
-      showToast(`Action "${action}" executed`);
+      addToast(`Action "${action}" executed`, 'success');
       fetchAll();
-    } catch { showToast(`Action "${action}" failed`, 'error'); }
+    } catch { addToast(`Action "${action}" failed`, 'error'); }
   };
 
   if (loading) return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-        {tabKeys.slice(0, 5).map(k => (
-          <div key={k} className="bg-[var(--surface-card)] rounded-xl shadow p-4 space-y-3">
-            <div className="skeleton h-3 w-20" />
-            <div className="skeleton h-7 w-12" />
-          </div>
-        ))}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        {[1,2,3,4].map(k => <CardSkeleton key={k} />)}
       </div>
-      <div className="bg-[var(--surface-card)] rounded-xl shadow p-4 space-y-3">
-        {[0,1,2,3,4].map(i => (
-          <div key={i} className="flex gap-4">
-            {[0,1,2,3].map(j => <div key={j} className="skeleton h-4 flex-1" />)}
-          </div>
-        ))}
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 gap-3">
+        {tabKeys.slice(0, 7).map(k => <CardSkeleton key={k} />)}
       </div>
+      <TableSkeleton rows={6} cols={5} />
     </div>
   );
 
-  const createFields = config.columns.filter((c: string) => c !== 'id' && c !== 'status');
+  const displayCols = config.displayColumns || config.allColumns?.slice(0, 6) || [];
+  const createFields = (config.allColumns || []).filter((c: string) => c !== 'id' && c !== 'status');
 
   return (
     <div className="space-y-6">
-      {/* Toast */}
-      {toast && (
-        <div className={`fixed top-4 right-4 z-[100] toast px-4 py-3 rounded-lg shadow-lg text-sm font-medium
-          ${toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-green-600 text-white'}`}>
-          {toast.msg}
+      {/* ── Overview Summary Bar ── */}
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-[var(--text-primary)]">{DISPLAY_NAME}</h1>
+          <p className="text-sm text-[var(--text-muted)] mt-0.5">{tabKeys.length} entities &middot; {totalItems} total records</p>
         </div>
-      )}
-
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold text-[var(--text-primary)]">{config.label}</h1>
-        <div className="flex gap-3 w-full sm:w-auto">
-          <div className="relative flex-1 sm:flex-none">
-            <input
-              value={search}
-              onChange={e => { setSearch(e.target.value); setPage(0); }}
-              placeholder="Search..."
-              className="border border-[var(--border-color)] rounded-lg px-3 py-2 pl-9 text-sm w-full sm:w-64
-                bg-[var(--surface-card)] text-[var(--text-primary)] focus:ring-2 focus:ring-[var(--border-focus)] focus:outline-none"
-            />
-            <svg className="absolute left-3 top-2.5 w-4 h-4 text-[var(--text-muted)]" viewBox="0 0 24 24"
-              fill="none" stroke="currentColor" strokeWidth={2}>
-              <circle cx={11} cy={11} r={8}/><path d="M21 21l-4.35-4.35"/>
-            </svg>
-          </div>
-          <button
-            onClick={() => setShowCreate(true)}
-            className="px-4 py-2 rounded-lg text-sm font-medium text-white cursor-pointer
-              hover:opacity-90 transition-opacity whitespace-nowrap"
-            style={{ background: 'var(--color-primary)' }}
-          >
-            + Create
+        <div className="flex items-center gap-3">
+          <button onClick={fetchAll}
+            className="p-2 rounded-lg border border-[var(--border-color)] hover:bg-[var(--bg-tertiary)] cursor-pointer transition-colors"
+            title="Refresh data">
+            <IconRefresh width={16} height={16} className="text-[var(--text-secondary)]" />
           </button>
         </div>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+      {/* ── Summary Metric Cards ── */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="bg-[var(--surface-card)] rounded-xl border border-[var(--border-color)] p-4">
+          <div className="flex items-center gap-2 text-[var(--text-muted)] mb-1">
+            <IconBarChart width={14} height={14} /> <span className="text-xs font-medium uppercase">Total Records</span>
+          </div>
+          <p className="text-3xl font-bold text-[var(--text-primary)]">{totalItems}</p>
+        </div>
+        <div className="bg-[var(--surface-card)] rounded-xl border border-[var(--border-color)] p-4">
+          <div className="flex items-center gap-2 text-[var(--text-muted)] mb-1">
+            <IconActivity width={14} height={14} /> <span className="text-xs font-medium uppercase">Active</span>
+          </div>
+          <p className="text-3xl font-bold text-green-600 dark:text-green-400">{activeItems}</p>
+          <p className="text-xs text-[var(--text-muted)]">{totalItems ? Math.round((activeItems / totalItems) * 100) : 0}% of total</p>
+        </div>
+        <div className="bg-[var(--surface-card)] rounded-xl border border-[var(--border-color)] p-4">
+          <div className="flex items-center gap-2 text-[var(--text-muted)] mb-1">
+            <IconClock width={14} height={14} /> <span className="text-xs font-medium uppercase">Entities</span>
+          </div>
+          <p className="text-3xl font-bold text-[var(--text-primary)]">{tabKeys.length}</p>
+        </div>
+        <div className="bg-[var(--surface-card)] rounded-xl border border-[var(--border-color)] p-4">
+          <div className="flex items-center gap-2 text-[var(--text-muted)] mb-1">
+            <span className="text-red-500"><IconActivity width={14} height={14} /></span>
+            <span className="text-xs font-medium uppercase">Needs Attention</span>
+          </div>
+          <p className="text-3xl font-bold text-red-600 dark:text-red-400">{criticalItems}</p>
+          <p className="text-xs text-[var(--text-muted)]">critical / escalated / high</p>
+        </div>
+      </div>
+
+      {/* ── Entity KPI Cards with Donut Charts ── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 gap-3">
         {tabKeys.map(key => {
           const items = allData[key] || [];
+          const segments = getStatusSegments(items);
+          const isActive = activeTab === key;
           return (
             <div
               key={key}
-              onClick={() => { setActiveTab(key); setPage(0); setSortCol(null); }}
-              className={`bg-[var(--surface-card)] rounded-xl shadow p-4 cursor-pointer border-2 transition-all
-                hover:shadow-md ${activeTab === key ? 'border-[var(--color-primary)]' : 'border-transparent hover:border-[var(--border-color)]'}`}
+              onClick={() => { setActiveTab(key); setPage(0); setSortCol(null); setStatusFilter('all'); setSearch(''); }}
+              className={`bg-[var(--surface-card)] rounded-xl p-3 cursor-pointer border-2 transition-all
+                hover:shadow-md ${isActive ? 'border-[var(--color-primary)] shadow-md' : 'border-transparent hover:border-[var(--border-color)]'}`}
             >
-              <p className="text-sm text-[var(--text-secondary)]">{tabConfig[key].label}</p>
-              <p className="text-2xl font-bold" style={{ color: 'var(--color-primary)' }}>{items.length}</p>
+              <p className="text-xs font-medium text-[var(--text-secondary)] truncate">{tabConfig[key].label}</p>
+              <div className="flex items-center justify-between mt-2 gap-2">
+                <div>
+                  <p className="text-xl font-bold text-[var(--text-primary)]">{items.length}</p>
+                  {segments.length > 0 && (
+                    <div className="flex flex-wrap gap-x-2 mt-1">
+                      {segments.slice(0, 2).map(s => (
+                        <span key={s.label} className="text-[10px] text-[var(--text-muted)] whitespace-nowrap">
+                          {s.value} {s.label}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {segments.length > 0 && <DonutChart segments={segments} size={44} />}
+              </div>
             </div>
           );
         })}
       </div>
 
-      {/* Tab bar */}
-      <div className="flex gap-1 border-b border-[var(--border-color)] overflow-x-auto">
-        {tabKeys.map(key => (
-          <button
-            key={key}
-            onClick={() => { setActiveTab(key); setPage(0); setSortCol(null); }}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition whitespace-nowrap cursor-pointer ${
-              activeTab === key
-                ? 'border-[var(--color-primary)] text-[var(--color-primary)]'
-                : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
-            }`}
-          >
-            {tabConfig[key].label} ({(allData[key] || []).length})
-          </button>
-        ))}
-      </div>
+      {/* ── Table Section Header ── */}
+      <div className="bg-[var(--surface-card)] rounded-xl border border-[var(--border-color)] shadow-sm overflow-hidden">
 
-      {/* Data Table */}
-      <div className="bg-[var(--surface-card)] rounded-xl shadow overflow-hidden">
+        {/* Table toolbar */}
+        <div className="px-4 py-3 border-b border-[var(--border-color)] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <h2 className="text-lg font-semibold text-[var(--text-primary)]">
+              {config.label}
+              <span className="text-sm font-normal text-[var(--text-muted)] ml-2">({filtered.length})</span>
+            </h2>
+          </div>
+          <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
+            {/* Status filter pills */}
+            {config.hasStatus && statuses.length > 0 && (
+              <div className="flex items-center gap-1 overflow-x-auto">
+                <button onClick={() => { setStatusFilter('all'); setPage(0); }}
+                  className={`px-2.5 py-1 text-xs rounded-full border transition-colors cursor-pointer whitespace-nowrap ${
+                    statusFilter === 'all'
+                      ? 'border-[var(--color-primary)] text-[var(--color-primary)] bg-[var(--color-primary)]/10'
+                      : 'border-[var(--border-color)] text-[var(--text-muted)] hover:border-[var(--text-secondary)]'
+                  }`}>All</button>
+                {statuses.slice(0, 5).map(s => (
+                  <button key={s} onClick={() => { setStatusFilter(s); setPage(0); }}
+                    className={`px-2.5 py-1 text-xs rounded-full border transition-colors cursor-pointer whitespace-nowrap capitalize ${
+                      statusFilter === s
+                        ? 'border-[var(--color-primary)] text-[var(--color-primary)] bg-[var(--color-primary)]/10'
+                        : 'border-[var(--border-color)] text-[var(--text-muted)] hover:border-[var(--text-secondary)]'
+                    }`}>{s.replace(/_/g, ' ')}</button>
+                ))}
+              </div>
+            )}
+            {/* Search */}
+            <div className="relative">
+              <input
+                value={search}
+                onChange={e => { setSearch(e.target.value); setPage(0); }}
+                placeholder="Search..."
+                className="border border-[var(--border-color)] rounded-lg px-3 py-1.5 pl-8 text-sm w-48
+                  bg-[var(--bg-primary)] text-[var(--text-primary)] focus:ring-2 focus:ring-[var(--border-focus)] focus:outline-none"
+              />
+              <span className="absolute left-2.5 top-2 text-[var(--text-muted)]"><IconSearch width={14} height={14} /></span>
+            </div>
+            {/* Export */}
+            <button onClick={() => exportCSV(currentData, config.allColumns || [], config.entityName)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-[var(--border-color)]
+                text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] cursor-pointer transition-colors"
+              title="Export CSV">
+              <IconDownload width={13} height={13} /> Export
+            </button>
+            {/* Create */}
+            <button
+              onClick={() => setShowCreate(true)}
+              className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-medium text-white cursor-pointer
+                hover:opacity-90 transition-opacity whitespace-nowrap"
+              style={{ background: 'var(--color-primary)' }}
+            >
+              <IconPlus width={14} height={14} /> New
+            </button>
+          </div>
+        </div>
+
+        {/* Data table — smart columns */}
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-[var(--border-color)]">
             <thead className="bg-[var(--bg-tertiary)]">
               <tr>
-                {config.headers.map((h: string, idx: number) => {
-                  const col = config.columns[idx];
-                  return (
-                    <th key={h} onClick={() => toggleSort(col)}
-                      className="px-4 py-3 text-left text-xs font-medium text-[var(--text-secondary)] uppercase
-                        cursor-pointer hover:text-[var(--text-primary)] select-none">
-                      <span className="inline-flex items-center gap-1">
-                        {h}
-                        {sortCol === col && (
-                          <span className="text-[var(--color-primary)]">{sortAsc ? '▲' : '▼'}</span>
-                        )}
-                      </span>
-                    </th>
-                  );
-                })}
-                <th className="px-4 py-3 text-left text-xs font-medium text-[var(--text-secondary)] uppercase">
+                {displayCols.map((col: string) => (
+                  <th key={col} onClick={() => toggleSort(col)}
+                    className="px-4 py-2.5 text-left text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider
+                      cursor-pointer hover:text-[var(--text-primary)] select-none whitespace-nowrap">
+                    <span className="inline-flex items-center gap-1">
+                      {(config.headers?.[col] || col.replace(/_/g, ' ')).replace(/\b\w/g, (c: string) => c.toUpperCase())}
+                      {sortCol === col && (
+                        <span className="text-[var(--color-primary)]">{sortAsc ? '▲' : '▼'}</span>
+                      )}
+                    </span>
+                  </th>
+                ))}
+                <th className="px-4 py-2.5 text-right text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--border-color)]">
               {paginated.map((item: any) => (
-                <tr key={item.id} className="hover:bg-[var(--bg-tertiary)] transition-colors">
-                  {config.columns.map((col: string) => (
-                    <td key={col} className="px-4 py-3 text-sm text-[var(--text-primary)]">
+                <tr key={item.id} className="hover:bg-[var(--bg-tertiary)] transition-colors group">
+                  {displayCols.map((col: string) => (
+                    <td key={col} className="px-4 py-2.5 text-sm text-[var(--text-primary)]">
                       {col === 'id' ? (
                         <Link to={`/detail/${item.id}?type=${activeTab}`}
-                          className="font-mono hover:underline" style={{ color: 'var(--color-primary)' }}>
-                          {item.id?.slice(0, 8)}
+                          className="font-mono text-xs hover:underline" style={{ color: 'var(--color-primary)' }}>
+                          {item.id?.slice(0, 8)}...
                         </Link>
-                      ) : col === 'status' ? (
-                        <StatusBadge status={item[col] || ''} />
                       ) : (
-                        <span className="truncate block max-w-[200px]">{String(item[col] ?? '')}</span>
+                        <RenderCell col={col} value={item[col]} fieldType={config.fieldMeta?.[col] || 'text'} />
                       )}
                     </td>
                   ))}
-                  <td className="px-4 py-3 text-sm">
-                    <div className="flex gap-1 flex-wrap">
-                      {config.actions.map((action: string) => (
+                  <td className="px-4 py-2.5 text-sm text-right">
+                    <div className="flex gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                      {config.actions.slice(0, 3).map((action: string) => (
                         <button key={action} onClick={() => handleAction(action, item.id)}
-                          className="px-2 py-1 text-xs rounded bg-[var(--bg-tertiary)] hover:bg-[var(--border-color)]
-                            text-[var(--text-secondary)] capitalize cursor-pointer transition-colors">
-                          {action}
+                          className="px-2 py-1 text-xs rounded-md bg-[var(--bg-tertiary)] hover:bg-[var(--border-color)]
+                            text-[var(--text-secondary)] capitalize cursor-pointer transition-colors whitespace-nowrap">
+                          {action.replace(/_/g, ' ')}
                         </button>
                       ))}
                       <button onClick={() => setDeleteTarget(item.id)}
-                        className="px-2 py-1 text-xs rounded text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20
-                          cursor-pointer transition-colors">
-                        Delete
+                        className="p-1 text-xs rounded-md text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20
+                          cursor-pointer transition-colors" title="Delete">
+                        <IconTrash width={13} height={13} />
                       </button>
                     </div>
                   </td>
@@ -1288,9 +1601,10 @@ export default function Dashboard() {
               ))}
               {paginated.length === 0 && (
                 <tr>
-                  <td colSpan={config.columns.length + 1}
-                      className="px-4 py-8 text-center text-[var(--text-muted)]">
-                    No {config.label.toLowerCase()} found
+                  <td colSpan={displayCols.length + 1} className="px-4 py-12 text-center">
+                    <IconSearch width={32} height={32} className="mx-auto text-[var(--text-muted)] mb-3 opacity-40" />
+                    <p className="text-[var(--text-muted)] font-medium">No {config.label.toLowerCase()} found</p>
+                    <p className="text-xs text-[var(--text-muted)] mt-1">Try adjusting your search or filters</p>
                   </td>
                 </tr>
               )}
@@ -1300,83 +1614,132 @@ export default function Dashboard() {
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-[var(--border-color)]">
-            <p className="text-sm text-[var(--text-secondary)]">
-              Showing {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, sorted.length)} of {sorted.length}
+          <div className="flex items-center justify-between px-4 py-3 border-t border-[var(--border-color)] bg-[var(--bg-tertiary)]">
+            <p className="text-xs text-[var(--text-muted)]">
+              {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, sorted.length)} of {sorted.length}
             </p>
-            <div className="flex gap-1">
-              <button onClick={() => setPage(Math.max(0, page - 1))} disabled={page === 0}
-                className="px-3 py-1 text-sm rounded border border-[var(--border-color)] disabled:opacity-40
-                  hover:bg-[var(--bg-tertiary)] cursor-pointer disabled:cursor-not-allowed transition-colors">
-                Prev
+            <div className="flex items-center gap-1">
+              <button onClick={() => setPage(0)} disabled={page === 0}
+                className="px-2 py-1 text-xs rounded border border-[var(--border-color)] disabled:opacity-30
+                  hover:bg-[var(--surface-card)] cursor-pointer disabled:cursor-not-allowed transition-colors">
+                First
               </button>
+              <button onClick={() => setPage(Math.max(0, page - 1))} disabled={page === 0}
+                className="p-1 rounded border border-[var(--border-color)] disabled:opacity-30
+                  hover:bg-[var(--surface-card)] cursor-pointer disabled:cursor-not-allowed transition-colors">
+                <IconChevronLeft width={14} height={14} />
+              </button>
+              <span className="px-3 py-1 text-xs font-medium text-[var(--text-secondary)]">
+                {page + 1} / {totalPages}
+              </span>
               <button onClick={() => setPage(Math.min(totalPages - 1, page + 1))} disabled={page >= totalPages - 1}
-                className="px-3 py-1 text-sm rounded border border-[var(--border-color)] disabled:opacity-40
-                  hover:bg-[var(--bg-tertiary)] cursor-pointer disabled:cursor-not-allowed transition-colors">
-                Next
+                className="p-1 rounded border border-[var(--border-color)] disabled:opacity-30
+                  hover:bg-[var(--surface-card)] cursor-pointer disabled:cursor-not-allowed transition-colors">
+                <IconChevronRight width={14} height={14} />
+              </button>
+              <button onClick={() => setPage(totalPages - 1)} disabled={page >= totalPages - 1}
+                className="px-2 py-1 text-xs rounded border border-[var(--border-color)] disabled:opacity-30
+                  hover:bg-[var(--surface-card)] cursor-pointer disabled:cursor-not-allowed transition-colors">
+                Last
               </button>
             </div>
           </div>
         )}
       </div>
 
-      {/* Create Modal */}
+      {/* ── Create Modal ── */}
       {showCreate && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
              onClick={() => setShowCreate(false)}>
-          <div className="bg-[var(--surface-modal)] rounded-xl shadow-xl p-6 w-full max-w-md"
+          <div className="bg-[var(--surface-modal)] rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-hidden"
                onClick={e => e.stopPropagation()}>
-            <h2 className="text-lg font-bold mb-4 text-[var(--text-primary)]">Create {config.entityName}</h2>
-            <div className="space-y-3">
-              {createFields.map((field: string) => (
-                <div key={field}>
-                  <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1 capitalize">
-                    {field.replace(/_/g, ' ')} <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    value={formData[field] || ''}
-                    onChange={e => setFormData(prev => ({ ...prev, [field]: e.target.value }))}
-                    className="w-full border border-[var(--border-color)] rounded-lg px-3 py-2 text-sm
-                      bg-[var(--bg-primary)] text-[var(--text-primary)]
-                      focus:ring-2 focus:ring-[var(--border-focus)] focus:outline-none"
-                    placeholder={`Enter ${field.replace(/_/g, ' ')}`}
-                    required
-                  />
-                </div>
-              ))}
-            </div>
-            <div className="flex justify-end gap-3 mt-6">
+            <div className="px-6 py-4 border-b border-[var(--border-color)] flex items-center justify-between">
+              <h2 className="text-lg font-bold text-[var(--text-primary)]">Create {config.entityName}</h2>
               <button onClick={() => { setShowCreate(false); setFormData({}); }}
-                className="px-4 py-2 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer">
+                className="p-1 rounded-lg hover:bg-[var(--bg-tertiary)] cursor-pointer text-[var(--text-muted)]">✕</button>
+            </div>
+            <div className="px-6 py-4 overflow-y-auto max-h-[60vh] space-y-3">
+              {createFields.map((field: string) => {
+                const ft = config.fieldMeta?.[field] || 'text';
+                const inputType = ft === 'date' ? 'date' : ft === 'number' || ft === 'pct' || ft === 'currency' ? 'number' : ft === 'email' ? 'email' : ft === 'url' ? 'url' : 'text';
+                const isTextarea = field === 'description' || field.endsWith('_notes') || field.endsWith('_text');
+                return (
+                  <div key={field}>
+                    <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1 capitalize">
+                      {field.replace(/_/g, ' ')}
+                    </label>
+                    {ft === 'bool' ? (
+                      <select value={formData[field] || ''} onChange={e => setFormData(prev => ({ ...prev, [field]: e.target.value }))}
+                        className="w-full border border-[var(--border-color)] rounded-lg px-3 py-2 text-sm
+                          bg-[var(--bg-primary)] text-[var(--text-primary)]
+                          focus:ring-2 focus:ring-[var(--border-focus)] focus:outline-none">
+                        <option value="">Select...</option>
+                        <option value="true">Yes</option>
+                        <option value="false">No</option>
+                      </select>
+                    ) : isTextarea ? (
+                      <textarea
+                        value={formData[field] || ''}
+                        onChange={e => setFormData(prev => ({ ...prev, [field]: e.target.value }))}
+                        rows={3}
+                        className="w-full border border-[var(--border-color)] rounded-lg px-3 py-2 text-sm
+                          bg-[var(--bg-primary)] text-[var(--text-primary)]
+                          focus:ring-2 focus:ring-[var(--border-focus)] focus:outline-none resize-none"
+                        placeholder={`Enter ${field.replace(/_/g, ' ')}`}
+                      />
+                    ) : (
+                      <input
+                        type={inputType}
+                        value={formData[field] || ''}
+                        onChange={e => setFormData(prev => ({ ...prev, [field]: e.target.value }))}
+                        className="w-full border border-[var(--border-color)] rounded-lg px-3 py-2 text-sm
+                          bg-[var(--bg-primary)] text-[var(--text-primary)]
+                          focus:ring-2 focus:ring-[var(--border-focus)] focus:outline-none"
+                        placeholder={`Enter ${field.replace(/_/g, ' ')}`}
+                        step={ft === 'currency' || ft === 'pct' ? '0.01' : undefined}
+                      />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="px-6 py-4 border-t border-[var(--border-color)] flex justify-end gap-3 bg-[var(--bg-tertiary)]">
+              <button onClick={() => { setShowCreate(false); setFormData({}); }}
+                className="px-4 py-2 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer rounded-lg
+                  border border-[var(--border-color)] hover:bg-[var(--surface-card)] transition-colors">
                 Cancel
               </button>
               <button onClick={handleCreate}
-                className="px-4 py-2 rounded-lg text-sm font-medium text-white cursor-pointer hover:opacity-90"
+                className="px-5 py-2 rounded-lg text-sm font-medium text-white cursor-pointer hover:opacity-90 transition-opacity"
                 style={{ background: 'var(--color-primary)' }}>
-                Create
+                Create {config.entityName}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
+      {/* ── Delete Confirmation Modal ── */}
       {deleteTarget && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
              onClick={() => setDeleteTarget(null)}>
-          <div className="bg-[var(--surface-modal)] rounded-xl shadow-xl p-6 w-full max-w-sm"
+          <div className="bg-[var(--surface-modal)] rounded-2xl shadow-2xl p-6 w-full max-w-sm"
                onClick={e => e.stopPropagation()}>
-            <h2 className="text-lg font-bold mb-2 text-[var(--text-primary)]">Confirm Delete</h2>
-            <p className="text-sm text-[var(--text-secondary)] mb-6">
-              Are you sure you want to delete this {config.entityName.toLowerCase()}? This action cannot be undone.
+            <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center mx-auto mb-4">
+              <IconTrash width={20} height={20} className="text-red-600 dark:text-red-400" />
+            </div>
+            <h2 className="text-lg font-bold text-center text-[var(--text-primary)] mb-1">Delete {config.entityName}</h2>
+            <p className="text-sm text-center text-[var(--text-secondary)] mb-6">
+              This action cannot be undone. This will permanently delete the record.
             </p>
-            <div className="flex justify-end gap-3">
+            <div className="flex gap-3">
               <button onClick={() => setDeleteTarget(null)}
-                className="px-4 py-2 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer">
+                className="flex-1 px-4 py-2 text-sm font-medium rounded-lg cursor-pointer
+                  border border-[var(--border-color)] text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-colors">
                 Cancel
               </button>
               <button onClick={() => handleDelete(deleteTarget)}
-                className="px-4 py-2 rounded-lg text-sm font-medium bg-red-600 text-white hover:bg-red-700 cursor-pointer">
+                className="flex-1 px-4 py-2 rounded-lg text-sm font-medium bg-red-600 text-white hover:bg-red-700 cursor-pointer transition-colors">
                 Delete
               </button>
             </div>
@@ -1390,6 +1753,82 @@ export default function Dashboard() {
 
 _DETAIL_PAGE_COMPONENT = r"""const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
+// -- Field section grouping --
+function groupFields(columns: string[], fieldMeta: Record<string, string>): { title: string; fields: string[] }[] {
+  const groups: { title: string; fields: string[] }[] = [];
+  const core: string[] = [];
+  const location: string[] = [];
+  const ai: string[] = [];
+  const metrics: string[] = [];
+  const refs: string[] = [];
+  const dates: string[] = [];
+  const rest: string[] = [];
+
+  for (const col of columns) {
+    if (col === 'id' || col === 'status') continue;
+    const ft = fieldMeta[col] || 'text';
+    if (col === 'latitude' || col === 'longitude' || col.includes('location') || col.includes('zone') || col.includes('address'))
+      location.push(col);
+    else if (col.startsWith('ai_') || col.includes('_ai_') || col.includes('rag_') || col.includes('content_safety') || col.includes('model_'))
+      ai.push(col);
+    else if (ft === 'pct' || ft === 'currency' || ft === 'number')
+      metrics.push(col);
+    else if (ft === 'id_ref')
+      refs.push(col);
+    else if (ft === 'date')
+      dates.push(col);
+    else if (col === 'name' || col === 'title' || col === 'username' || col === 'display_name' ||
+             col === 'description' || col === 'email' || col === 'body' || col === 'type' ||
+             col === 'category' || col === 'role' || col === 'department' || col === 'channel' ||
+             col === 'severity' || col === 'priority' || col === 'phone')
+      core.push(col);
+    else
+      rest.push(col);
+  }
+
+  if (core.length) groups.push({ title: 'General', fields: core });
+  if (metrics.length) groups.push({ title: 'Metrics & Costs', fields: metrics });
+  if (location.length) groups.push({ title: 'Location', fields: location });
+  if (ai.length) groups.push({ title: 'AI & Intelligence', fields: ai });
+  if (refs.length) groups.push({ title: 'References', fields: refs });
+  if (dates.length) groups.push({ title: 'Dates & Timestamps', fields: dates });
+  if (rest.length) groups.push({ title: 'Additional Details', fields: rest });
+  return groups;
+}
+
+// -- Type-aware detail value renderer --
+function DetailValue({ col, value, fieldMeta }: { col: string; value: any; fieldMeta: Record<string, string> }) {
+  if (value == null || value === '') return <span className="text-[var(--text-muted)]">—</span>;
+  const ft = fieldMeta[col] || 'text';
+  switch (ft) {
+    case 'badge':
+      return <StatusBadge status={String(value)} />;
+    case 'date':
+      try { return <span className="inline-flex items-center gap-1.5 text-[var(--text-primary)]"><IconClock width={13} height={13} className="text-[var(--text-muted)]" />{new Date(value).toLocaleString()}</span>; }
+      catch { return <span>{String(value)}</span>; }
+    case 'bool':
+      return value === true || value === 'true'
+        ? <span className="inline-flex items-center gap-1 text-green-600 dark:text-green-400 font-medium"><IconCheck width={14} height={14} /> Yes</span>
+        : <span className="text-[var(--text-muted)]">No</span>;
+    case 'pct':
+      return <ProgressBar value={Number(value)} />;
+    case 'currency':
+      return <span className="font-semibold tabular-nums">${Number(value).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>;
+    case 'url':
+      return <a href={String(value)} target="_blank" rel="noopener noreferrer"
+        className="inline-flex items-center gap-1 hover:underline break-all" style={{ color: 'var(--color-primary)' }}>
+        <IconExternalLink width={12} height={12} /> {String(value).replace(/https?:\/\//, '').slice(0, 40)}</a>;
+    case 'email':
+      return <a href={`mailto:${value}`} className="hover:underline" style={{ color: 'var(--color-primary)' }}>{String(value)}</a>;
+    case 'number':
+      return <span className="font-medium tabular-nums">{Number(value).toLocaleString()}</span>;
+    case 'id_ref':
+      return <span className="font-mono text-xs px-2 py-0.5 rounded bg-[var(--bg-tertiary)] text-[var(--text-secondary)]">{String(value)}</span>;
+    default:
+      return <span className="text-[var(--text-primary)] break-words">{String(value)}</span>;
+  }
+}
+
 export default function DetailPage() {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
@@ -1397,12 +1836,7 @@ export default function DetailPage() {
   const [item, setItem] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showDelete, setShowDelete] = useState(false);
-  const [toast, setToast] = useState<{ msg: string; type: string } | null>(null);
-
-  const showToast = (msg: string, type = 'success') => {
-    setToast({ msg, type });
-    setTimeout(() => setToast(null), 3500);
-  };
+  const { addToast } = useToast();
 
   const entityType = searchParams.get('type') || tabKeys[0];
   const config = tabConfig[entityType];
@@ -1421,121 +1855,134 @@ export default function DetailPage() {
       await fetch(`${API_BASE}/${entityType}/${id}/${action}`, { method: 'POST' });
       const updated = await fetch(`${API_BASE}/${entityType}/${id}`).then(r => r.json());
       setItem(updated);
-      showToast(`Action "${action}" executed`);
-    } catch { showToast(`Action "${action}" failed`, 'error'); }
+      addToast(`Action "${action}" executed`, 'success');
+    } catch { addToast(`Action "${action}" failed`, 'error'); }
   };
 
   const handleDelete = async () => {
     try {
       await fetch(`${API_BASE}/${entityType}/${id}`, { method: 'DELETE' });
-      showToast(`${config?.entityName || 'Item'} deleted`);
+      addToast(`${config?.entityName || 'Item'} deleted`, 'success');
       setTimeout(() => navigate('/'), 500);
-    } catch { showToast('Delete failed', 'error'); }
+    } catch { addToast('Delete failed', 'error'); }
   };
 
   if (loading) return (
     <div className="space-y-6">
       <div className="skeleton h-4 w-32" />
-      <div className="bg-[var(--surface-card)] rounded-xl shadow p-6 space-y-4">
-        <div className="skeleton h-6 w-48" />
-        <div className="grid grid-cols-2 gap-4">
-          {[0,1,2,3,4,5].map(i => (
-            <div key={i} className="space-y-2">
-              <div className="skeleton h-3 w-20" />
-              <div className="skeleton h-4 w-32" />
-            </div>
-          ))}
-        </div>
-      </div>
+      <CardSkeleton />
+      <CardSkeleton />
     </div>
   );
   if (!item) return (
-    <div className="text-center py-12">
-      <p className="text-[var(--text-muted)] mb-4">Item not found</p>
+    <div className="text-center py-16">
+      <div className="w-16 h-16 rounded-full bg-[var(--bg-tertiary)] flex items-center justify-center mx-auto mb-4">
+        <IconChevronLeft width={24} height={24} className="text-[var(--text-muted)]" />
+      </div>
+      <p className="text-[var(--text-primary)] font-medium mb-2">Item not found</p>
+      <p className="text-[var(--text-muted)] text-sm mb-4">The requested record does not exist or was deleted.</p>
       <button onClick={() => navigate('/')}
-        className="text-sm hover:underline" style={{ color: 'var(--color-primary)' }}>
+        className="px-4 py-2 rounded-lg text-sm font-medium text-white hover:opacity-90"
+        style={{ background: 'var(--color-primary)' }}>
         Back to Dashboard
       </button>
     </div>
   );
 
+  const fieldGroups = groupFields(config?.allColumns || [], config?.fieldMeta || {});
+
   return (
-    <div className="space-y-6">
-      {/* Toast */}
-      {toast && (
-        <div className={`fixed top-4 right-4 z-[100] toast px-4 py-3 rounded-lg shadow-lg text-sm font-medium
-          ${toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-green-600 text-white'}`}>
-          {toast.msg}
-        </div>
-      )}
+    <div className="space-y-6 max-w-4xl">
+      {/* Breadcrumb */}
+      <div className="flex items-center gap-2 text-sm text-[var(--text-muted)]">
+        <button onClick={() => navigate('/')} className="hover:text-[var(--text-primary)] cursor-pointer transition-colors">
+          Dashboard
+        </button>
+        <IconChevronRight width={12} height={12} />
+        <span className="text-[var(--text-secondary)]">{config?.label}</span>
+        <IconChevronRight width={12} height={12} />
+        <span className="text-[var(--text-primary)] font-medium truncate max-w-[200px]">
+          {item.name || item.title || item.username || item.id?.slice(0, 12)}
+        </span>
+      </div>
 
-      <button onClick={() => navigate('/')}
-        className="inline-flex items-center gap-1 text-sm hover:underline" style={{ color: 'var(--color-primary)' }}>
-        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-          <path d="M15 18l-6-6 6-6"/>
-        </svg>
-        Back to Dashboard
-      </button>
-
-      <div className="bg-[var(--surface-card)] rounded-xl shadow p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-xl font-bold text-[var(--text-primary)]">
-            {config?.entityName || 'Item'} Detail
-          </h1>
-          <div className="flex items-center gap-3">
+      {/* Header card */}
+      <div className="bg-[var(--surface-card)] rounded-2xl border border-[var(--border-color)] shadow-sm overflow-hidden">
+        <div className="px-6 py-5 border-b border-[var(--border-color)] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-bold text-[var(--text-primary)]">
+              {item.name || item.title || item.username || `${config?.entityName || 'Item'} Detail`}
+            </h1>
+            <p className="text-xs font-mono text-[var(--text-muted)] mt-0.5">ID: {item.id}</p>
+          </div>
+          <div className="flex items-center gap-3 flex-wrap">
             {item.status && <StatusBadge status={item.status} />}
+            {item.priority && item.priority !== item.status && <StatusBadge status={item.priority} />}
+            {item.severity && item.severity !== item.status && <StatusBadge status={item.severity} />}
             <button onClick={() => setShowDelete(true)}
-              className="px-3 py-1.5 text-xs rounded-lg text-red-600 border border-red-200 hover:bg-red-50
-                dark:border-red-800 dark:hover:bg-red-900/20 cursor-pointer transition-colors">
-              Delete
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg text-red-600 border border-red-200
+                hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-900/20 cursor-pointer transition-colors">
+              <IconTrash width={12} height={12} /> Delete
             </button>
           </div>
         </div>
 
-        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-          {config?.columns?.filter((c: string) => c !== 'status').map((col: string) => (
-            <div key={col} className="bg-[var(--bg-tertiary)] rounded-lg p-3">
-              <dt className="text-[var(--text-muted)] capitalize text-xs font-medium">
-                {col.replace(/_/g, ' ')}
-              </dt>
-              <dd className="font-medium text-[var(--text-primary)] mt-1 break-all">
-                {col === 'id' ? item[col] : String(item[col] ?? '\u2014')}
-              </dd>
-            </div>
-          ))}
-        </dl>
-
+        {/* Actions bar */}
         {config?.actions?.length > 0 && (
-          <div className="mt-6 flex flex-wrap gap-3 pt-4 border-t border-[var(--border-color)]">
+          <div className="px-6 py-3 bg-[var(--bg-tertiary)] border-b border-[var(--border-color)] flex flex-wrap gap-2">
             {config.actions.map((action: string) => (
               <button key={action} onClick={() => handleAction(action)}
-                className="px-4 py-2 text-sm rounded-lg text-white hover:opacity-90 capitalize cursor-pointer"
+                className="px-3 py-1.5 text-xs font-medium rounded-lg text-white hover:opacity-90 capitalize cursor-pointer transition-opacity"
                 style={{ background: 'var(--color-primary)' }}>
-                {action}
+                {action.replace(/_/g, ' ')}
               </button>
             ))}
           </div>
         )}
       </div>
 
+      {/* Grouped field sections */}
+      {fieldGroups.map(group => (
+        <div key={group.title} className="bg-[var(--surface-card)] rounded-2xl border border-[var(--border-color)] shadow-sm overflow-hidden">
+          <div className="px-6 py-3 border-b border-[var(--border-color)] bg-[var(--bg-tertiary)]">
+            <h3 className="text-sm font-semibold text-[var(--text-secondary)] uppercase tracking-wider">{group.title}</h3>
+          </div>
+          <dl className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 divide-[var(--border-color)]">
+            {group.fields.map((col: string, idx: number) => (
+              <div key={col} className={`px-6 py-3 ${idx % 2 === 0 ? 'sm:border-r sm:border-[var(--border-color)]' : ''} ${idx >= 2 ? 'border-t border-[var(--border-color)]' : ''}`}>
+                <dt className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wide mb-1">
+                  {col.replace(/_/g, ' ')}
+                </dt>
+                <dd className="text-sm">
+                  <DetailValue col={col} value={item[col]} fieldMeta={config?.fieldMeta || {}} />
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      ))}
+
       {/* Delete Confirmation */}
       {showDelete && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
              onClick={() => setShowDelete(false)}>
-          <div className="bg-[var(--surface-modal)] rounded-xl shadow-xl p-6 w-full max-w-sm"
+          <div className="bg-[var(--surface-modal)] rounded-2xl shadow-2xl p-6 w-full max-w-sm"
                onClick={e => e.stopPropagation()}>
-            <h2 className="text-lg font-bold mb-2 text-[var(--text-primary)]">Confirm Delete</h2>
-            <p className="text-sm text-[var(--text-secondary)] mb-6">
-              Are you sure you want to delete this {(config?.entityName || 'item').toLowerCase()}?
-              This action cannot be undone.
+            <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center mx-auto mb-4">
+              <IconTrash width={20} height={20} className="text-red-600 dark:text-red-400" />
+            </div>
+            <h2 className="text-lg font-bold text-center text-[var(--text-primary)] mb-1">Delete {config?.entityName || 'Item'}</h2>
+            <p className="text-sm text-center text-[var(--text-secondary)] mb-6">
+              This action is permanent and cannot be undone.
             </p>
-            <div className="flex justify-end gap-3">
+            <div className="flex gap-3">
               <button onClick={() => setShowDelete(false)}
-                className="px-4 py-2 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer">
+                className="flex-1 px-4 py-2 text-sm font-medium rounded-lg cursor-pointer
+                  border border-[var(--border-color)] text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-colors">
                 Cancel
               </button>
               <button onClick={handleDelete}
-                className="px-4 py-2 rounded-lg text-sm font-medium bg-red-600 text-white hover:bg-red-700 cursor-pointer">
+                className="flex-1 px-4 py-2 rounded-lg text-sm font-medium bg-red-600 text-white hover:bg-red-700 cursor-pointer transition-colors">
                 Delete
               </button>
             </div>

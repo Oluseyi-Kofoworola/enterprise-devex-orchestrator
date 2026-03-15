@@ -94,22 +94,32 @@ A unified healthcare network platform exercising every parser and generator limi
 devex scaffold --file examples/extreme-healthcare-intent.md -o ./extreme-healthcare-output
 ```
 
+### 8. Metro Command AI Operations Platform (Production UI Showcase)
+
+**File:** [`metro-command-intent.md`](metro-command-intent.md)
+
+An enterprise-grade AI-powered metropolitan operations intelligence platform orchestrating **14 domain entities** (Incidents, Assets, Sensors, Vehicles, Zones, Work Orders, Transit Routes, Service Requests, Users, Audit Logs, Notifications, Chatbot Conversations, Assistant Queries, Fleet Vehicles) across all 6 data stores (Cosmos DB, SQL, Blob, Redis, AI Search, Table Storage). Features **8 Semantic Kernel AI agents** (Dispatch, Maintenance, Environment, Citizen Chatbot, Analytics, Fleet, User Management, Notification), GPT-4o Vision for incident photos, Whisper transcription, and RAG-grounded citizen chatbot. Handles 250,000+ concurrent IoT streams with FedRAMP, SOC2, and HIPAA compliance. **Recommended as the first example to run** — showcases the production dashboard with donut charts, type-aware rendering, column intelligence, CSV export, and grouped detail pages.
+
+```powershell
+devex scaffold --file examples/metro-command-intent.md -o ./metro-command-output
+```
+
 ---
 
 ## Comparison
 
-| Feature | Voice Agent v1 | Voice Agent v2 | Contract Review | Doc Intelligence | Propane Delivery | Smart City | Extreme Healthcare |
-|---------|----------------|----------------|-----------------|------------------|------------------|------------|--------------------|
-| Industry | Healthcare | Healthcare | Legal Ops | Document Processing | Logistics | Government/IoT | Healthcare Network |
-| Primary User | Clinical staff | Clinical staff | Legal team | Back-office staff | Delivery operations | City operators | Clinical staff |
-| Entities | **12** | **14** | 3 | 3 | 4 | 9 | **15** |
-| Data Stores | 5 | **All 6** | Blob, Cosmos DB | Blob | Cosmos DB | All 6 | **All 6** |
-| AI/ML | 4 SK agents, RAG | 6 SK agents, RAG | GPT-4, clause extraction | Document Intelligence | Route optimization | Multi-agent AI | Multi-agent AI |
-| Compliance | HIPAA, SOC2 | HIPAA, SOC2, FedRAMP | HIPAA, SOC2 | SOC2 | SOC2 | FedRAMP, SOC2, HIPAA | **HIPAA, SOC2, FedRAMP** |
-| Auth | Managed Identity | Managed Identity | Entra ID + RBAC | Managed Identity | Managed Identity | Entra ID | Entra ID |
-| Entity Discovery | Explicit + Semantic | Explicit + Semantic | Semantic NLP | Semantic NLP | Semantic NLP | Semantic NLP | **Explicit + Semantic** |
-| Bicep Modules | 10 | **12** | 6 | 5 | 6 | 10 | **10+** |
-| Multi-param paths | **Yes** | **Yes** | No | No | No | No | **Yes** |
+| Feature | Voice Agent v1 | Voice Agent v2 | Contract Review | Doc Intelligence | Propane Delivery | Smart City | Extreme Healthcare | Metro Command |
+|---------|----------------|----------------|-----------------|------------------|------------------|------------|--------------------|--------------|
+| Industry | Healthcare | Healthcare | Legal Ops | Document Processing | Logistics | Government/IoT | Healthcare Network | Government/IoT |
+| Primary User | Clinical staff | Clinical staff | Legal team | Back-office staff | Delivery operations | City operators | Clinical staff | City operators |
+| Entities | **12** | **14** | 3 | 3 | 4 | 9 | **15** | **14** |
+| Data Stores | 5 | **All 6** | Blob, Cosmos DB | Blob | Cosmos DB | All 6 | **All 6** | **All 6** |
+| AI/ML | 4 SK agents, RAG | 6 SK agents, RAG | GPT-4, clause extraction | Document Intelligence | Route optimization | Multi-agent AI | Multi-agent AI | **8 SK agents**, RAG, Vision, Whisper |
+| Compliance | HIPAA, SOC2 | HIPAA, SOC2, FedRAMP | HIPAA, SOC2 | SOC2 | SOC2 | FedRAMP, SOC2, HIPAA | **HIPAA, SOC2, FedRAMP** | **HIPAA, SOC2, FedRAMP** |
+| Auth | Managed Identity | Managed Identity | Entra ID + RBAC | Managed Identity | Managed Identity | Entra ID | Entra ID | Entra ID |
+| Entity Discovery | Explicit + Semantic | Explicit + Semantic | Semantic NLP | Semantic NLP | Semantic NLP | Semantic NLP | **Explicit + Semantic** | **Explicit + Semantic** |
+| Bicep Modules | 10 | **12** | 6 | 5 | 6 | 10 | **10+** | **10+** |
+| Multi-param paths | **Yes** | **Yes** | No | No | No | No | **Yes** | No |
 
 ---
 
@@ -168,15 +178,19 @@ uvicorn main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
 Open `http://127.0.0.1:8000`. The dashboard includes:
-- **Entity tabs** with pre-seeded domain data
-- **Create** records via modal forms
-- **Workflow actions** (dispatch, approve, verify) that update record status
+- **Summary metrics** with record counts, active items, and donut chart status distribution
+- **Entity tabs** with pre-seeded domain data and smart 5-7 column tables
+- **Type-aware rendering** — status badges, formatted dates, progress bars, currency, URLs
+- **Status filter pills** for quick filtering
+- **Create** records via type-aware modal forms (date pickers, number inputs, textareas)
+- **CSV export** and workflow actions (dispatch, approve, verify)
+- **Grouped detail pages** with breadcrumb navigation and field sections
 - **Search** and health monitoring
 - **No database required** -- uses in-memory storage with auto-seeded data
 
 ---
 
-*Enterprise DevEx Orchestrator v1.8.0*
+*Enterprise DevEx Orchestrator v2.0.0*
 
 
 

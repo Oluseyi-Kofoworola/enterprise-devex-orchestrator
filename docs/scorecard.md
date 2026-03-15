@@ -33,7 +33,7 @@
 | Criterion | Points | Evidence |
 |-----------|--------|---------|
 | CI/CD generation | 5/5 | 4 GitHub Actions workflows (validate, deploy, dependabot, codeql) |
-| Testing | 5/5 | 543 tests across 15 test files, auto-generated test suites |
+| Testing | 5/5 | 636 tests across 16 test files, auto-generated test suites |
 | Observability | 5/5 | Log Analytics, diagnostic settings, alert rules + runbook |
 
 ### Security (15/15)
@@ -100,7 +100,7 @@
 | 9 | STRIDE threat model | Done | Generated in every scaffold |
 | 10 | Governance report | Done | 25 policies, automated validation |
 | 11 | WAF assessment | Done | 26/26 principles, 5 pillars |
-| 12 | 543 tests | Done | `tests/` (15 files) |
+| 12 | 636 tests | Done | `tests/` (16 files) |
 | 13 | Enterprise standards | Done | `standards.yaml` + engine |
 | 14 | State management | Done | `.devex/state.json` |
 | 15 | Version management | Done | `.devex/versions.json` |
@@ -109,9 +109,9 @@
 | 18 | Persistent planning | Done | 13-task DAG |
 | 19 | Live deployment | Done | Azure Container Apps (eastus2) |
 | 20 | Semantic entity extraction | Done | 5-phase NLP pipeline: any business domain dynamically extracted |
-| 21 | Frontend SPA generator | Done | React 18 + Vite 5 + TypeScript with entity-driven dashboards |
+| 21 | Frontend SPA generator | Done | React 18 + Vite 5 + TypeScript with production dashboards (donut charts, type-aware rendering, column intelligence, CSV export, grouped detail pages) |
 | 22 | Multi-provider LLM | Done | GitHub Copilot SDK (default), Azure OpenAI, OpenAI, Anthropic (Claude) |
-| 23 | Interactive CRUD Dashboard | Done | Create, read, update, delete via browser UI; domain-aware seed data; single-worker Dockerfile; local preview with `uvicorn` |
+| 23 | Interactive CRUD Dashboard | Done | Production-grade UI: donut charts, type-aware rendering (badges, dates, progress bars, currency, URLs), smart column selection (5-7 cols), status filter pills, CSV export, grouped detail pages with breadcrumb navigation; domain-aware seed data; local preview with `uvicorn` |
 | 24 | Local Dashboard Preview | Done | `uvicorn main:app --reload` in `src/app/` -- no Azure or DB required |
 
 ---
@@ -124,13 +124,13 @@
 4. **Domain-agnostic semantic extraction** -- 5-phase NLP pipeline discovers entities, fields, and endpoints from any business intent
 5. **React frontend SPA** -- Entity-driven dashboards, API clients, and TypeScript types generated per entity
 6. **Production proof** -- Live app deployed and running, not just generated code
-7. **543 tests** -- Comprehensive coverage across all components
+7. **636 tests** -- Comprehensive coverage across all components
 8. **9 generators** -- Bicep, CI/CD, App, Frontend, Docs, Tests, Alerts, Cost, Dashboard
 9. **Standards engine** -- Azure CAF naming + enterprise tagging enforced programmatically
 10. **Advanced patterns** -- Skills, subagents, persistent planning, deploy orchestrator
 11. **Multi-provider LLM** -- GitHub Copilot SDK (default), Azure OpenAI, OpenAI, Anthropic with auto-detection
 12. **Intent-to-production** -- Single command generates and deploys enterprise-grade infrastructure
-13. **Interactive CRUD dashboard** -- Every scaffold includes a fully functional dashboard with create, update, delete, search, and health monitoring -- works locally and in Azure
+13. **Production-grade dashboard** -- Every scaffold includes a production dashboard with donut charts, type-aware rendering, column intelligence, status filters, CSV export, and grouped detail pages -- works locally and in Azure
 
 ---
 
