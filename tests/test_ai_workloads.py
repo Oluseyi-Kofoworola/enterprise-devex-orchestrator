@@ -382,7 +382,8 @@ class TestAppGeneratorAI:
         spec = _make_ai_spec()
         files = self.gen.generate(spec)
         client = files["src/app/ai/client.py"]
-        assert "api_key" not in client.lower() or "no api key" in client.lower()
+        # Must not contain hardcoded API key values; env-var lookups are fine
+        assert 'api_key="' not in client and "api_key='" not in client
 
     def test_generates_ai_chat_router(self) -> None:
         spec = _make_ai_spec()

@@ -62,60 +62,92 @@ def _python_type_default(field_type: str) -> str:
 
 
 def _seed_value(field_spec, entity_name: str, row: int) -> str:
-    """Generate a realistic seed value for a field."""
+    """Generate a realistic seed value for a field -- fully dynamic, no domain assumptions."""
     name = field_spec.name
     ftype = field_spec.type
     ename_lower = entity_name.lower()
+    ename_abbr = ename_lower[:3].upper()
 
+    # --- Non-string types ---
     if ftype == "float":
-        amounts = [49.99, 125.50, 29.95]
+        amounts = [49.99, 125.50, 29.95, 89.00, 210.75]
         return str(amounts[(row - 1) % len(amounts)])
     if ftype == "int":
         return str(row * 10)
     if ftype == "bool":
         return "True" if row % 2 == 1 else "False"
     if ftype in ("list", "list[str]"):
-        return '["item-001", "item-002"]' if row == 1 else '["item-003"]'
+        return f'["{ename_lower}-ref-{row:03d}"]'
     if ftype == "dict":
         return "{}"
     if ftype == "datetime":
         return f'"2024-03-{10 + row}T{8 + row:02d}:{row * 15:02d}:00Z"'
-    # str type — generate contextual values
-    if name == "status":
+
+    # --- String type: contextual seed values based on field name patterns ---
+    if name == "status" or name.endswith("_status") or name == "state":
         statuses = ["pending", "in_progress", "completed"]
         return f'"{statuses[(row - 1) % len(statuses)]}"'
-    if name.endswith("_id"):
-        ref = name.replace("_id", "").upper()
+    if name.endswith("_id") or name == "id":
+        ref = name.replace("_id", "").upper() if name.endswith("_id") else ename_abbr
         return f'"{ref}-{1000 + row}"'
-    if name == "reason":
-        reasons = ["Defective product", "Wrong size", "Changed mind"]
-        return f'"{reasons[(row - 1) % len(reasons)]}"'
-    if name == "method":
-        methods = ["original_payment", "store_credit", "exchange"]
-        return f'"{methods[(row - 1) % len(methods)]}"'
-    if name == "currency":
-        return '"USD"'
-    if name == "priority":
-        priorities = ["high", "medium", "low"]
-        return f'"{priorities[(row - 1) % len(priorities)]}"'
-    if name == "notes":
-        return f'"Sample {ename_lower} record #{row}"'
-    if name in ("name", "title"):
+    if name in ("priority", "severity", "urgency"):
+        levels = ["high", "medium", "low"]
+        return f'"{levels[(row - 1) % len(levels)]}"'
+    if name in ("level", "tier", "grade"):
+        grades = ["gold", "silver", "bronze"]
+        return f'"{grades[(row - 1) % len(grades)]}"'
+    if name in ("type", "category", "kind", "class") or name.endswith("_type") or name.endswith("_category"):
+        return f'"type-{chr(64 + row)}"'
+    if name in ("name", "title", "label"):
         return f'"{entity_name} #{row}"'
-    if name in ("description", "condition"):
-        return f'"Sample {name} for record #{row}"'
-    if name == "serial_number":
-        return f'"SN-{ename_lower[:3].upper()}-2024-{row:04d}"'
-    if name in ("location", "address"):
-        locations = ["Downtown - Main St", "Industrial Zone B", "Central Park Area"]
+    if name in ("description", "summary", "details", "notes", "comment", "remarks"):
+        return f'"Sample {name} for {ename_lower} record #{row}"'
+    if name in ("reason", "cause", "justification"):
+        return f'"Reason #{row} for {ename_lower}"'
+    if name in ("method", "approach", "technique", "strategy"):
+        return f'"method-{row}"'
+    if name in ("currency", "currency_code"):
+        currencies = ["USD", "EUR", "GBP"]
+        return f'"{currencies[(row - 1) % len(currencies)]}"'
+    if name in ("country", "country_code"):
+        countries = ["US", "GB", "DE"]
+        return f'"{countries[(row - 1) % len(countries)]}"'
+    if name in ("region", "zone", "area"):
+        return f'"region-{row}"'
+    if name in ("location", "address", "place", "site"):
+        locations = ["Site Alpha", "Site Beta", "Site Gamma", "Site Delta", "Site Epsilon"]
         return f'"{locations[(row - 1) % len(locations)]}"'
-    if name == "email":
+    if name in ("email", "contact_email", "user_email"):
         return f'"user{row}@example.com"'
-    if name == "phone":
+    if name in ("phone", "phone_number", "contact_phone"):
         return f'"+1-555-010{row}"'
-    if name == "date":
+    if name in ("url", "link", "website", "homepage") or name.endswith("_url"):
+        return f'"https://example.com/{ename_lower}/{row}"'
+    if name in ("ip", "ip_address"):
+        return f'"192.168.1.{10 + row}"'
+    if name in ("version", "revision"):
+        return f'"v1.{row}.0"'
+    if name.startswith("serial") or name.endswith("_number") or name == "code":
+        return f'"{ename_abbr}-{row:04d}"'
+    if name in ("color", "colour"):
+        colors = ["red", "blue", "green", "orange", "purple"]
+        return f'"{colors[(row - 1) % len(colors)]}"'
+    if name in ("tag", "tags"):
+        return f'"tag-{row}"'
+    if name in ("role", "permission"):
+        roles = ["admin", "editor", "viewer"]
+        return f'"{roles[(row - 1) % len(roles)]}"'
+    if name in ("source", "origin", "provider"):
+        return f'"source-{row}"'
+    if name in ("target", "destination"):
+        return f'"target-{row}"'
+    if "date" in name or name in ("created", "updated", "timestamp"):
         return f'"2024-03-{10 + row}T{6 + row:02d}:00:00Z"'
-    return f'"{name}-value-{row}"'
+    if "amount" in name or "price" in name or "cost" in name or name in ("fee", "total", "balance"):
+        amounts = [49.99, 125.50, 29.95, 89.00, 210.75]
+        return str(amounts[(row - 1) % len(amounts)])
+    # Generic fallback — uses field name + entity context
+    return f'"{ename_lower}-{name}-{row}"'
 
 
 def _pascal_field(snake_name: str) -> str:
@@ -755,6 +787,7 @@ python-dotenv>=1.0.0
         # AI dependencies
         if spec.uses_ai:
             reqs += "openai>=1.12.0\n"
+            reqs += "python-multipart>=0.0.6\n"
             ai_features = getattr(spec, "ai_features", [])
             if "agents" in ai_features:
                 reqs += "semantic-kernel>=1.0.0\n"
@@ -1203,9 +1236,12 @@ async def {action}_{sn}({sn}_id: str, settings: Settings = Depends(get_settings)
             for rid in range(1, 4):
                 record_parts = [f'"id": "{sn}-{rid:03d}"']
                 for f in ent.fields:
+                    if f.name == "created_at":
+                        continue  # appended below with consistent formatting
                     val = _seed_value(f, ent.name, rid)
                     record_parts.append(f'"{f.name}": {val}')
-                record_parts.append(f'"created_at": "2024-03-{10+rid}T0{8+rid}:00:00Z"')
+                hour = 8 + rid
+                record_parts.append(f'"created_at": "2024-03-{10+rid}T{hour:02d}:00:00Z"')
                 lines.append(f'        {{{", ".join(record_parts)}}},')
             lines.append(f'    ],')
         lines.append('}')
@@ -1336,11 +1372,15 @@ async def {action}_{sn}({sn}_id: str, settings: Settings = Depends(get_settings)
         .data-table tr:last-child td { border-bottom:none; }
         .data-table tr:hover td { background:#f0f6ff; }
         .badge { display:inline-block; padding:2px 10px; border-radius:12px; font-size:11px; font-weight:600; text-transform:capitalize; }
-        .badge-pending { background:#fff3e0; color:#e65100; }
-        .badge-in_progress,.badge-in-progress,.badge-processing { background:#e3f2fd; color:#1565c0; }
-        .badge-approved,.badge-completed,.badge-processed { background:#e6f4ea; color:#1b5e20; }
-        .badge-rejected,.badge-cancelled,.badge-failed { background:#fce4ec; color:#b71c1c; }
-        .badge-escalated { background:#f3e5f5; color:#6a1b9a; }
+        .badge-pending,.badge-draft,.badge-new,.badge-open,.badge-queued,.badge-submitted,.badge-waiting { background:#fff3e0; color:#e65100; }
+        .badge-in_progress,.badge-in-progress,.badge-processing,.badge-running,.badge-active,.badge-busy,.badge-executing { background:#e3f2fd; color:#1565c0; }
+        .badge-approved,.badge-completed,.badge-processed,.badge-done,.badge-resolved,.badge-closed,.badge-success,.badge-passed,.badge-delivered,.badge-published { background:#e6f4ea; color:#1b5e20; }
+        .badge-rejected,.badge-cancelled,.badge-failed,.badge-error,.badge-denied,.badge-expired,.badge-blocked,.badge-terminated { background:#fce4ec; color:#b71c1c; }
+        .badge-escalated,.badge-critical,.badge-urgent,.badge-high { background:#f3e5f5; color:#6a1b9a; }
+        .badge-on_hold,.badge-on-hold,.badge-paused,.badge-suspended,.badge-deferred,.badge-review,.badge-pending_review { background:#e8eaf6; color:#283593; }
+        .badge-inactive,.badge-disabled,.badge-offline,.badge-idle,.badge-standby,.badge-maintenance { background:#eceff1; color:#546e7a; }
+        .badge-warning,.badge-degraded,.badge-medium,.badge-partial { background:#fffde7; color:#f57f17; }
+        .badge-online,.badge-healthy,.badge-connected,.badge-available,.badge-ready,.badge-low { background:#e0f2f1; color:#00695c; }
         .modal-overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,.4); z-index:200; justify-content:center; align-items:center; }
         .modal-overlay.open { display:flex; }
         .modal { background:var(--surface); border-radius:var(--radius-lg); box-shadow:var(--shadow-lg); width:480px; max-width:90vw; max-height:80vh; overflow-y:auto; }
@@ -1369,7 +1409,34 @@ async def {action}_{sn}({sn}_id: str, settings: Settings = Depends(get_settings)
         .info-card h4 { font-size:12px; text-transform:uppercase; letter-spacing:.5px; color:var(--text-secondary); margin-bottom:8px; }
         .info-card ul { list-style:none; font-size:13px; }
         .info-card ul li { padding:4px 0; display:flex; align-items:center; gap:8px; }
-        .info-card ul li::before { content:''; width:6px; height:6px; border-radius:50%; background:var(--primary); flex-shrink:0; }"""
+        .info-card ul li::before { content:''; width:6px; height:6px; border-radius:50%; background:var(--primary); flex-shrink:0; }
+        .chat-container { display:flex; flex-direction:column; height:520px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-lg); box-shadow:var(--shadow); overflow:hidden; }
+        .chat-header { background:linear-gradient(135deg,#0078d4,#005a9e); color:white; padding:14px 20px; display:flex; justify-content:space-between; align-items:center; }
+        .chat-header h4 { font-size:14px; font-weight:600; margin:0; }
+        .chat-status { font-size:11px; display:flex; align-items:center; gap:6px; }
+        .chat-status .dot { width:8px; height:8px; border-radius:50%; }
+        .chat-messages { flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:12px; background:var(--surface-alt); }
+        .chat-msg { max-width:80%; padding:10px 14px; border-radius:12px; font-size:13px; line-height:1.5; word-wrap:break-word; white-space:pre-wrap; }
+        .chat-msg.user { align-self:flex-end; background:var(--primary); color:white; border-bottom-right-radius:4px; }
+        .chat-msg.assistant { align-self:flex-start; background:var(--surface); border:1px solid var(--border); border-bottom-left-radius:4px; box-shadow:var(--shadow); }
+        .chat-msg.system { align-self:center; background:var(--surface-alt); border:1px solid var(--border); color:var(--text-secondary); font-size:12px; text-align:center; max-width:90%; }
+        .chat-input-bar { display:flex; gap:8px; padding:12px 16px; border-top:1px solid var(--border); background:var(--surface); }
+        .chat-input { flex:1; padding:10px 14px; border:1px solid var(--border); border-radius:20px; font-size:13px; outline:none; resize:none; font-family:inherit; }
+        .chat-input:focus { border-color:var(--primary); box-shadow:0 0 0 2px rgba(0,120,212,.15); }
+        .chat-send { padding:10px 20px; background:var(--primary); color:white; border:none; border-radius:20px; font-size:13px; font-weight:600; cursor:pointer; transition:background .15s; }
+        .chat-send:hover { background:var(--primary-dark); }
+        .chat-send:disabled { opacity:.5; cursor:not-allowed; }
+        .chat-upload-btn { display:flex; align-items:center; justify-content:center; width:38px; height:38px; border-radius:50%; border:1px solid var(--border); cursor:pointer; color:var(--text-secondary); transition:all .15s; flex-shrink:0; }
+        .chat-upload-btn:hover { background:var(--surface-alt); color:var(--primary); border-color:var(--primary); }
+        .chat-file-preview { display:flex; align-items:center; gap:8px; padding:8px 12px; margin:0 16px 4px; background:var(--surface-alt); border:1px solid var(--border); border-radius:var(--radius); font-size:12px; color:var(--text-secondary); }
+        .chat-file-preview .file-name { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .chat-file-preview .file-remove { cursor:pointer; color:var(--danger); font-weight:bold; }
+        .chat-msg .file-analysis { background:var(--surface-alt); border:1px solid var(--border); border-radius:var(--radius); padding:10px; margin-top:8px; font-size:12px; white-space:pre-wrap; }
+        .chat-typing { display:flex; gap:4px; padding:8px 14px; align-self:flex-start; }
+        .chat-typing span { width:8px; height:8px; border-radius:50%; background:var(--text-secondary); animation:typing 1.4s infinite; }
+        .chat-typing span:nth-child(2) { animation-delay:.2s; }
+        .chat-typing span:nth-child(3) { animation-delay:.4s; }
+        @keyframes typing { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-6px)} }"""
         return raw.replace(lb, lb * 2).replace(rb, rb * 2)
 
     def _business_dashboard_body(self, spec: IntentSpec) -> str:
@@ -1384,15 +1451,16 @@ async def {action}_{sn}({sn}_id: str, settings: Settings = Depends(get_settings)
                 f'<div class=\\"number\\" id=\\"count-{slug}\\">--</div>'
                 f'<div class=\\"label\\">Total {label}</div></div>'
             )
+        # Dynamic status summary — JS populates from actual data
         kpi_html.append(
-            '<div class=\\"kpi warn\\" id=\\"kpi-pending\\">'
-            '<div class=\\"number\\" id=\\"count-pending\\">--</div>'
-            '<div class=\\"label\\">Pending Review</div></div>'
+            '<div class=\\"kpi warn\\" id=\\"kpi-action-needed\\">'
+            '<div class=\\"number\\" id=\\"count-action-needed\\">--</div>'
+            '<div class=\\"label\\">Needs Action</div></div>'
         )
         kpi_html.append(
-            '<div class=\\"kpi ok\\" id=\\"kpi-completed\\">'
-            '<div class=\\"number\\" id=\\"count-completed\\">--</div>'
-            '<div class=\\"label\\">Completed</div></div>'
+            '<div class=\\"kpi ok\\" id=\\"kpi-resolved\\">'
+            '<div class=\\"number\\" id=\\"count-resolved\\">--</div>'
+            '<div class=\\"label\\">Resolved</div></div>'
         )
         kpis = "\n        ".join(kpi_html)
 
@@ -1428,6 +1496,29 @@ async def {action}_{sn}({sn}_id: str, settings: Settings = Depends(get_settings)
                 f'</table></div>'
             )
         tabs_html.append('<div class=\\"tab\\" data-tab=\\"system\\">System</div>')
+
+        # AI chat tab -- added when spec uses AI
+        ai_chat_panel = ""
+        if spec.uses_ai:
+            tabs_html.append('<div class=\\"tab\\" data-tab=\\"ai-chat\\">AI Assistant</div>')
+            ai_chat_panel = (
+                '<div class=\\"tab-panel\\" id=\\"panel-ai-chat\\">'
+                '<div class=\\"chat-container\\">'
+                '<div class=\\"chat-header\\">'
+                f'<h4>AI Assistant &mdash; {spec.project_name}</h4>'
+                '<div class=\\"chat-status\\"><span class=\\"dot\\" id=\\"ai-status-dot\\" style=\\"background:var(--text-secondary)\\"></span><span id=\\"ai-status-text\\">Checking...</span></div>'
+                '</div>'
+                '<div class=\\"chat-messages\\" id=\\"chatMessages\\">'
+                '<div class=\\"chat-msg system\\">Ask me anything about your data. I can search, analyze, and provide insights across all entities.</div>'
+                '</div>'
+                '<div class=\\"chat-input-bar\\">'
+                '<label class=\\"chat-upload-btn\\" title=\\"Upload file (image, document, audio, receipt)\\"><input type=\\"file\\" id=\\"chatFileInput\\" style=\\"display:none\\" onchange=\\"uploadFile()\\" accept=\\"image/*,audio/*,.pdf,.docx,.xlsx,.csv,.txt,.json,.xml,.md,.html\\"><svg width=\\"18\\" height=\\"18\\" viewBox=\\"0 0 24 24\\" fill=\\"none\\" stroke=\\"currentColor\\" stroke-width=\\"2\\"><path d=\\"M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48\\"/></svg></label>'
+                '<input type=\\"text\\" class=\\"chat-input\\" id=\\"chatInput\\" placeholder=\\"Ask about your data or upload a file...\\" onkeydown=\\"if(event.key===&#39;Enter&#39;)sendChat()\\">'
+                '<button class=\\"chat-send\\" id=\\"chatSend\\" onclick=\\"sendChat()\\">Send</button>'
+                '</div>'
+                '</div></div>'
+            )
+
         tabs = "\n            ".join(tabs_html)
         panels = "\n        ".join(panels_html)
 
@@ -1459,6 +1550,7 @@ async def {action}_{sn}({sn}_id: str, settings: Settings = Depends(get_settings)
         </div>
         {panels}
         {system_panel}
+        {ai_chat_panel}
     </div>
     <div class=\\"modal-overlay\\" id=\\"createModal\\">
         <div class=\\"modal\\">
@@ -1519,8 +1611,12 @@ async def {action}_{sn}({sn}_id: str, settings: Settings = Depends(get_settings)
         const ENTITIES = {config_js};
         let allData = {lb}{rb};
 
+        // Dynamic status classification — adapts to any domain
+        const ACTION_STATUSES = ['pending','draft','new','open','queued','submitted','waiting','in_progress','in-progress','processing','running','active','review','pending_review','on_hold','on-hold','paused'];
+        const RESOLVED_STATUSES = ['completed','approved','processed','done','resolved','closed','success','passed','delivered','published','inactive','disabled','offline','cancelled','rejected','failed','error','denied','expired','terminated'];
+
         async function loadAll() {lb}
-            let totalPending = 0, totalCompleted = 0;
+            let actionNeeded = 0, resolved = 0;
             for (const ent of ENTITIES) {lb}
                 try {lb}
                     const r = await fetch('/api/v1/' + ent.slug);
@@ -1528,16 +1624,21 @@ async def {action}_{sn}({sn}_id: str, settings: Settings = Depends(get_settings)
                     const rows = Array.isArray(d) ? d : (d.value || d.items || d.data || []);
                     allData[ent.slug] = rows;
                     document.getElementById('count-' + ent.slug).textContent = rows.length;
-                    totalPending += rows.filter(r => r.status === 'pending').length;
-                    totalCompleted += rows.filter(r => ['completed','approved','processed'].includes(r.status)).length;
+                    rows.forEach(row => {lb}
+                        const s = String(row.status || '').toLowerCase().replace(/ /g,'_');
+                        if (ACTION_STATUSES.includes(s)) actionNeeded++;
+                        else if (RESOLVED_STATUSES.includes(s)) resolved++;
+                    {rb});
                     renderTable(ent, rows);
                 {rb} catch(e) {lb}
                     console.error('Failed to load ' + ent.slug, e);
                     document.getElementById('count-' + ent.slug).textContent = '!';
                 {rb}
             {rb}
-            document.getElementById('count-pending').textContent = totalPending;
-            document.getElementById('count-completed').textContent = totalCompleted;
+            const anEl = document.getElementById('count-action-needed');
+            if (anEl) anEl.textContent = actionNeeded;
+            const rsEl = document.getElementById('count-resolved');
+            if (rsEl) rsEl.textContent = resolved;
             const luEl = document.getElementById('last-updated');
             if (luEl) luEl.textContent = 'Last updated: ' + new Date().toLocaleTimeString();
         {rb}
@@ -1553,31 +1654,43 @@ async def {action}_{sn}({sn}_id: str, settings: Settings = Depends(get_settings)
                 let cells = '<td style="font-family:Consolas,monospace;font-size:12px;cursor:pointer;color:var(--primary)" onclick="openDetail(&#39;' + ent.slug + '&#39;,&#39;' + row.id + '&#39;)">' + idShort + '...</td>';
                 ent.table_fields.forEach(f => {lb}
                     const val = row[f] != null ? row[f] : '-';
-                    if (f === 'status') {lb}
-                        cells += '<td><span class="badge badge-' + String(val).replace(/ /g,'-') + '">' + val + '</span></td>';
-                    {rb} else if (f === 'amount') {lb}
+                    if (f === 'status' || f === 'state' || f.endsWith('_status')) {lb}
+                        cells += '<td><span class="badge badge-' + String(val).replace(/ /g,'-').replace(/[^a-zA-Z0-9-_]/g,'') + '">' + val + '</span></td>';
+                    {rb} else if (f.endsWith('_at') || f.endsWith('_date') || f === 'timestamp' || f === 'date' || f === 'created' || f === 'updated') {lb}
+                        const d = new Date(val);
+                        cells += '<td>' + (isNaN(d) ? val : d.toLocaleDateString()) + '</td>';
+                    {rb} else if (f === 'amount' || f === 'price' || f === 'cost' || f === 'total' || f === 'fee' || f === 'balance' || f.endsWith('_amount') || f.endsWith('_price') || f.endsWith('_cost')) {lb}
                         cells += '<td style="font-weight:600">$' + Number(val).toFixed(2) + '</td>';
-                    {rb} else if (f === 'priority') {lb}
-                        const pcolor = val === 'high' ? 'var(--danger)' : val === 'medium' ? 'var(--warning)' : 'var(--text-secondary)';
+                    {rb} else if (f === 'priority' || f === 'severity' || f === 'level' || f === 'urgency') {lb}
+                        const pcolor = ['high','critical','urgent','p1'].includes(String(val).toLowerCase()) ? 'var(--danger)' : ['medium','p2','warning'].includes(String(val).toLowerCase()) ? 'var(--warning)' : 'var(--text-secondary)';
                         cells += '<td style="font-weight:600;color:' + pcolor + '">' + val + '</td>';
-                    {rb} else if (f === 'created_at') {lb}
-                        cells += '<td>' + new Date(val).toLocaleDateString() + '</td>';
+                    {rb} else if (f === 'email' || f.endsWith('_email')) {lb}
+                        cells += '<td><a href="mailto:' + val + '" style="color:var(--primary)">' + val + '</a></td>';
+                    {rb} else if (f === 'url' || f === 'link' || f === 'website' || f.endsWith('_url')) {lb}
+                        cells += '<td><a href="' + val + '" target="_blank" style="color:var(--primary)">' + String(val).substring(0,40) + '</a></td>';
+                    {rb} else if (typeof val === 'boolean' || f.startsWith('is_') || f.startsWith('has_') || f === 'enabled' || f === 'active') {lb}
+                        cells += '<td>' + (val === true || val === 'true' || val === 'True' ? '\u2705' : '\u274c') + '</td>';
+                    {rb} else if (typeof val === 'number' && !Number.isInteger(val)) {lb}
+                        cells += '<td>' + Number(val).toFixed(2) + '</td>';
                     {rb} else {lb}
-                        cells += '<td>' + val + '</td>';
+                        const sv = String(val);
+                        cells += '<td>' + (sv.length > 60 ? sv.substring(0,57) + '...' : sv) + '</td>';
                     {rb}
                 {rb});
                 let actionBtns = '';
-                if (row.status === 'pending') {lb}
-                    if (ent.actions.includes('approve')) actionBtns += '<button class="btn btn-success btn-sm" onclick="doAction(&#39;' + ent.slug + '&#39;,&#39;' + row.id + '&#39;,&#39;approve&#39;)">Approve</button> ';
-                    if (ent.actions.includes('reject')) actionBtns += '<button class="btn btn-danger btn-sm" onclick="doAction(&#39;' + ent.slug + '&#39;,&#39;' + row.id + '&#39;,&#39;reject&#39;)">Reject</button> ';
+                const ACTION_STYLES = {lb}'approve':'btn-success','accept':'btn-success','activate':'btn-success','enable':'btn-success','publish':'btn-success','start':'btn-success','deploy':'btn-success','confirm':'btn-success','resolve':'btn-success',
+                    'reject':'btn-danger','deny':'btn-danger','delete':'btn-danger','remove':'btn-danger','cancel':'btn-danger','terminate':'btn-danger','disable':'btn-danger','block':'btn-danger','revoke':'btn-danger',
+                    'process':'btn-warning','escalate':'btn-warning','retry':'btn-warning','resubmit':'btn-warning','pause':'btn-warning','suspend':'btn-warning','flag':'btn-warning','review':'btn-warning','archive':'btn-warning'{rb};
+                const s = String(row.status || '').toLowerCase().replace(/ /g,'_');
+                const isTerminal = RESOLVED_STATUSES.includes(s);
+                if (!isTerminal) {lb}
+                    ent.actions.forEach(action => {lb}
+                        const btnClass = ACTION_STYLES[action] || 'btn-primary';
+                        const label = action.charAt(0).toUpperCase() + action.slice(1).replace(/_/g,' ');
+                        actionBtns += '<button class="btn ' + btnClass + ' btn-sm" onclick="doAction(&#39;' + ent.slug + '&#39;,&#39;' + row.id + '&#39;,&#39;' + action + '&#39;)">' + label + '</button> ';
+                    {rb});
                 {rb}
-                if (row.status === 'approved' && ent.actions.includes('process')) {lb}
-                    actionBtns += '<button class="btn btn-warning btn-sm" onclick="doAction(&#39;' + ent.slug + '&#39;,&#39;' + row.id + '&#39;,&#39;process&#39;)">Process</button> ';
-                {rb}
-                if (['pending','approved','in_progress'].includes(row.status) && ent.actions.includes('escalate')) {lb}
-                    actionBtns += '<button class="btn btn-sm" style="background:#7b1fa2;color:white" onclick="doAction(&#39;' + ent.slug + '&#39;,&#39;' + row.id + '&#39;,&#39;escalate&#39;)">Escalate</button> ';
-                {rb}
-                if (!actionBtns) actionBtns = '<span style="color:var(--text-secondary);font-size:12px">No actions</span>';
+                if (!actionBtns) actionBtns = '<span style="color:var(--text-secondary);font-size:12px">' + (isTerminal ? '\u2714 Done' : 'No actions') + '</span>';
                 cells += '<td>' + actionBtns + '</td>';
                 return '<tr>' + cells + '</tr>';
             {rb}).join('');
@@ -1671,20 +1784,28 @@ async def {action}_{sn}({sn}_id: str, settings: Settings = Depends(get_settings)
                 const label = k.replace(/_/g,' ').replace(/\\\\b\\\\w/g, c => c.toUpperCase());
                 let display = v;
                 if (Array.isArray(v)) display = v.join(', ');
-                if (k === 'status') display = '<span class="badge badge-' + String(v).replace(/ /g,'-') + '">' + v + '</span>';
-                if (k === 'amount') display = '$' + Number(v).toFixed(2);
+                if (k === 'status' || k === 'state' || k.endsWith('_status')) display = '<span class="badge badge-' + String(v).replace(/ /g,'-').replace(/[^a-zA-Z0-9_-]/g,'') + '">' + v + '</span>';
+                else if (k === 'amount' || k === 'price' || k === 'cost' || k === 'total' || k === 'fee' || k === 'balance' || k.endsWith('_amount') || k.endsWith('_price') || k.endsWith('_cost')) display = '$' + Number(v).toFixed(2);
+                else if (k.endsWith('_at') || k.endsWith('_date') || k === 'timestamp' || k === 'date') {lb} const d=new Date(v); if(!isNaN(d)) display=d.toLocaleString(); {rb}
+                else if (typeof v === 'boolean' || k.startsWith('is_') || k.startsWith('has_')) display = v ? '\u2705' : '\u274c';
+                else if (k === 'email' || k.endsWith('_email')) display = '<a href="mailto:'+v+'" style="color:var(--primary)">'+v+'</a>';
                 html += '<div class="detail-row"><div class="dl">' + label + '</div><div>' + display + '</div></div>';
             {rb});
             document.getElementById('detailBody').innerHTML = html;
 
-            // Action buttons in detail
+            // Action buttons in detail — dynamic from entity actions
             let actionsHtml = '<button class="btn" onclick="closeDetail()">Close</button>';
-            if (row.status === 'pending') {lb}
-                if (ent.actions.includes('approve')) actionsHtml += ' <button class="btn btn-success" onclick="doAction(&#39;' + slug + '&#39;,&#39;' + id + '&#39;,&#39;approve&#39;);closeDetail()">Approve</button>';
-                if (ent.actions.includes('reject')) actionsHtml += ' <button class="btn btn-danger" onclick="doAction(&#39;' + slug + '&#39;,&#39;' + id + '&#39;,&#39;reject&#39;);closeDetail()">Reject</button>';
-            {rb}
-            if (row.status === 'approved' && ent.actions.includes('process')) {lb}
-                actionsHtml += ' <button class="btn btn-warning" onclick="doAction(&#39;' + slug + '&#39;,&#39;' + id + '&#39;,&#39;process&#39;);closeDetail()">Process</button>';
+            const ds = String(row.status || '').toLowerCase().replace(/ /g,'_');
+            const isTerminalDetail = RESOLVED_STATUSES.includes(ds);
+            if (!isTerminalDetail) {lb}
+                const DA = {lb}'approve':'btn-success','accept':'btn-success','activate':'btn-success','enable':'btn-success','publish':'btn-success','start':'btn-success','confirm':'btn-success','resolve':'btn-success',
+                    'reject':'btn-danger','deny':'btn-danger','delete':'btn-danger','remove':'btn-danger','cancel':'btn-danger','terminate':'btn-danger','disable':'btn-danger',
+                    'process':'btn-warning','escalate':'btn-warning','retry':'btn-warning','resubmit':'btn-warning','pause':'btn-warning','review':'btn-warning','archive':'btn-warning'{rb};
+                ent.actions.forEach(action => {lb}
+                    const bc = DA[action] || 'btn-primary';
+                    const lbl = action.charAt(0).toUpperCase() + action.slice(1).replace(/_/g,' ');
+                    actionsHtml += ' <button class="btn ' + bc + '" onclick="doAction(&#39;' + slug + '&#39;,&#39;' + id + '&#39;,&#39;' + action + '&#39;);closeDetail()">' + lbl + '</button>';
+                {rb});
             {rb}
             document.getElementById('detailActions').innerHTML = actionsHtml;
             document.getElementById('detailModal').classList.add('open');
@@ -1754,6 +1875,137 @@ async def {action}_{sn}({sn}_id: str, settings: Settings = Depends(get_settings)
         checkHealth();
         setInterval(checkHealth, 15000);
 """
+
+        # Add AI chat JS when AI is enabled
+        if spec.uses_ai:
+            chat_js = f"""
+
+        // AI Chat
+        let chatHistory = [];
+        async function checkAIStatus() {lb}
+            const dot = document.getElementById('ai-status-dot');
+            const text = document.getElementById('ai-status-text');
+            if (!dot) return;
+            try {lb}
+                const r = await fetch('/api/v1/ai/models');
+                const d = await r.json();
+                if (d.status === 'available') {lb}
+                    dot.style.background = 'var(--success)';
+                    text.textContent = d.provider + ' (' + d.chat_model + ')';
+                {rb} else {lb}
+                    dot.style.background = 'var(--warning)';
+                    text.textContent = 'Not configured';
+                {rb}
+            {rb} catch(e) {lb}
+                dot.style.background = 'var(--danger)';
+                text.textContent = 'Unavailable';
+            {rb}
+        {rb}
+        checkAIStatus();
+
+        function appendChatMsg(role, content) {lb}
+            const container = document.getElementById('chatMessages');
+            const div = document.createElement('div');
+            div.className = 'chat-msg ' + role;
+            div.textContent = content;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        {rb}
+
+        function showTyping() {lb}
+            const container = document.getElementById('chatMessages');
+            const div = document.createElement('div');
+            div.className = 'chat-typing';
+            div.id = 'typing-indicator';
+            div.innerHTML = '<span></span><span></span><span></span>';
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        {rb}
+
+        function hideTyping() {lb}
+            const el = document.getElementById('typing-indicator');
+            if (el) el.remove();
+        {rb}
+
+        async function sendChat() {lb}
+            const input = document.getElementById('chatInput');
+            const msg = input.value.trim();
+            if (!msg) return;
+            input.value = '';
+            appendChatMsg('user', msg);
+            chatHistory.push({lb} role: 'user', content: msg {rb});
+            document.getElementById('chatSend').disabled = true;
+            showTyping();
+            try {lb}
+                const r = await fetch('/api/v1/ai/chat', {lb}
+                    method: 'POST',
+                    headers: {lb} 'Content-Type': 'application/json' {rb},
+                    body: JSON.stringify({lb}
+                        message: msg,
+                        history: chatHistory.slice(-10)
+                    {rb})
+                {rb});
+                hideTyping();
+                if (r.ok) {lb}
+                    const d = await r.json();
+                    appendChatMsg('assistant', d.reply);
+                    chatHistory.push({lb} role: 'assistant', content: d.reply {rb});
+                {rb} else {lb}
+                    const err = await r.json().catch(() => ({lb}{rb}));
+                    appendChatMsg('system', 'Error: ' + (err.detail || 'AI service unavailable. Configure AZURE_OPENAI_ENDPOINT or OPENAI_API_KEY.'));
+                {rb}
+            {rb} catch(e) {lb}
+                hideTyping();
+                appendChatMsg('system', 'Network error: ' + e.message);
+            {rb}
+            document.getElementById('chatSend').disabled = false;
+            input.focus();
+        {rb}
+
+        async function uploadFile() {lb}
+            const fileInput = document.getElementById('chatFileInput');
+            const file = fileInput.files[0];
+            if (!file) return;
+            fileInput.value = '';
+
+            const sizeMB = file.size / (1024 * 1024);
+            if (sizeMB > 20) {lb}
+                appendChatMsg('system', 'File too large (max 20MB): ' + file.name);
+                return;
+            {rb}
+
+            appendChatMsg('user', '\U0001F4CE Uploaded: ' + file.name + ' (' + (sizeMB < 1 ? (file.size/1024).toFixed(0)+'KB' : sizeMB.toFixed(1)+'MB') + ')');
+            document.getElementById('chatSend').disabled = true;
+            showTyping();
+
+            try {lb}
+                const formData = new FormData();
+                formData.append('file', file);
+
+                const r = await fetch('/api/v1/ai/upload', {lb}
+                    method: 'POST',
+                    body: formData
+                {rb});
+                hideTyping();
+                if (r.ok) {lb}
+                    const d = await r.json();
+                    const replyText = d.analysis || d.reply || 'File processed.';
+                    appendChatMsg('assistant', replyText);
+                    chatHistory.push({lb} role: 'user', content: 'Uploaded file: ' + file.name {rb});
+                    chatHistory.push({lb} role: 'assistant', content: replyText {rb});
+                {rb} else {lb}
+                    const err = await r.json().catch(() => ({lb}{rb}));
+                    appendChatMsg('system', 'Upload error: ' + (err.detail || 'Failed to process file'));
+                {rb}
+            {rb} catch(e) {lb}
+                hideTyping();
+                appendChatMsg('system', 'Upload failed: ' + e.message);
+            {rb}
+            document.getElementById('chatSend').disabled = false;
+        {rb}
+"""
+            raw += chat_js
+
         return raw.replace(lb, lb * 2).replace(rb, rb * 2)
 
     def _python_v1_schemas(self, spec: IntentSpec) -> str:
@@ -2464,9 +2716,12 @@ module.exports = { seedData };
             for rid in range(1, 4):
                 parts = [f'id: "{sn}-{rid:03d}"']
                 for f in ent.fields:
+                    if f.name == "created_at":
+                        continue
                     val = _seed_value(f, ent.name, rid)
                     parts.append(f'{f.name}: {val}')
-                parts.append(f'created_at: "2024-03-{10+rid}T0{8+rid}:00:00Z"')
+                hour = 8 + rid
+                parts.append(f'created_at: "2024-03-{10+rid}T{hour:02d}:00:00Z"')
                 lines.append(f'    "{sn}-{rid:03d}": {{ {", ".join(parts)} }},')
             lines.append(f'  }},')
         lines.append('};')
@@ -2819,7 +3074,8 @@ public class SeedData
                     cval = _dotnet_seed_val(val, f.type)
                     parts.append(cval)
                 parts.append('"pending"')
-                parts.append(f'DateTime.Parse("2024-03-{10+rid}T0{8+rid}:00:00Z")')
+                hour = 8 + rid
+                parts.append(f'DateTime.Parse("2024-03-{10+rid}T{hour:02d}:00:00Z")')
                 lines.append(f'        new({", ".join(parts)}),')
             lines.append('    };')
         lines.append('}')
@@ -2831,99 +3087,237 @@ public class SeedData
     # ===============================================================
 
     def _python_ai_client(self, spec: IntentSpec) -> str:
-        """Generate Azure OpenAI client module with Managed Identity auth."""
+        """Generate AI client that auto-detects provider: Azure OpenAI, OpenAI, or raises clear error."""
         ai_model = getattr(spec, "ai_model", "gpt-4o")
-        return f'''"""Azure OpenAI Client -- Managed Identity authentication.
+        entities = spec.entities
+        entity_names = ", ".join(e.name for e in entities) if entities else "general"
+        return f'''"""AI Client -- auto-detecting provider with enterprise auth.
 
-Provides a configured OpenAI client that uses DefaultAzureCredential
-for passwordless access to Azure OpenAI resources.
+Supports:
+1. Azure OpenAI with Managed Identity (AZURE_OPENAI_ENDPOINT set)
+2. Azure OpenAI with API key (AZURE_OPENAI_ENDPOINT + AZURE_OPENAI_API_KEY)
+3. OpenAI API (OPENAI_API_KEY set)
+
+No mocks — real AI processing for: {entity_names}
 """
 
 from __future__ import annotations
 
+import logging
 import os
+from typing import Any
 
-from azure.identity import DefaultAzureCredential, get_bearer_token_provider
-from openai import AzureOpenAI
+logger = logging.getLogger(__name__)
+
+CHAT_MODEL = os.getenv("AZURE_OPENAI_CHAT_DEPLOYMENT", "{ai_model}")
+EMBEDDINGS_MODEL = os.getenv("AZURE_OPENAI_EMBEDDINGS_DEPLOYMENT", "text-embedding-ada-002")
 
 
-def get_openai_client() -> AzureOpenAI:
-    """Create an authenticated Azure OpenAI client."""
+def _create_azure_openai_client():
+    """Create Azure OpenAI client with Managed Identity or API key."""
+    from openai import AzureOpenAI
+
+    endpoint = os.getenv("AZURE_OPENAI_ENDPOINT", "")
+    api_key = os.getenv("AZURE_OPENAI_API_KEY")
+
+    if api_key:
+        return AzureOpenAI(
+            azure_endpoint=endpoint,
+            api_key=api_key,
+            api_version="2024-06-01",
+        )
+
+    # Managed Identity (production path)
+    from azure.identity import DefaultAzureCredential, get_bearer_token_provider
+
     credential = DefaultAzureCredential(
         managed_identity_client_id=os.getenv("AZURE_CLIENT_ID")
     )
     token_provider = get_bearer_token_provider(
         credential, "https://cognitiveservices.azure.com/.default"
     )
-
     return AzureOpenAI(
-        azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT", ""),
+        azure_endpoint=endpoint,
         azure_ad_token_provider=token_provider,
         api_version="2024-06-01",
     )
 
 
-# Default model deployment name
-CHAT_MODEL = os.getenv("AZURE_OPENAI_CHAT_DEPLOYMENT", "{ai_model}")
-EMBEDDINGS_MODEL = os.getenv("AZURE_OPENAI_EMBEDDINGS_DEPLOYMENT", "text-embedding-ada-002")
+def _create_openai_client():
+    """Create standard OpenAI client."""
+    from openai import OpenAI
+
+    return OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+
+def get_ai_client():
+    """Auto-detect and return the best available AI client.
+
+    Returns a tuple of (client, provider_name).
+    Raises RuntimeError if no provider is configured.
+    """
+    if os.getenv("AZURE_OPENAI_ENDPOINT"):
+        logger.info("ai_client.provider", extra={{"provider": "azure_openai"}})
+        return _create_azure_openai_client(), "azure_openai"
+
+    if os.getenv("OPENAI_API_KEY"):
+        logger.info("ai_client.provider", extra={{"provider": "openai"}})
+        return _create_openai_client(), "openai"
+
+    raise RuntimeError(
+        "No AI provider configured. Set one of: "
+        "AZURE_OPENAI_ENDPOINT (+ optional AZURE_OPENAI_API_KEY), "
+        "or OPENAI_API_KEY"
+    )
+
+
+def get_embeddings(text: str) -> list[float]:
+    """Generate embeddings for the given text."""
+    client, _ = get_ai_client()
+    response = client.embeddings.create(model=EMBEDDINGS_MODEL, input=text)
+    return response.data[0].embedding
+
+
+def chat_completion(
+    messages: list[dict[str, str]],
+    model: str | None = None,
+    temperature: float = 0.7,
+    max_tokens: int = 1000,
+) -> dict[str, Any]:
+    """Run a chat completion and return structured result."""
+    client, provider = get_ai_client()
+    use_model = model or CHAT_MODEL
+
+    response = client.chat.completions.create(
+        model=use_model,
+        messages=messages,
+        max_tokens=max_tokens,
+        temperature=temperature,
+    )
+
+    choice = response.choices[0]
+    return {{
+        "reply": choice.message.content or "",
+        "model": use_model,
+        "provider": provider,
+        "usage": {{
+            "prompt_tokens": response.usage.prompt_tokens if response.usage else 0,
+            "completion_tokens": response.usage.completion_tokens if response.usage else 0,
+            "total_tokens": response.usage.total_tokens if response.usage else 0,
+        }},
+    }}
 '''
 
     def _python_ai_chat(self, spec: IntentSpec) -> str:
-        """Generate AI chat router with streaming and history."""
+        """Generate domain-aware AI chat router with real RAG and entity context."""
         ai_features = getattr(spec, "ai_features", [])
-        rag_import = ""
-        rag_grounding = ""
+        entities = spec.entities
+
+        # Build entity registry imports and context builder
+        entity_imports = []
+        entity_context_lines = []
+        for ent in entities:
+            sn = _snake(ent.name)
+            plural = _snake(_plural(ent.name))
+            entity_context_lines.append(
+                f'    try:\n'
+                f'        repo = get_repository("{sn}")\n'
+                f'        items = repo.list_all()\n'
+                f'        sections.append(f"{_plural(ent.name)} ({{len(items)}} records):")\n'
+                f'        for item in items[:5]:\n'
+                f'            sections.append(f"  - {{item}}")\n'
+                f'        if len(items) > 5:\n'
+                f'            sections.append(f"  ... and {{len(items) - 5}} more")\n'
+                f'    except Exception:\n'
+                f'        pass'
+            )
+        entity_import_block = "from core.dependencies import get_repository"
+        entity_context_block = "\n".join(entity_context_lines)
+
+        # Build entity descriptions for system prompt
+        entity_descriptions = []
+        for ent in entities:
+            fields = ", ".join(f.name for f in ent.fields)
+            entity_descriptions.append(f"  - {ent.name}: {fields}")
+        entity_desc_str = "\\n".join(entity_descriptions)
+
+        # AI Search RAG support (when Azure AI Search is configured)
+        search_rag_block = ""
         if "rag" in ai_features:
-            rag_import = """
-import os
-from azure.identity import DefaultAzureCredential
-from azure.search.documents import SearchClient
-"""
-            rag_grounding = """
+            search_rag_block = '''
 
-def _retrieve_context(query: str, top_k: int = 3) -> str:
-    \"\"\"Retrieve relevant documents from AI Search for RAG grounding.\"\"\"
-    credential = DefaultAzureCredential(
-        managed_identity_client_id=os.getenv("AZURE_CLIENT_ID")
-    )
-    search_client = SearchClient(
-        endpoint=os.getenv("AZURE_SEARCH_ENDPOINT", ""),
-        index_name=os.getenv("AZURE_SEARCH_INDEX", "documents"),
-        credential=credential,
-    )
-    results = search_client.search(search_text=query, top=top_k)
-    chunks = [doc.get("content", "") for doc in results]
-    return "\\n\\n".join(chunks)
-"""
+def _search_rag_context(query: str, top_k: int = 3) -> str:
+    """Retrieve context from Azure AI Search when configured."""
+    search_endpoint = os.getenv("AZURE_SEARCH_ENDPOINT")
+    if not search_endpoint:
+        return ""
+    try:
+        from azure.identity import DefaultAzureCredential
+        from azure.search.documents import SearchClient
 
-        system_prompt = f"You are a helpful AI assistant for {spec.project_name}."
-        rag_context_block = ""
-        if "rag" in ai_features:
-            rag_context_block = """
-    # RAG grounding: retrieve relevant documents
-    context = _retrieve_context(request.message)
-    if context:
-        messages.insert(1, {
-            "role": "system",
-            "content": f"Use the following context to answer:\\n\\n{context}",
-        })
-"""
+        credential = DefaultAzureCredential(
+            managed_identity_client_id=os.getenv("AZURE_CLIENT_ID")
+        )
+        client = SearchClient(
+            endpoint=search_endpoint,
+            index_name=os.getenv("AZURE_SEARCH_INDEX", "documents"),
+            credential=credential,
+        )
+        results = client.search(search_text=query, top=top_k)
+        chunks = [doc.get("content", "") for doc in results if doc.get("content")]
+        return "\\n\\n".join(chunks)
+    except Exception as e:
+        logger.warning("ai_search.rag_fallback", extra={"error": str(e)})
+        return ""
+'''
 
-        return f'''"""AI Chat Router -- chat completions with conversation history."""
+        ai_feature_list = ", ".join(ai_features) if ai_features else "chat"
+
+        return f'''"""AI Chat Router -- domain-aware chat with entity context and RAG.
+
+Capabilities: {ai_feature_list}
+Handles any enterprise domain by grounding responses in the app's own data.
+"""
 
 from __future__ import annotations
 
+import base64
+import json
 import logging
+import os
 from datetime import datetime, timezone
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, UploadFile, File
 from pydantic import BaseModel, Field
-{rag_import}
-from ai.client import CHAT_MODEL, get_openai_client
-{rag_grounding}
+
+from ai.client import CHAT_MODEL, chat_completion, get_ai_client
+{entity_import_block}
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+{search_rag_block}
+
+def _build_domain_context() -> str:
+    """Build RAG context from the app\'s own entity repositories."""
+    sections: list[str] = []
+{entity_context_block}
+    return "\\n".join(sections) if sections else "No data available yet."
+
+
+SYSTEM_PROMPT = """You are an AI assistant for {spec.project_name}.
+Project: {spec.project_name}
+Description: {spec.description}
+
+You have access to the following domain entities:
+{entity_desc_str}
+
+When answering questions:
+- Use the provided data context to give accurate, specific answers
+- Reference actual records and data when relevant
+- Provide actionable insights based on the data
+- If asked about data you don\'t have, say so clearly
+- Be concise but thorough
+"""
 
 
 class ChatRequest(BaseModel):
@@ -2939,117 +3333,448 @@ class ChatResponse(BaseModel):
 
     reply: str
     model: str
+    provider: str = ""
     usage: dict = Field(default_factory=dict)
+    context_used: bool = False
     timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 
 @router.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
-    """Send a message to the AI model and get a response."""
-    client = get_openai_client()
+    """Send a message to the AI model grounded in domain data."""
+    try:
+        get_ai_client()  # Validate provider is configured
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+    # Build domain context from repositories
+    domain_context = _build_domain_context()
+    {"rag_ext = _search_rag_context(request.message)" if "rag" in ai_features else "rag_ext = ''"}
+    if rag_ext:
+        domain_context += "\\n\\nExternal Knowledge:\\n" + rag_ext
 
     messages = [
-        {{"role": "system", "content": "{system_prompt}"}},
+        {{"role": "system", "content": SYSTEM_PROMPT}},
+        {{"role": "system", "content": f"Current data context:\\n{{domain_context}}"}},
     ]
 
     # Add conversation history
-    for msg in request.history[-10:]:  # Keep last 10 messages
+    for msg in request.history[-10:]:
         messages.append({{"role": msg.get("role", "user"), "content": msg.get("content", "")}})
 
     messages.append({{"role": "user", "content": request.message}})
-{rag_context_block}
-    response = client.chat.completions.create(
-        model=CHAT_MODEL,
-        messages=messages,
-        max_tokens=1000,
-        temperature=0.7,
-    )
 
-    reply = response.choices[0].message.content or ""
-    logger.info("ai_chat.complete", extra={{"model": CHAT_MODEL, "tokens": response.usage.total_tokens if response.usage else 0}})
+    result = chat_completion(messages)
+    logger.info("ai_chat.complete", extra={{"model": result["model"], "tokens": result["usage"].get("total_tokens", 0)}})
 
     return ChatResponse(
-        reply=reply,
-        model=CHAT_MODEL,
-        usage={{
-            "prompt_tokens": response.usage.prompt_tokens if response.usage else 0,
-            "completion_tokens": response.usage.completion_tokens if response.usage else 0,
-            "total_tokens": response.usage.total_tokens if response.usage else 0,
-        }},
+        reply=result["reply"],
+        model=result["model"],
+        provider=result.get("provider", ""),
+        usage=result["usage"],
+        context_used=bool(domain_context.strip()),
     )
 
 
 @router.get("/models")
 async def list_models():
-    """List available AI model deployments."""
+    """List available AI model deployments and provider status."""
+    try:
+        _, provider = get_ai_client()
+        return {{
+            "chat_model": CHAT_MODEL,
+            "provider": provider,
+            "status": "available",
+        }}
+    except RuntimeError:
+        return {{
+            "chat_model": CHAT_MODEL,
+            "provider": "none",
+            "status": "not_configured",
+            "help": "Set AZURE_OPENAI_ENDPOINT or OPENAI_API_KEY",
+        }}
+
+
+@router.get("/context")
+async def get_context():
+    """Preview the domain context used for RAG grounding."""
+    context = _build_domain_context()
     return {{
-        "chat_model": CHAT_MODEL,
-        "status": "available",
+        "context": context,
+        "entities": {repr([e.name for e in entities])},
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }}
+
+
+# -- File types and processing strategies ----------------------------
+_IMAGE_TYPES = {{"image/png", "image/jpeg", "image/jpg", "image/gif", "image/webp", "image/bmp", "image/tiff"}}
+_AUDIO_TYPES = {{"audio/mpeg", "audio/wav", "audio/ogg", "audio/webm", "audio/mp4", "audio/x-m4a"}}
+_DOC_TYPES = {{
+    "application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/json", "text/plain", "text/csv", "text/html", "text/markdown", "text/xml",
+    "application/xml",
+}}
+_MAX_FILE_SIZE = 20 * 1024 * 1024  # 20MB
+
+
+def _detect_file_category(content_type: str, filename: str) -> str:
+    """Classify uploaded file into a processing category."""
+    ct = (content_type or "").lower()
+    fn = (filename or "").lower()
+
+    if ct in _IMAGE_TYPES or fn.endswith((".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".tiff")):
+        return "image"
+    if ct in _AUDIO_TYPES or fn.endswith((".mp3", ".wav", ".ogg", ".webm", ".m4a")):
+        return "audio"
+    if ct == "application/pdf" or fn.endswith(".pdf"):
+        return "document"
+    if fn.endswith((".xlsx", ".xls")):
+        return "spreadsheet"
+    if fn.endswith((".csv",)):
+        return "csv"
+    if ct in _DOC_TYPES or fn.endswith((".txt", ".md", ".html", ".xml", ".json", ".docx")):
+        return "text"
+    return "binary"
+
+
+async def _process_image(file_bytes: bytes, filename: str) -> str:
+    """Process image using OpenAI Vision (GPT-4o) or description fallback."""
+    try:
+        client, provider = get_ai_client()
+        b64 = base64.b64encode(file_bytes).decode("utf-8")
+        ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "png"
+        mime = f"image/{{ext}}" if ext != "jpg" else "image/jpeg"
+
+        response = client.chat.completions.create(
+            model=CHAT_MODEL,
+            messages=[
+                {{"role": "system", "content": "You are a document and image analysis assistant for {spec.project_name}. Analyze the image and extract all relevant information including text (OCR), objects, data, receipts, invoices, charts, diagrams, or any structured content. Return a detailed analysis."}},
+                {{"role": "user", "content": [
+                    {{"type": "text", "text": f"Analyze this file: {{filename}}"}},
+                    {{"type": "image_url", "image_url": {{"url": f"data:{{mime}};base64,{{b64}}"}}}}
+                ]}}
+            ],
+            max_tokens=2000,
+        )
+        return response.choices[0].message.content or "Image processed but no content extracted."
+    except Exception as e:
+        logger.warning("ai_upload.image_fallback", extra={{"error": str(e)}})
+        return f"Image received: {{filename}} ({{len(file_bytes)}} bytes). AI vision processing unavailable: {{e}}. Configure an OpenAI-compatible model with vision support."
+
+
+async def _process_audio(file_bytes: bytes, filename: str) -> str:
+    """Process audio using OpenAI Whisper transcription."""
+    try:
+        client, _ = get_ai_client()
+        import io
+        audio_file = io.BytesIO(file_bytes)
+        audio_file.name = filename
+
+        transcript = client.audio.transcriptions.create(
+            model="whisper-1",
+            file=audio_file,
+        )
+        text = transcript.text
+        # Summarize the transcript
+        summary = chat_completion([
+            {{"role": "system", "content": "You are an assistant for {spec.project_name}. Summarize and extract key information from the following audio transcript."}},
+            {{"role": "user", "content": f"Transcript from {{filename}}:\\n\\n{{text}}"}},
+        ])
+        return f"**Transcript:**\\n{{text}}\\n\\n**Analysis:**\\n{{summary['reply']}}"
+    except Exception as e:
+        logger.warning("ai_upload.audio_fallback", extra={{"error": str(e)}})
+        return f"Audio received: {{filename}} ({{len(file_bytes)}} bytes). Whisper transcription unavailable: {{e}}."
+
+
+async def _process_text_content(content: str, filename: str) -> str:
+    """Process text-based files (PDF text, CSV, JSON, etc.) through AI analysis."""
+    try:
+        # Truncate very large files for the context window
+        if len(content) > 15000:
+            content = content[:15000] + f"\\n\\n... (truncated, {{len(content)}} total characters)"
+
+        result = chat_completion([
+            {{"role": "system", "content": "You are a document analysis assistant for {spec.project_name}. Analyze the uploaded file and extract key information, patterns, summaries, and actionable insights. For receipts/invoices, extract line items, totals, dates. For data files, summarize structure and key findings. For documents, provide a comprehensive summary."}},
+            {{"role": "user", "content": f"Analyze this file ({{filename}}):\\n\\n{{content}}"}},
+        ])
+        return result["reply"]
+    except Exception as e:
+        return f"File received: {{filename}} ({{len(content)}} chars). AI analysis unavailable: {{e}}"
+
+
+async def _extract_text(file_bytes: bytes, filename: str, category: str) -> str:
+    """Extract readable text from various file formats."""
+    fn = filename.lower()
+
+    if category == "csv" or fn.endswith(".csv"):
+        return file_bytes.decode("utf-8", errors="replace")
+    if fn.endswith(".json"):
+        return file_bytes.decode("utf-8", errors="replace")
+    if fn.endswith((".txt", ".md", ".html", ".xml")):
+        return file_bytes.decode("utf-8", errors="replace")
+    if fn.endswith(".pdf"):
+        # Try basic PDF text extraction 
+        text = file_bytes.decode("latin-1", errors="replace")
+        # Extract text between stream markers (basic)
+        import re
+        streams = re.findall(r'BT\\s*(.*?)\\s*ET', text, re.DOTALL)
+        if streams:
+            # Extract text operators
+            extracted = []
+            for stream in streams:
+                texts = re.findall(r'\\(([^)]+)\\)', stream)
+                extracted.extend(texts)
+            if extracted:
+                return " ".join(extracted)
+        return f"[PDF file: {{len(file_bytes)}} bytes - for full extraction configure Azure Document Intelligence]"
+    if fn.endswith(".docx"):
+        # Basic docx extraction (XML inside zip)
+        try:
+            import zipfile, io
+            with zipfile.ZipFile(io.BytesIO(file_bytes)) as z:
+                if "word/document.xml" in z.namelist():
+                    xml = z.read("word/document.xml").decode("utf-8")
+                    import re
+                    texts = re.findall(r'<w:t[^>]*>([^<]+)</w:t>', xml)
+                    return " ".join(texts)
+        except Exception:
+            pass
+        return f"[DOCX file: {{len(file_bytes)}} bytes]"
+    if fn.endswith((".xlsx", ".xls")):
+        return f"[Spreadsheet: {{len(file_bytes)}} bytes - upload as CSV for text analysis]"
+
+    return f"[Binary file: {{len(file_bytes)}} bytes]"
+
+
+class UploadResponse(BaseModel):
+    """Response after file upload and processing."""
+    analysis: str
+    filename: str
+    file_type: str
+    size_bytes: int
+    model: str = ""
+    timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+
+@router.post("/upload", response_model=UploadResponse)
+async def upload_and_process(file: UploadFile = File(...)):
+    """Upload and process a file (image, document, audio, receipt, etc.).
+
+    Supports: images (OCR/vision), audio (transcription), PDFs, DOCX,
+    CSV, JSON, spreadsheets, receipts, invoices, and text files.
+    """
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="No file provided")
+
+    file_bytes = await file.read()
+    if len(file_bytes) > _MAX_FILE_SIZE:
+        raise HTTPException(status_code=413, detail=f"File too large (max {{_MAX_FILE_SIZE // (1024*1024)}}MB)")
+    if len(file_bytes) == 0:
+        raise HTTPException(status_code=400, detail="Empty file")
+
+    category = _detect_file_category(file.content_type or "", file.filename)
+    logger.info("ai_upload.processing", extra={{
+        "filename": file.filename,
+        "category": category,
+        "size": len(file_bytes),
+        "content_type": file.content_type,
+    }})
+
+    if category == "image":
+        analysis = await _process_image(file_bytes, file.filename)
+    elif category == "audio":
+        analysis = await _process_audio(file_bytes, file.filename)
+    else:
+        # Text-based processing: extract text then analyze
+        text_content = await _extract_text(file_bytes, file.filename, category)
+        analysis = await _process_text_content(text_content, file.filename)
+
+    return UploadResponse(
+        analysis=analysis,
+        filename=file.filename,
+        file_type=category,
+        size_bytes=len(file_bytes),
+        model=CHAT_MODEL,
+    )
+
+
+@router.get("/upload/supported")
+async def supported_file_types():
+    """List supported file types for upload and processing."""
+    return {{
+        "image": ["png", "jpg", "jpeg", "gif", "webp", "bmp", "tiff"],
+        "audio": ["mp3", "wav", "ogg", "webm", "m4a"],
+        "document": ["pdf", "docx"],
+        "data": ["csv", "json", "xlsx", "xls"],
+        "text": ["txt", "md", "html", "xml"],
+        "max_size_mb": 20,
+        "features": {{
+            "image": "OCR, receipt/invoice extraction, diagram analysis (via GPT-4o Vision)",
+            "audio": "Transcription and summarization (via Whisper)",
+            "document": "Text extraction and AI analysis",
+            "data": "Structure analysis and insights",
+        }},
     }}
 '''
 
     def _python_ai_agent(self, spec: IntentSpec) -> str:
-        """Generate Semantic Kernel-based agent with tool-use."""
-        return f'''"""AI Agent -- Semantic Kernel agent with tool-calling capabilities.
+        """Generate entity-driven AI agent with dynamic tool registry."""
+        entities = spec.entities
+        import json as _json
 
-This module provides an agentic AI pattern using Semantic Kernel for:
-- Multi-step reasoning
-- Tool invocation (function calling)
-- Conversation planning
+        # Build dynamic tool methods for each entity
+        tool_methods = []
+        tool_registrations = []
+        for ent in entities:
+            sn = _snake(ent.name)
+            plural = _snake(_plural(ent.name))
+            label = ent.name
+            fields = ", ".join(f.name for f in ent.fields)
+
+            tool_methods.append(f'''
+    @kernel_function(name="list_{plural}", description="List all {_plural(ent.name).lower()} in the system")
+    def list_{plural}(self) -> str:
+        """List all {_plural(ent.name).lower()} with their details."""
+        repo = get_repository("{sn}")
+        items = repo.list_all()
+        if not items:
+            return "No {_plural(ent.name).lower()} found."
+        return json.dumps(items[:20], indent=2, default=str)
+
+    @kernel_function(name="get_{sn}", description="Get a specific {label.lower()} by ID")
+    def get_{sn}(self, entity_id: str) -> str:
+        """Get details of a specific {label.lower()}."""
+        repo = get_repository("{sn}")
+        item = repo.get(entity_id)
+        if not item:
+            return f"No {label.lower()} found with ID {{entity_id}}"
+        return json.dumps(item, indent=2, default=str)
+
+    @kernel_function(name="search_{plural}", description="Search {_plural(ent.name).lower()} by keyword")
+    def search_{plural}(self, query: str) -> str:
+        """Search {_plural(ent.name).lower()} by matching any field value."""
+        repo = get_repository("{sn}")
+        items = repo.list_all()
+        q = query.lower()
+        matches = [i for i in items if q in json.dumps(i, default=str).lower()]
+        if not matches:
+            return f"No {_plural(ent.name).lower()} matching \'{{query}}\'"
+        return json.dumps(matches[:10], indent=2, default=str)
+
+    @kernel_function(name="count_{plural}", description="Count {_plural(ent.name).lower()} by status")
+    def count_{plural}(self) -> str:
+        """Count {_plural(ent.name).lower()} grouped by status."""
+        repo = get_repository("{sn}")
+        items = repo.list_all()
+        counts: dict[str, int] = {{}}
+        for item in items:
+            status = item.get("status", "unknown")
+            counts[status] = counts.get(status, 0) + 1
+        return json.dumps({{"total": len(items), "by_status": counts}})''')
+
+            tool_registrations.append(f'    # {label}: list, get, search, count')
+
+        tool_methods_str = "\n".join(tool_methods)
+        entity_names = ", ".join(e.name for e in entities)
+
+        # Build entity import lines
+        entity_import_block = "from core.dependencies import get_repository"
+
+        return f'''"""AI Agent -- entity-driven tool-calling agent.
+
+Dynamically provides tools for: {entity_names}
+Each entity gets: list, get, search, count operations.
+Works with any AI provider (Azure OpenAI, OpenAI).
 """
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 
 from semantic_kernel import Kernel
-from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion
+from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion, OpenAIChatCompletion
 from semantic_kernel.connectors.ai.open_ai.prompt_execution_settings.azure_chat_prompt_execution_settings import (
     AzureChatPromptExecutionSettings,
 )
 from semantic_kernel.contents.chat_history import ChatHistory
 from semantic_kernel.functions import kernel_function
 
+{entity_import_block}
+
 logger = logging.getLogger(__name__)
 
 
 def create_kernel() -> Kernel:
-    """Create a Semantic Kernel with Azure OpenAI."""
+    """Create a Semantic Kernel with auto-detected AI provider."""
     kernel = Kernel()
-    kernel.add_service(
-        AzureChatCompletion(
-            deployment_name=os.getenv("AZURE_OPENAI_CHAT_DEPLOYMENT", "gpt-4o"),
-            endpoint=os.getenv("AZURE_OPENAI_ENDPOINT", ""),
-            # Uses DefaultAzureCredential via env
+
+    if os.getenv("AZURE_OPENAI_ENDPOINT"):
+        kernel.add_service(
+            AzureChatCompletion(
+                deployment_name=os.getenv("AZURE_OPENAI_CHAT_DEPLOYMENT", "gpt-4o"),
+                endpoint=os.getenv("AZURE_OPENAI_ENDPOINT", ""),
+                api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+            )
         )
-    )
+    elif os.getenv("OPENAI_API_KEY"):
+        kernel.add_service(
+            OpenAIChatCompletion(
+                ai_model_id=os.getenv("OPENAI_MODEL", "gpt-4o"),
+                api_key=os.getenv("OPENAI_API_KEY"),
+            )
+        )
+    else:
+        raise RuntimeError(
+            "No AI provider configured for agent. "
+            "Set AZURE_OPENAI_ENDPOINT or OPENAI_API_KEY."
+        )
+
     return kernel
 
 
 class DomainTools:
-    """Domain-specific tools the agent can invoke."""
+    """Auto-generated tools for all domain entities.
 
-    @kernel_function(name="search_knowledge", description="Search the knowledge base for information")
-    def search_knowledge(self, query: str) -> str:
-        """Search domain knowledge base."""
-        return f"Knowledge base results for: {{query}}"
+    Entities: {entity_names}
+    Each entity gets list, get, search, and count tools.
+    """
+{tool_methods_str}
 
-    @kernel_function(name="get_status", description="Get current system status")
-    def get_status(self) -> str:
-        """Return system status."""
-        return "All systems operational."
+    @kernel_function(name="get_system_summary", description="Get a summary of all data in the system")
+    def get_system_summary(self) -> str:
+        """Return a summary of all entities and their counts."""
+        summary = {{}}
+        entity_repos = {_json.dumps([(e.name, _snake(e.name)) for e in entities])}
+        for name, snake in entity_repos:
+            try:
+                from core import dependencies
+                repo = getattr(dependencies, f"get_{{snake}}_repo")()
+                items = repo.list_all()
+                status_counts = {{}}
+                for item in items:
+                    s = item.get("status", "unknown")
+                    status_counts[s] = status_counts.get(s, 0) + 1
+                summary[name] = {{"total": len(items), "by_status": status_counts}}
+            except Exception:
+                summary[name] = {{"total": 0, "error": "unavailable"}}
+        return json.dumps(summary, indent=2)
 
 
 async def run_agent(user_message: str, history: list[dict] | None = None) -> str:
-    """Run the AI agent with tool-calling capabilities."""
+    """Run the AI agent with entity-aware tool-calling capabilities."""
     kernel = create_kernel()
     kernel.add_plugin(DomainTools(), plugin_name="domain")
 
     chat_history = ChatHistory()
     chat_history.add_system_message(
         "You are an AI agent for {spec.project_name}. "
-        "Use the available tools to help answer questions."
+        "You have access to tools that can query and analyze the application\'s data. "
+        "Use these tools to answer questions accurately. "
+        "Available entities: {entity_names}. "
+        "For each entity you can: list all, get by ID, search by keyword, and count by status."
     )
 
     if history:
