@@ -371,8 +371,16 @@ class IntentParserAgent:
                                          "copilot", "ai assistant", "llm app"]):
             return AppType.AI_APP
         # Check for general AI signals that warrant AI_APP
-        ai_signal = sum(1 for kw in ["ai", "openai", "gpt", "llm", "foundry",
-                                      "rag", "embedding", "inference"] if _has_word(kw))
+        # Exclude "ai search" (Azure infrastructure) from AI signal count
+        ai_signal = 0
+        _ai_infra = {"ai search", "ai_search", "azure ai search"}
+        for kw in ["ai", "openai", "gpt", "llm", "foundry",
+                    "rag", "embedding", "inference"]:
+            if _has_word(kw):
+                # "ai" alone might be infrastructure (e.g., "Azure AI Search")
+                if kw == "ai" and any(infra in intent for infra in _ai_infra):
+                    continue
+                ai_signal += 1
         if ai_signal >= 2:
             return AppType.AI_APP
         if any(_has_word(kw) for kw in ["api", "rest", "endpoint", "microservice"]):
@@ -608,9 +616,15 @@ class IntentParserAgent:
                 block_lines.append(stripped)
 
             fields: list[FieldSpec] = []
+            actions: list[str] = []
             for bl in block_lines:
-                if bl.lower().startswith("- fields:"):
+                bl_lower = bl.lower()
+                if bl_lower.startswith("- fields:") or bl_lower.startswith("- field:"):
                     fields = IntentParserAgent._parse_fields_line(bl)
+                elif bl_lower.startswith("- actions:") or bl_lower.startswith("- action:"):
+                    # Parse action declarations like "- Actions: triage, dispatch, resolve"
+                    action_body = re.sub(r'^-\s*actions?:\s*', '', bl, flags=re.I)
+                    actions = [a.strip() for a in re.split(r'[,;]', action_body) if a.strip()]
             entities.append(EntitySpec(
                 name=name, description=desc, fields=fields,
             ))
@@ -620,9 +634,8 @@ class IntentParserAgent:
     def _parse_fields_line(line: str) -> list[FieldSpec]:
         """Parse ``- Fields: name (type), name2 (type) ...`` into FieldSpecs."""
         # Strip leading "- Fields:" prefix
-        body = re.sub(r'^-\s*fields:\s*', '', line, flags=re.I)
+        body = re.sub(r'^-\s*fields?:\s*', '', line, flags=re.I)
         fields: list[FieldSpec] = []
-        # Split on commas, but respect parenthesized content
         # Pattern: field_name (type — possible_values)
         field_re = re.compile(
             r'(\w+)\s*\(([^)]+)\)',
@@ -630,13 +643,21 @@ class IntentParserAgent:
         for fm in field_re.finditer(body):
             fname = fm.group(1)
             raw_type = fm.group(2).strip()
-            # Extract the base type before any — description
-            dash_split = re.split(r'\s*—\s*', raw_type, maxsplit=1)
-            base_type = dash_split[0].strip()
+            # Extract the base type before any — or - description
+            dash_split = re.split(r'\s*[—–]\s*', raw_type, maxsplit=1)
+            base_type = dash_split[0].strip().lower()
             desc = dash_split[1].strip() if len(dash_split) > 1 else ""
-            # Normalise type
-            type_map = {"str": "str", "int": "int", "float": "float",
-                        "bool": "bool", "list[str]": "list[str]"}
+            # Normalise type — handle common aliases
+            type_map = {
+                "str": "str", "string": "str", "text": "str",
+                "int": "int", "integer": "int", "number": "int",
+                "float": "float", "decimal": "float", "double": "float",
+                "bool": "bool", "boolean": "bool",
+                "list": "list[str]", "list[str]": "list[str]",
+                "list[int]": "list[int]", "list[float]": "list[float]",
+                "datetime": "datetime", "date": "datetime", "timestamp": "datetime",
+                "dict": "dict", "json": "dict", "object": "dict",
+            }
             ftype = type_map.get(base_type, "str")
             fields.append(FieldSpec(
                 name=fname, type=ftype, required=True, description=desc,
@@ -820,11 +841,19 @@ class IntentParserAgent:
                 if not parts:
                     continue
                 key = "_".join(parts)
-            # Singularize each part
-            roots = tuple(
-                p.rstrip("s") if p.endswith("s") and len(p) > 4 else p
-                for p in parts
-            )
+            # Singularize each part (safe: avoid mangling words like "status", "address", "bus")
+            _no_strip = {"status", "address", "class", "basis", "bus", "alias", "campus", "canvas", "radius", "focus", "bonus", "census", "corpus", "minus", "plus", "genus", "nexus", "sinus", "virus"}
+            def _safe_singular(w: str) -> str:
+                if w in _no_strip:
+                    return w
+                if w.endswith("ies") and len(w) > 4:
+                    return w[:-3] + "y"  # deliveries → delivery
+                if w.endswith("ses") and len(w) > 4:
+                    return w[:-2]  # classes → class
+                if w.endswith("s") and not w.endswith("ss") and len(w) > 4:
+                    return w[:-1]
+                return w
+            roots = tuple(_safe_singular(p) for p in parts)
             root_key = "_".join(roots)
             # Skip if we already have this concept or a superset
             if root_key in seen_roots:
@@ -834,7 +863,7 @@ class IntentParserAgent:
                 continue
             seen_roots.add(root_key)
             selected.append(key)
-            if len(selected) >= 8:  # allow more entities for rich intents
+            if len(selected) >= 20:  # support complex intents with many entities
                 break
 
         # ----------------------------------------------------------
@@ -1050,7 +1079,7 @@ class IntentParserAgent:
         _add("status", "str", True, "Current status")
         _add("created_at", "datetime", False, "Record creation timestamp")
 
-        return fields[:12]
+        return fields[:25]
 
     @staticmethod
     def _guess_field_type(field_name: str, context: str) -> str:
@@ -1188,8 +1217,10 @@ class IntentParserAgent:
             desc = (m.group(3) or "").strip()
             # Normalise path: strip /api/v1 prefix, standardise {id}
             path = re.sub(r'^/api/v\d+', '', raw_path)
-            # Replace {id} and similar with {id}
-            path = re.sub(r'\{[^}]*\}', '{id}', path)
+            # Preserve distinct path parameters — only normalize if single param
+            params = re.findall(r'\{([^}]+)\}', path)
+            if len(params) <= 1:
+                path = re.sub(r'\{[^}]*\}', '{id}', path)
             endpoints.append(EndpointSpec(
                 method=method, path=path, description=desc,
             ))

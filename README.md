@@ -58,9 +58,10 @@ The orchestrator is built on **GitHub Copilot SDK** as its default AI backbone -
 
 Most code generators produce **stubs**. This orchestrator produces **working applications**:
 
-- **Semantic, not keyword-based** -- A 5-phase NLP pipeline (section-header analysis, noun-phrase extraction, business-object pattern matching, merge/rank, EntitySpec building) reads your intent and discovers domain entities, infers field types, and generates appropriate API routes. Write about *propane delivery* and get `Tank`, `Delivery`, `Route` entities with `serial_number`, `capacity`, `level` fields. Write about *pet adoption* and get `Animal`, `Application`, `FosterHome` with `breed`, `age`, `medical_status`.
+- **Semantic, not keyword-based** -- A 5-phase NLP pipeline (section-header analysis, noun-phrase extraction, business-object pattern matching, merge/rank, EntitySpec building) reads your intent and discovers domain entities, infers field types, and generates appropriate API routes. Handles up to **20 entities** with **25 fields each**, safe singular/plural normalization (preserves "status", "address", "class"), multi-parameter endpoint paths, 10+ field type aliases (string→str, integer→int, boolean→bool, timestamp→datetime), and 45 heading name aliases for flexible intent file formatting. Write about *propane delivery* and get `Tank`, `Delivery`, `Route` entities with `serial_number`, `capacity`, `level` fields. Write about *pet adoption* and get `Animal`, `Application`, `FosterHome` with `breed`, `age`, `medical_status`.
 - **Interactive dashboards** -- Every scaffold includes a fully functional dashboard where you can create records, update statuses via action buttons, search, and monitor health -- not a static landing page.
-- **Domain-aware seed data** -- Generated data is contextually appropriate. Smart city sensors get GPS coordinates and zone IDs, not "item-001".
+- **Smart AI chatbot** -- 11 intent handlers (greeting, help, temporal, cross-entity comparison, recommendation, count, analytics, list, filter, action, status) with HTML-formatted responses, stat cards, bar charts, and data-driven suggestions. Works without any AI provider -- pure Python analysis on 12 realistic seed records per entity.
+- **Domain-aware seed data** -- 12 records per entity with contextually appropriate values from 15+ realistic name pools. Smart city sensors get GPS coordinates and zone IDs, not "item-001".
 - **Enterprise governance by default** -- 25 policies validated automatically. No scaffold ships without passing governance.
 - **Azure Well-Architected from day one** -- Every scaffold is assessed against all 26 WAF design principles across 5 pillars (Reliability, Security, Cost Optimization, Operational Excellence, Performance Efficiency).
 - **POC to production in one pipeline** -- The same scaffold you demo locally deploys to Azure Container Apps unchanged. No rework.
@@ -195,11 +196,12 @@ The same engine generates production scaffolds for **any business domain** -- no
 |--------|-------------------|-------------------|-------------|
 | Healthcare voice agent | Patient, Appointment, VoiceSession | CRUD + schedule, cancel | In-memory |
 | Legal contract review | Contract, Clause, ReviewResult | CRUD + analyze, approve | Blob, Cosmos DB |
-| Smart city IoT (8 domains) | Sensor, Incident, Route, Request + 4 more | CRUD + dispatch, verify | Cosmos, SQL, Blob, Redis |
+| Smart city IoT (9 entities) | Sensor, Incident, Route, ServiceRequest + 5 more | 79 endpoints incl. dispatch, triage, correlate | Cosmos, SQL, Blob, Redis, AI Search, Table |
 | Propane delivery logistics | Delivery, Tank, Route, Customer | CRUD + optimize, schedule | Cosmos DB |
 | E-commerce returns | Order, Refund, Return, Customer | CRUD + process, approve | Cosmos DB |
 | AI customer support chatbot | ChatSession, KnowledgeArticle | CRUD + chat, RAG | AI Search |
 | Agentic document processor | Document, Task, Agent | CRUD + analyze, dispatch | Blob, AI Search |
+| Extreme stress test (15 entities) | Patient, Claim, Provider, Appointment + 11 more | 100+ endpoints with multi-param paths | All 6 data stores |
 
 **Every scaffold gets the same enterprise treatment**: Bicep IaC, CI/CD, governance, WAF assessment, interactive dashboard, tests, and documentation.
 
@@ -214,7 +216,8 @@ Ready-to-run examples are in [`examples/`](examples/):
 | [`contract-review-intent.md`](examples/contract-review-intent.md) | Legal contract review AI |
 | [`doc-intelligence-intent.md`](examples/doc-intelligence-intent.md) | Document processing service |
 | [`propane-delivery-intent.md`](examples/propane-delivery-intent.md) | Propane delivery logistics |
-| [`smart-city-intent.md`](examples/smart-city-intent.md) | Smart city operations (stress test — 4 data stores, 10 Bicep modules) |
+| [`smart-city-intent.md`](examples/smart-city-intent.md) | Smart city operations (stress test — 6 data stores, 9 entities, 10 Bicep modules) |
+| [`extreme-healthcare-intent.md`](examples/extreme-healthcare-intent.md) | Extreme stress test — 15 entities, 25 fields/entity, all 6 data stores, multi-param endpoints |
 
 See [`examples/README.md`](examples/README.md) for details on each example.
 
@@ -298,7 +301,7 @@ Each agent has a distinct role, instruction set, and tool access. See [`AGENTS.m
 |--------|-----------|----------------|----------------|
 | Voice Agent | 5 Bicep modules | 76 files | ~10 seconds |
 | Contract Review | 6 Bicep modules, Blob + Cosmos | 77 files | ~5 seconds |
-| Smart City (stress test) | 10 Bicep modules, 4 data stores | 79 files | ~5 seconds |
+| Smart City (stress test) | 10 Bicep modules, 6 data stores, 9 entities | 86+ files | ~5 seconds |
 
 **What those seconds replace:**
 
@@ -526,6 +529,31 @@ Extension points:
 ---
 
 ## Changelog
+
+### v1.8.0
+
+- **Feature**: Hardened parser for extreme-complexity intents
+  - Entity cap raised from 8 to 20 entities per intent
+  - Field cap raised from 12 to 25 fields per entity
+  - Safe singular/plural normalization (`_safe_singular()`) — preserves "status", "address", "class", "bus", "alias", "campus", etc.
+  - Multi-parameter endpoint path preservation (`/{order_id}/items/{item_id}` no longer collapses to `/{id}/items/{id}`)
+  - AI signal false positive filtering — excludes Azure AI Search infrastructure refs from AI_APP detection
+  - H4 heading support (`####`) in intent files
+  - 45 section heading aliases (up from 28) — "user stories", "capabilities", "stakeholders", "kpis", "sla", "third-party", etc.
+  - 10+ field type aliases — `string→str`, `integer→int`, `boolean→bool`, `timestamp→datetime`, `decimal→float`, etc.
+  - `- Actions:` parsing in explicit entity blocks
+  - `list[int]` and `list[float]` support in seed data and type defaults
+- **Feature**: Smart AI chatbot with 11 intent handlers
+  - Temporal queries ("latest incidents", "oldest work orders")
+  - Cross-entity comparison with health scores and action breakdown
+  - Recommendation engine with data-driven suggestions
+  - HTML-formatted responses with stat cards, bar charts, and tables
+  - Works without any AI provider — pure Python analysis on seed data
+- **Feature**: 12 realistic seed records per entity (108 total for 9-entity intents) with 15+ domain-aware name pools
+- **Feature**: Extreme-complexity example intent (`examples/extreme-healthcare-intent.md`) — 15 entities, 25 fields/entity, all 6 data stores, multi-param endpoints
+- **Docs**: Updated AGENTS.md with parsing limits, AI chat engine, and 45 heading aliases
+- **Docs**: Updated README.md with hardened capabilities and new examples
+- **Tests**: 609 tests passing
 
 ### v1.7.0
 

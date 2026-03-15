@@ -78,26 +78,38 @@ devex scaffold --file examples/propane-delivery-intent.md -o ./propane-delivery-
 
 **File:** [`smart-city-intent.md`](smart-city-intent.md)
 
-A full-scale smart city operations platform integrating IoT sensor ingestion, emergency response, utility grid management, citizen services, environmental monitoring, transit tracking, parking management, and asset maintenance. Exercises all 4 data stores (Cosmos DB, SQL, Blob, Redis), 10 Bicep modules, FedRAMP + SOC2 + HIPAA compliance, and 8 user personas. Designed to stress-test every generator path.
+A full-scale smart city operations platform integrating IoT sensor ingestion, emergency response, utility grid management, citizen services, environmental monitoring, transit tracking, fleet management, and asset maintenance. Exercises all 6 data stores (Cosmos DB, SQL, Blob, Redis, AI Search, Table Storage), 10 Bicep modules, FedRAMP + SOC2 + HIPAA compliance, 9 entities, and 11 user personas. Designed to stress-test every generator path.
 
 ```powershell
 devex scaffold --file examples/smart-city-intent.md -o ./smart-city-output
+```
+
+### 7. Extreme Healthcare Network (Extreme Stress Test)
+
+**File:** [`extreme-healthcare-intent.md`](extreme-healthcare-intent.md)
+
+A unified healthcare network platform exercising every parser and generator limit: **15 entities** (Patient, Claim, Provider, Appointment, Prescription, LabOrder, ImagingStudy, NursingAssessment, SurgicalCase, MedicalDevice, ClinicalTrial, Referral, PortalMessage, BillingRecord, ComplianceAuditLog) with up to **25 fields each**, all 6 data stores, multi-parameter endpoint paths (`/patients/{patient_id}/prescriptions/{prescription_id}/interactions`), complex field types (`list[str]`, `list[float]`, `list[int]`), H4 sub-headings, em-dash enum descriptions, 45 heading alias variants, and HIPAA + SOC2 + FedRAMP compliance. Designed to validate every hardened parser capability.
+
+```powershell
+devex scaffold --file examples/extreme-healthcare-intent.md -o ./extreme-healthcare-output
 ```
 
 ---
 
 ## Comparison
 
-| Feature | Voice Agent | Contract Review | Doc Intelligence | Propane Delivery | Smart City |
-|---------|-------------|-----------------|------------------|------------------|------------|
-| Industry | Healthcare Ops | Legal Ops | Document Processing | Logistics | Government/IoT |
-| Primary User | Clinical staff | Legal team | Back-office staff | Delivery operations | City operators |
-| Data Stores | None (in-memory) | Blob, Cosmos DB | Blob | Cosmos DB | Cosmos, SQL, Blob, Redis |
-| AI/ML | Pattern matching | GPT-4, clause extraction | Document Intelligence | Route optimization | Anomaly detection, NLP |
-| Compliance | HIPAA | HIPAA, SOC2 | SOC2 | SOC2 | FedRAMP, SOC2, HIPAA |
-| Auth | Entra ID | Entra ID + RBAC | Managed Identity | Managed Identity | Entra ID |
-| Entity Discovery | Semantic NLP | Semantic NLP | Semantic NLP | Semantic NLP | Semantic NLP |
-| Bicep Modules | 5 | 6 | 5 | 6 | 10 |
+| Feature | Voice Agent | Contract Review | Doc Intelligence | Propane Delivery | Smart City | Extreme Healthcare |
+|---------|-------------|-----------------|------------------|------------------|------------|--------------------|
+| Industry | Healthcare Ops | Legal Ops | Document Processing | Logistics | Government/IoT | Healthcare Network |
+| Primary User | Clinical staff | Legal team | Back-office staff | Delivery operations | City operators | Clinical staff |
+| Entities | 3 | 3 | 3 | 4 | 9 | **15** |
+| Data Stores | None (in-memory) | Blob, Cosmos DB | Blob | Cosmos DB | All 6 | **All 6** |
+| AI/ML | Pattern matching | GPT-4, clause extraction | Document Intelligence | Route optimization | Multi-agent AI | Multi-agent AI |
+| Compliance | HIPAA | HIPAA, SOC2 | SOC2 | SOC2 | FedRAMP, SOC2, HIPAA | **HIPAA, SOC2, FedRAMP** |
+| Auth | Entra ID | Entra ID + RBAC | Managed Identity | Managed Identity | Entra ID | Entra ID |
+| Entity Discovery | Semantic NLP | Semantic NLP | Semantic NLP | Semantic NLP | Semantic NLP | **Explicit + Semantic** |
+| Bicep Modules | 5 | 6 | 5 | 6 | 10 | **10+** |
+| Multi-param paths | No | No | No | No | No | **Yes** |
 
 ---
 
@@ -164,7 +176,7 @@ Open `http://127.0.0.1:8000`. The dashboard includes:
 
 ---
 
-*Enterprise DevEx Orchestrator v1.7.0*
+*Enterprise DevEx Orchestrator v1.8.0*
 
 
 

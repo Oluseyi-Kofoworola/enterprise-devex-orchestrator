@@ -71,7 +71,7 @@ logger = get_logger(__name__)
 
 # --- Section heading patterns ----------------------------------
 
-_HEADING_RE = re.compile(r"^(#{1,3})\s+(.+)$", re.MULTILINE)
+_HEADING_RE = re.compile(r"^(#{1,4})\s+(.+)$", re.MULTILINE)
 _FIELD_RE = re.compile(
     r"[-*]\s+\*\*(.+?)\*\*\s*:\s*(.+)",
     re.IGNORECASE,
@@ -159,27 +159,49 @@ class IntentFileResult:
         self._ENTERPRISE_SECTIONS = {
             "problem statement": "problem_statement",
             "problem": "problem_statement",
+            "business problem": "problem_statement",
+            "overview": "problem_statement",
             "business goals": "business_goals",
             "goals": "business_goals",
+            "business objectives": "business_goals",
+            "objectives": "business_goals",
+            "kpis": "business_goals",
             "target users": "target_users",
             "users": "target_users",
             "personas": "target_users",
+            "user roles": "target_users",
+            "stakeholders": "target_users",
             "functional requirements": "functional_requirements",
             "features": "functional_requirements",
+            "requirements": "functional_requirements",
+            "capabilities": "functional_requirements",
+            "use cases": "functional_requirements",
+            "user stories": "functional_requirements",
             "scalability requirements": "scalability_requirements",
             "scalability": "scalability_requirements",
             "scaling": "scalability_requirements",
+            "capacity": "scalability_requirements",
+            "scalability & performance": "scalability_requirements",
             "security & compliance": "security_compliance",
             "security and compliance": "security_compliance",
             "security": "security_compliance",
             "compliance": "security_compliance",
+            "data protection": "security_compliance",
+            "access control": "security_compliance",
             "performance requirements": "performance_requirements",
             "performance": "performance_requirements",
+            "sla": "performance_requirements",
+            "latency": "performance_requirements",
             "integration requirements": "integration_requirements",
             "integrations": "integration_requirements",
+            "external systems": "integration_requirements",
+            "dependencies": "integration_requirements",
+            "third-party": "integration_requirements",
             "acceptance criteria": "acceptance_criteria",
             "acceptance": "acceptance_criteria",
             "definition of done": "acceptance_criteria",
+            "testing": "acceptance_criteria",
+            "verification": "acceptance_criteria",
         }
 
     @property

@@ -51,6 +51,8 @@ def _python_type_default(field_type: str) -> str:
         "str": '""', "int": "0", "float": "0.0", "bool": "False",
         "list": "field(default_factory=list)",
         "list[str]": "field(default_factory=list)",
+        "list[int]": "field(default_factory=list)",
+        "list[float]": "field(default_factory=list)",
         "dict": "field(default_factory=dict)",
         "datetime": 'field(default_factory=lambda: datetime.now(timezone.utc).isoformat())',
     }
@@ -109,6 +111,12 @@ def _seed_value(field_spec, entity_name: str, row: int) -> str:
     if ftype in ("list", "list[str]"):
         refs = [f'"{ename_lower}-ref-{(row * 3 + i):03d}"' for i in range(1, min(row % 3 + 2, 4))]
         return f'[{", ".join(refs)}]'
+    if ftype == "list[int]":
+        vals = [str(row * 10 + i * 7) for i in range(1, min(row % 3 + 2, 4))]
+        return f'[{", ".join(vals)}]'
+    if ftype == "list[float]":
+        vals = [f"{row * 1.5 + i * 2.3:.1f}" for i in range(1, min(row % 3 + 2, 4))]
+        return f'[{", ".join(vals)}]'
     if ftype == "dict":
         return "{}"
     if ftype == "datetime":

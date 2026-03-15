@@ -43,6 +43,15 @@ critical information is genuinely ambiguous.
 extraction, business-object pattern matching, merge/rank, EntitySpec building) with
 rule-based keyword extraction when LLM is unavailable.
 
+**Parsing Limits:**
+- Up to **20 entities** per intent (from semantic extraction)
+- Up to **25 fields** per entity (from semantic inference)
+- Unlimited explicit entities/fields via `### Entity:` declarations
+- Safe singular/plural normalization (preserves "status", "address", etc.)
+- Multi-parameter path preservation for complex endpoints
+- AI signal filtering (excludes Azure AI Search from AI_APP detection)
+- 10+ field type aliases (string→str, integer→int, boolean→bool, timestamp→datetime, etc.)
+
 **Input:** Plain-English business intent string  
 **Output:** `IntentSpec` (Pydantic model)
 
@@ -145,11 +154,19 @@ All generated code must follow enterprise security baselines:
 **Sub-generators:**
 - `BicepGenerator` -- 7+ Bicep modules + parameters + enterprise naming/tagging (includes Azure OpenAI + AI Search modules for AI workloads)
 - `CICDGenerator` -- 4 GitHub Actions workflows
-- `AppGenerator` -- FastAPI app + Docker + requirements with dynamic entity-driven services. AI workloads get `ai/client.py` (Managed Identity auth), `ai/chat.py` (chat router with RAG), `ai/agent.py` (Semantic Kernel agents with tool-calling)
+- `AppGenerator` -- FastAPI app + Docker + requirements with dynamic entity-driven services. AI workloads get `ai/client.py` (Managed Identity auth), `ai/chat.py` (chat router with RAG), `ai/agent.py` (Semantic Kernel agents with tool-calling). Generates **12 realistic seed records per entity** with domain-aware values (names, addresses, descriptions, statuses, priorities, timestamps spanning months).
 - `FrontendGenerator` -- Entity-driven React + Vite + TypeScript SPA (entity dashboards, API client, types, detail pages, AI chat page). Dynamic entity-driven generation for all domains via semantic extraction.
 - `DocsGenerator` -- 7 documentation files + standards reference + improvement suggestions
 - `TestGenerator` -- Auto-generated pytest test suite (health, API, security, config, storage)
 - `AlertGenerator` -- Azure Monitor alert rules (Bicep) + action groups + alerting runbook
+
+**AI Chat Engine (Local Data):**
+- Smart analytical engine with 11 intent handlers (greeting, help, temporal, cross-entity, recommendation, count, analytics, list, filter, action, status)
+- Temporal queries: "latest incidents", "oldest work orders", "most recent vehicle"
+- Cross-entity comparison: health scores, action/progress/done breakdown per entity
+- Recommendation engine: data-driven suggestions based on priority/severity distributions
+- HTML-formatted responses with stat cards, bar charts, tables, and suggestions
+- Works without any AI provider — pure Python analysis on seed data
 
 **Input:** `IntentSpec` + `PlanOutput` + `GovernanceReport`  
 **Output:** `dict[str, str]` -- file path -> content mapping
@@ -330,8 +347,10 @@ requirement definition. The parser extracts project name, business description,
 | Integration Requirements | `integration_requirements` | Upstream/downstream systems, events |
 | Acceptance Criteria | `acceptance_criteria` | Functional tests, benchmarks, security scans |
 
-**Heading Aliases:** 28 heading name aliases mapped via `_ENTERPRISE_SECTIONS`
-(e.g., "goals" -> `business_goals`, "scaling" -> `scalability_requirements`).
+**Heading Aliases:** 45 heading name aliases mapped via `_ENTERPRISE_SECTIONS`
+(e.g., "goals" -> `business_goals`, "scaling" -> `scalability_requirements`,
+"kpis" -> `business_goals`, "user stories" -> `functional_requirements`,
+"sla" -> `performance_requirements`, "third-party" -> `integration_requirements`).
 
 **Completeness Tracking:**
 - `enterprise_sections_filled` -- `dict[str, bool]` of which sections have content
