@@ -144,6 +144,9 @@ class IntentFileResult:
     # Source file path
     source_path: str = ""
 
+    # Raw markdown content (preserved for structured parsing by downstream agents)
+    raw_content: str = ""
+
     # -- Enterprise section name -> attribute mapping ---------------
     _ENTERPRISE_SECTIONS: dict[str, str] = field(
         default=None,  # type: ignore[assignment]
@@ -293,7 +296,7 @@ class IntentFileParser:
 
         logger.info("intent_file.parsing", path=str(path), size=len(content))
 
-        result = IntentFileResult(source_path=str(path))
+        result = IntentFileResult(source_path=str(path), raw_content=content)
 
         # Parse sections
         sections = self._split_sections(content)
@@ -313,6 +316,17 @@ class IntentFileParser:
             if section_name in sections:
                 result.config = self._parse_config_fields(sections[section_name])
                 break
+
+        # Fallback: detect standalone heading-based config (## App Type, ## Data Stores, etc.)
+        if not result.config:
+            standalone_config: dict[str, str] = {}
+            for heading_name, config_key in _CONFIG_KEYS.items():
+                if heading_name in sections:
+                    val = sections[heading_name].strip()
+                    if val:
+                        standalone_config[config_key] = val
+            if standalone_config:
+                result.config = standalone_config
 
         # Parse enterprise requirement sections
         self._parse_enterprise_sections(result, sections)
@@ -358,7 +372,7 @@ class IntentFileParser:
         if not content.strip():
             raise ValueError("Intent content is empty")
 
-        result = IntentFileResult()
+        result = IntentFileResult(raw_content=content)
         sections = self._split_sections(content)
 
         result.project_name = sections.get("_title", "")
@@ -371,6 +385,17 @@ class IntentFileParser:
             if section_name in sections:
                 result.config = self._parse_config_fields(sections[section_name])
                 break
+
+        # Fallback: standalone heading-based config
+        if not result.config:
+            standalone_config: dict[str, str] = {}
+            for heading_name, config_key in _CONFIG_KEYS.items():
+                if heading_name in sections:
+                    val = sections[heading_name].strip()
+                    if val:
+                        standalone_config[config_key] = val
+            if standalone_config:
+                result.config = standalone_config
 
         # Parse enterprise requirement sections
         self._parse_enterprise_sections(result, sections)

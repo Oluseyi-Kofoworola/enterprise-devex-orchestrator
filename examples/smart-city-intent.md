@@ -1,232 +1,258 @@
-# Smart City AI Operations Platform
+# Smart City AI Operations Platform — Extreme Stress Test Edition
 
-Build an enterprise-grade AI-powered smart city operations platform that uses Azure OpenAI and agentic AI workflows to transform raw IoT sensor data into autonomous city management. The platform deploys a multi-agent system where specialized AI agents handle emergency dispatch triage, predictive infrastructure maintenance, environmental compliance monitoring, and citizen service automation. A GPT-4o powered copilot provides natural-language command center interaction, a RAG pipeline grounds all AI responses in city operational data via Azure AI Search with vector embeddings, and content safety filters prevent misuse of the AI assistant by the public. Semantic Kernel orchestrates tool-calling agents that can autonomously query sensors, create incidents, dispatch resources, and generate compliance reports. The platform must handle 50,000+ concurrent sensor streams, correlate events across city domains using LLM-powered reasoning, and provide AI-driven predictive analytics for resource optimization.
+Build an enterprise-grade AI-powered smart city operations platform that orchestrates **9 distinct domain entities** across every supported data store (Cosmos DB, SQL, Blob Storage, Redis, AI Search, Table Storage), uses Azure OpenAI for multi-agent AI workflows, RAG-grounded chat, content safety filtering, and predictive analytics. The platform manages the full lifecycle of emergency incidents, infrastructure assets, environmental sensors, citizen service requests, transit routes, utility grids, city zones, fleet vehicles, and AI audit logs — each with unique field types, status workflows, and action endpoints. A GPT-4o command center copilot enables natural-language queries over all 9 entities, and Semantic Kernel agents autonomously triage incidents, predict failures, detect environmental violations, and route citizen requests. The system must handle 250,000+ concurrent IoT sensor streams, 500+ operator sessions, and 10,000 citizen interactions/day with FedRAMP, SOC2, and HIPAA compliance, WAF-protected public endpoints, and full AI audit logging. File upload processing supports incident photos (GPT-4o Vision), audio recordings (Whisper transcription), and scanned document extraction.
 
 ---
 
-## App Type
+## Configuration
 
-ai_app
-
-## Data Stores
-
-cosmos, blob, sql, redis, ai_search
-
-## Region
-
-eastus2
-
-## Environment
-
-prod
-
-## Auth
-
-entra-id
-
-## Compliance
-
-SOC2, HIPAA, FedRAMP
+- **App Type**: ai_app
+- **Data Stores**: cosmos, blob, sql, redis, ai_search, table
+- **Region**: eastus2
+- **Environment**: prod
+- **Auth**: entra-id
+- **Compliance**: SOC2, HIPAA, FedRAMP
 
 ---
 
 ## Problem Statement
 
-City operations are fragmented across 14 disconnected legacy systems with no real-time correlation or intelligent automation. Emergency response times average 12 minutes due to manual dispatch coordination — an AI agent could triage and recommend dispatch in under 30 seconds. Utility outages go undetected for hours because sensor alerts are siloed — an LLM-powered anomaly correlation engine could detect cascading failures across domains in real time. Citizens file duplicate service requests across 3 portals — a chatbot with RAG grounding could resolve 60% of inquiries instantly by searching the city knowledge base. Environmental compliance violations have increased 23% year-over-year because threshold analysis is manual — an autonomous agent could continuously monitor, classify violations, and auto-generate EPA reports. The city loses $6M annually from uncoordinated maintenance and preventable failures that AI-driven predictive maintenance could eliminate.
+City operations are fragmented across 14 disconnected legacy systems impacting 2.1 million residents and 85,000 city employees. Emergency response times average 12 minutes due to manual dispatch — an AI agent could triage and dispatch in under 30 seconds. Utility outages go undetected for hours because 250,000+ sensor alerts are siloed across 12 vendor protocols — an LLM-powered anomaly correlation engine could detect cascading failures in real time. Citizens file 40% duplicate service requests across 3 separate portals — a chatbot with RAG grounding over 500,000+ city knowledge articles could resolve 60% instantly. Environmental compliance violations have increased 23% YoY with $4.2M in EPA fines — an autonomous agent could continuously monitor 50 pollutant thresholds and auto-generate regulatory reports. Transit delays cost $180M annually in lost productivity — AI-optimized route prediction using historical ridership embeddings could reduce delays 35%. Fleet maintenance consumes $22M/year with 30% being reactive emergency repairs — predictive maintenance could shift 85% to scheduled preventive work. The city has no unified asset registry — 47,000 infrastructure assets are tracked in spreadsheets across 6 departments. No audit trail exists for AI interactions despite processing sensitive PII, medical data, and law enforcement information. The city loses $6M annually from uncoordinated operations that AI-driven cross-domain correlation could eliminate.
 
 ---
 
 ## Business Goals
 
-- Deploy a multi-agent AI system with 5 specialized Semantic Kernel agents (Dispatch, Maintenance, Environment, Citizen, Analytics) orchestrated via tool-calling
-- Reduce emergency dispatch triage from 12 minutes to under 30 seconds using GPT-4o powered incident classification and resource recommendation
-- Implement RAG-grounded citizen copilot that resolves 60% of service inquiries without human intervention using Azure AI Search with vector embeddings over 500,000+ city knowledge articles
-- Achieve 99.99% uptime SLA for the AI-powered command center serving 500+ concurrent operators with natural-language query capability
-- Deploy content safety filtering on all public-facing AI interactions to prevent prompt injection, jailbreak attempts, and generation of harmful content
-- Reduce environmental compliance violations by 80% through an autonomous monitoring agent that detects threshold breaches, classifies violation severity via LLM reasoning, and auto-generates regulatory reports
-- Save $5M annually through AI-predicted maintenance scheduling that analyzes sensor telemetry, weather data, and asset lifecycle patterns using embeddings-based similarity search
-- Process 10,000 citizen requests daily with AI-assisted classification (>95% accuracy), duplicate detection via semantic similarity, and automated routing
-- Maintain FedRAMP Moderate and SOC2 Type II compliance across all AI data pipelines with full audit logging of every LLM prompt and completion
+- Deploy a multi-agent AI system with 6 specialized Semantic Kernel agents orchestrated via tool-calling with agent-to-agent delegation
+- Reduce emergency dispatch triage from 12 minutes to under 30 seconds using GPT-4o incident classification with Vision for photo evidence analysis
+- Implement RAG-grounded citizen copilot resolving 60% of inquiries from 500,000+ knowledge articles via hybrid vector + BM25 search
+- Achieve 99.99% uptime SLA for the AI command center serving 500+ concurrent operators with natural-language cross-domain queries
+- Process 10,000 citizen requests daily with AI classification (>95% accuracy), semantic duplicate detection (>85% precision), and automated routing
+- Save $5M annually through AI-predicted maintenance using embeddings similarity search against 100,000+ historical failure signatures
+- Reduce environmental violations by 80% through autonomous LLM-powered threshold monitoring with auto-generated EPA reports and RAG-cited regulatory references
+- Optimize 200+ transit routes using ridership prediction embeddings, reducing delays by 35% and saving $63M annually
+- Track 47,000 infrastructure assets with AI-generated health scores, GPS coordinates, and full maintenance history
+- Manage a fleet of 1,200 city vehicles with real-time GPS tracking, fuel analytics, and AI-predicted maintenance scheduling
+- Maintain full AI audit trail with every prompt, completion, token count, latency, and content safety result logged for 7-year retention
+- Achieve FedRAMP Moderate, SOC2 Type II, and HIPAA compliance across all AI data pipelines
 
 ---
 
 ## Target Users
 
-1. **City Operations Commander** — Senior ops staff using the AI copilot to query city status in natural language ("What's the most critical incident right now?", "Show me all sensors in Zone 7 with anomalous readings"). Interacts through the chat interface grounded by RAG over operational data.
+1. **City Operations Commander** — Senior C-suite using the AI copilot to query cross-domain city status in natural language. Interacts through chat grounded by RAG over all operational data. Needs unified dashboard showing all 9 entity types with KPI tiles.
 
-2. **Emergency Dispatch Coordinator** — First responder dispatch staff receiving AI-generated triage recommendations. The Dispatch Agent auto-classifies incidents, recommends nearest available units via tool-calling, and generates GPS-optimized routes. Human approves or overrides.
+2. **Emergency Dispatch Coordinator** — First responder staff receiving AI-generated triage recommendations. The DispatchAgent auto-classifies incidents from text+photo, recommends nearest units, generates GPS routes. Human approves or overrides.
 
-3. **Utility Grid Engineer** — Engineers receiving AI-predicted failure alerts. The Maintenance Agent analyzes vibration, temperature, and load patterns via embeddings similarity to historical failure signatures and generates preventive work orders.
+3. **Utility Grid Engineer** — Engineers receiving AI failure predictions. The MaintenanceAgent analyzes vibration/temperature/load via embeddings similarity to historical failures and generates preventive work orders.
 
-4. **Environmental Compliance Officer** — Regulatory staff using the Environment Agent that continuously monitors sensor streams against EPA thresholds, auto-classifies violation severity using GPT-4o reasoning, and generates compliance reports grounded in regulatory knowledge base via RAG.
+4. **Environmental Compliance Officer** — Regulatory staff using the EnvironmentAgent for continuous threshold monitoring, LLM-classified violation severity, and auto-generated compliance reports with RAG-cited EPA regulations.
 
-5. **Citizen Services Agent** — Call center staff augmented by the Citizen Copilot chatbot. Citizens interact via natural-language chat, the AI searches the knowledge base for answers, creates service requests when needed, and detects duplicates via semantic similarity.
+5. **Citizen Services Agent** — Call center staff augmented by the CitizenAgent chatbot. Citizens interact via natural-language chat, AI searches knowledge base, creates service requests, and detects duplicates via semantic similarity.
 
-6. **Transit Operations Manager** — Transit managers querying the AI analytics agent for route optimization insights, ridership predictions, and incident impact analysis via natural-language queries.
+6. **Transit Operations Manager** — Transit managers querying AI for route optimization, ridership predictions, delay forecasting, and incident impact analysis via natural-language queries.
 
-7. **City Data Analyst** — Analysts using the AI copilot to run natural-language analytics queries ("What was the average response time for fire incidents in Q3?") that the Analytics Agent translates to KQL and executes against Log Analytics.
+7. **Fleet Manager** — Fleet supervisors tracking 1,200 vehicles with GPS, managing fuel budgets, scheduling maintenance, and receiving AI-predicted failure alerts for aging vehicles.
 
-8. **AI Safety Reviewer** — Security staff monitoring content safety dashboards, reviewing flagged AI interactions, and tuning content filtering policies. Ensures responsible AI usage across all city AI services.
+8. **Zone Administrator** — District managers overseeing specific city zones with aggregated dashboards of all incidents, assets, sensors, and citizen requests within their geographic boundary.
+
+9. **City Data Analyst** — Analysts using AI copilot for natural-language analytics ("What was the average response time for fire incidents in Q3?") translated to KQL by the AnalyticsAgent.
+
+10. **AI Safety Reviewer** — Security staff monitoring content safety dashboards, reviewing flagged AI interactions, tuning content filtering policies, and auditing AI decision logs.
+
+11. **Maintenance Planner** — Planners reviewing AI-generated work orders, scheduling maintenance windows, and tracking asset lifecycle costs across all infrastructure categories.
 
 ---
 
 ## Functional Requirements
 
 ### AI Agent Orchestration (Semantic Kernel)
-- Deploy 5 specialized Semantic Kernel agents with tool-calling: DispatchAgent, MaintenanceAgent, EnvironmentAgent, CitizenAgent, AnalyticsAgent
-- Each agent has domain-specific kernel_functions as tools (query_sensors, create_incident, dispatch_unit, check_compliance, search_knowledge_base, generate_report)
+- Deploy 6 specialized Semantic Kernel agents with tool-calling: DispatchAgent, MaintenanceAgent, EnvironmentAgent, CitizenAgent, AnalyticsAgent, FleetAgent
+- Each agent has domain-specific kernel_functions (query_sensors, create_incident, dispatch_unit, check_compliance, search_knowledge_base, generate_report, predict_failure, optimize_route, track_vehicle)
+- Agent-to-agent delegation: DispatchAgent can invoke FleetAgent for vehicle availability, MaintenanceAgent can invoke AnalyticsAgent for historical trends
 - Agent orchestration via function_choice_behavior="auto" for autonomous multi-step reasoning
 - Conversation history maintained per agent session with sliding window of 20 messages
-- Agent fallback chain: if primary agent fails, escalate to human operator with full context
 
 ### RAG Pipeline (Azure AI Search + Embeddings)
-- Index 500,000+ city documents (SOPs, regulations, maintenance manuals, citizen FAQs, historical incident reports) in Azure AI Search
-- Generate vector embeddings using text-embedding-ada-002 via Azure OpenAI embeddings deployment
-- Hybrid search combining semantic vector search with keyword BM25 for maximum recall
-- Chunk documents with 512-token windows and 128-token overlap for optimal retrieval
-- Top-k=5 retrieval with relevance score filtering (threshold > 0.75)
-- Ground all LLM responses with retrieved context using system prompt injection
+- Index 500,000+ city documents (SOPs, regulations, maintenance manuals, citizen FAQs, incident reports, transit schedules, fleet manuals, zone plans) in AI Search
+- Hybrid search combining semantic vector search (text-embedding-ada-002) with keyword BM25
+- Document chunking: 512-token windows with 128-token overlap
+- Top-k=5 retrieval with relevance threshold > 0.75
 
 ### AI-Powered Command Center Chat
-- Natural-language chat interface for city operators powered by GPT-4o
-- POST /api/v1/ai/chat — Chat endpoint with conversation history, RAG grounding, and agent routing
-- Streaming responses via Server-Sent Events for real-time UX
-- Intent detection to route queries to the appropriate specialized agent
-- Follow-up question suggestions generated by the AI after each response
-- Multi-turn conversation with context window of last 10 exchanges
+- POST /api/v1/ai/chat — Chat with RAG grounding, agent routing, streaming SSE responses
+- Intent detection routes queries to appropriate specialized agent
+- Cross-domain queries: "Show all critical incidents near Zone 7 with affected assets and transit disruptions"
+- Multi-turn conversation with 10-exchange context window
+- File upload: photos analyzed via GPT-4o Vision, audio transcribed via Whisper, documents extracted
 
 ### Content Safety & Responsible AI
-- Azure OpenAI content filtering enabled for all 4 categories (hate, sexual, violence, self-harm) at medium threshold
-- Custom prompt injection detection via input scanning before every LLM call
-- Output validation: ensure AI responses don't leak PII, sensor credentials, or internal system details
-- Rate limiting: max 100 tokens/second per user, 50,000 tokens/hour budget per operator role
-- All AI interactions logged to audit trail with prompt, completion, token count, latency, and safety filter results
-- Responsible AI transparency: every AI response includes a disclaimer and confidence score
+- Content filtering on all 4 categories at medium threshold
+- Custom prompt injection detection on every inbound request
+- PII scrubbing on AI outputs
+- Per-role token rate limiting (100 tokens/sec, 50,000 tokens/hour)
+- Full audit logging of every AI interaction
 
-### IoT Sensor Ingestion Pipeline
-- Ingest telemetry from 250,000+ heterogeneous IoT sensors (temperature, air quality, water flow, power load, traffic cameras, acoustic, vibration)
-- Normalize sensor data across 12 vendor protocols into unified telemetry schema
-- Buffer high-velocity streams through Redis with 30-second window aggregation
-- Persist raw telemetry to Blob Storage (cold tier) and aggregated metrics to Cosmos DB (hot tier)
-- Feed anomalous sensor patterns to the AI anomaly detection pipeline for LLM-powered root cause analysis
-- SQL database for relational asset registry, maintenance records, and citizen case management
+### Entity: Incident (Emergency Response)
+- Fields: title (str), description (str), category (str — fire/medical/traffic/utility/environmental/security), severity (str — critical/high/medium/low), status (str — reported/triaged/dispatched/in_progress/resolved/closed), latitude (float), longitude (float), zone_id (str), reporter_name (str), reporter_phone (str), affected_population (int), estimated_damage (float), ai_confidence (float), ai_triage_notes (str), photo_url (str), audio_transcript (str), assigned_units (list[str]), resolution_notes (str), response_time_minutes (float)
+- POST /api/v1/incidents — Create with AI auto-classification from text + optional photo
+- POST /api/v1/incidents/{id}/triage — AI-powered triage with severity + category classification
+- POST /api/v1/incidents/{id}/dispatch — AI-recommended dispatch with unit matching
+- POST /api/v1/incidents/{id}/escalate — Escalate to higher severity with AI justification
+- POST /api/v1/incidents/{id}/resolve — Close incident with resolution notes and response metrics
+- POST /api/v1/incidents/{id}/correlate — AI correlation with nearby incidents and sensor anomalies
 
-### AI-Enhanced Emergency Response
-- POST /api/incidents — Create incident with AI auto-classification (fire, medical, traffic, utility, environmental, security) using GPT-4o
-- The DispatchAgent autonomously: classifies severity, identifies affected zones from sensor correlation, recommends nearest available units, generates GPS-optimized routes
-- GET /api/incidents/{id}/ai-analysis — AI-generated incident analysis with root cause hypothesis and impact prediction
-- POST /api/incidents/{id}/dispatch — AI-recommended dispatch with human-in-the-loop approval
-- Real-time incident correlation: the AI reasons across sensor streams, weather data, and historical patterns to link related events
+### Entity: Asset (Infrastructure Management)
+- Fields: name (str), asset_type (str — bridge/road/pipe/transformer/pump/signal/building/park), status (str — operational/degraded/maintenance/offline/decommissioned), location_address (str), latitude (float), longitude (float), zone_id (str), install_date (str), expected_lifespan_years (int), manufacturer (str), model_number (str), last_inspection_date (str), health_score (float), replacement_cost (float), maintenance_budget (float), sensor_ids (list[str]), ai_failure_prediction (str), ai_health_trend (str)
+- POST /api/v1/assets/{id}/predict — AI failure prediction with confidence + time-to-failure
+- POST /api/v1/assets/{id}/inspect — Record inspection with AI-generated health assessment
+- POST /api/v1/assets/{id}/schedule_maintenance — AI-recommended maintenance scheduling
+- POST /api/v1/assets/{id}/decommission — Retire asset with AI-generated replacement recommendation
 
-### AI Predictive Maintenance
-- The MaintenanceAgent analyzes sensor telemetry streams using embeddings similarity search against historical failure signatures
-- Vector database of 100,000+ historical failure patterns indexed in AI Search with vibration, temperature, and load embeddings
-- POST /api/assets/{id}/ai-predict — AI-generated failure prediction with confidence score, estimated time-to-failure, and recommended preventive action
-- Automated work order generation when AI predicts >80% failure probability within 72 hours
-- Natural-language maintenance reports generated by GPT-4o summarizing asset health trends
+### Entity: Sensor (IoT Telemetry)
+- Fields: name (str), sensor_type (str — temperature/air_quality/water_flow/power_load/traffic/acoustic/vibration/pressure/humidity/radiation), status (str — online/offline/calibrating/error/maintenance), latitude (float), longitude (float), zone_id (str), asset_id (str), vendor (str), protocol (str), last_reading_value (float), last_reading_unit (str), last_reading_timestamp (str), threshold_min (float), threshold_max (float), alert_enabled (bool), battery_level (float), firmware_version (str), calibration_date (str)
+- POST /api/v1/sensors/{id}/calibrate — Initiate sensor calibration cycle
+- POST /api/v1/sensors/{id}/acknowledge_alert — Acknowledge sensor threshold alert
+- POST /api/v1/sensors/{id}/disable — Temporarily disable sensor with reason
 
-### AI Environmental Compliance
-- The EnvironmentAgent continuously monitors sensor streams against EPA threshold database (indexed in AI Search)
-- AI auto-classifies violation severity (minor, moderate, major, critical) using LLM reasoning over regulatory context
-- POST /api/environment/ai-report — AI-generated compliance report with violation details, regulatory citations retrieved via RAG, and recommended corrective actions
-- Autonomous alert generation when environmental readings approach 90% of threshold values
+### Entity: ServiceRequest (Citizen Services)
+- Fields: title (str), description (str), category (str — pothole/streetlight/noise/graffiti/water/sewer/parks/trash/permits/other), priority (str — urgent/high/medium/low), status (str — submitted/acknowledged/in_progress/awaiting_parts/scheduled/completed/rejected), citizen_name (str), citizen_email (str), citizen_phone (str), latitude (float), longitude (float), zone_id (str), assigned_team (str), estimated_completion_date (str), ai_duplicate_score (float), ai_category_confidence (float), ai_suggested_resolution (str), photo_url (str), satisfaction_rating (int)
+- POST /api/v1/service_requests/{id}/acknowledge — Staff acknowledges receipt
+- POST /api/v1/service_requests/{id}/assign — Assign to maintenance team
+- POST /api/v1/service_requests/{id}/complete — Mark completed with resolution details
+- POST /api/v1/service_requests/{id}/reject — Reject with AI-generated explanation
+- POST /api/v1/service_requests/{id}/check_duplicate — AI semantic duplicate detection
 
-### Citizen AI Copilot
-- Chat-based citizen interaction via the CitizenAgent
-- POST /api/citizen/chat — Natural-language citizen inquiries answered via RAG over city knowledge base
-- Semantic duplicate detection: compare new requests against existing open requests using embedding cosine similarity (threshold > 0.85)
-- Auto-create service requests from chat conversations with AI-extracted category, priority, location, and description
-- Multilingual support: GPT-4o handles queries in English, Spanish, Chinese, and Vietnamese
+### Entity: TransitRoute (Transit Operations)
+- Fields: name (str), route_number (str), route_type (str — bus/rail/ferry/shuttle), status (str — active/delayed/suspended/rerouted/out_of_service), start_location (str), end_location (str), total_stops (int), daily_ridership (int), average_delay_minutes (float), on_time_percentage (float), fare_revenue_daily (float), operating_cost_daily (float), vehicle_count (int), zone_ids (list[str]), ai_demand_forecast (str), ai_optimization_notes (str), last_disruption_reason (str)
+- POST /api/v1/transit_routes/{id}/optimize — AI route optimization based on ridership patterns
+- POST /api/v1/transit_routes/{id}/reroute — Activate alternative route due to incident
+- POST /api/v1/transit_routes/{id}/suspend — Suspend route with AI impact analysis
+- POST /api/v1/transit_routes/{id}/restore — Restore route to normal operations
+
+### Entity: Vehicle (Fleet Management)
+- Fields: name (str), vehicle_type (str — sedan/suv/truck/van/bus/ambulance/fire_engine/utility), status (str — available/deployed/maintenance/refueling/out_of_service), license_plate (str), vin_number (str), current_latitude (float), current_longitude (float), assigned_department (str), driver_name (str), fuel_level_pct (float), odometer_miles (int), last_maintenance_date (str), next_maintenance_due (str), maintenance_cost_ytd (float), ai_maintenance_prediction (str), gps_speed_mph (float), engine_health_score (float)
+- POST /api/v1/vehicles/{id}/deploy — Deploy vehicle to incident or assignment
+- POST /api/v1/vehicles/{id}/recall — Recall vehicle to depot
+- POST /api/v1/vehicles/{id}/refuel — Log refueling with gallons and cost
+- POST /api/v1/vehicles/{id}/schedule_maintenance — AI-predicted maintenance scheduling
+
+### Entity: Zone (Geographic Management)
+- Fields: name (str), zone_code (str), zone_type (str — residential/commercial/industrial/mixed/park/transit_hub), status (str — normal/alert/emergency/evacuation/construction), population (int), area_sq_miles (float), council_district (int), emergency_contacts (list[str]), active_incident_count (int), active_sensor_count (int), active_asset_count (int), air_quality_index (float), noise_level_db (float), power_load_pct (float), ai_risk_score (float), ai_trend_summary (str)
+- POST /api/v1/zones/{id}/alert — Raise zone alert level with AI risk assessment
+- POST /api/v1/zones/{id}/evacuate — Initiate zone evacuation protocol
+- POST /api/v1/zones/{id}/clear — Clear zone alert status
+
+### Entity: WorkOrder (Maintenance Planning)
+- Fields: title (str), description (str), work_type (str — preventive/corrective/emergency/inspection/replacement), priority (str — critical/high/medium/low), status (str — created/approved/scheduled/in_progress/on_hold/completed/cancelled), asset_id (str), assigned_team (str), scheduled_date (str), estimated_hours (float), actual_hours (float), parts_cost (float), labor_cost (float), total_cost (float), ai_generated (bool), ai_justification (str), completion_notes (str), quality_rating (int)
+- POST /api/v1/work_orders/{id}/approve — Approve work order for scheduling
+- POST /api/v1/work_orders/{id}/schedule — Set maintenance window
+- POST /api/v1/work_orders/{id}/start — Begin work execution
+- POST /api/v1/work_orders/{id}/complete — Complete with actual costs and notes
+- POST /api/v1/work_orders/{id}/cancel — Cancel with AI impact assessment
+
+### Entity: AuditLog (AI Governance)
+- Fields: event_type (str — chat/agent_call/tool_invocation/content_filter/embedding/search/file_upload), agent_name (str), user_id (str), user_role (str), prompt_text (str), completion_text (str), token_count_prompt (int), token_count_completion (int), latency_ms (int), model_name (str), content_safety_result (str), content_safety_categories (str), pii_detected (bool), session_id (str), correlation_id (str), ip_address (str), status (str — success/filtered/error/rate_limited)
+- (Read-only entity — no create/update/delete from API, only query)
+- GET /api/v1/audit_logs — Query with filters by event_type, agent_name, user_role, status, date range
+
+### Cross-Domain AI Correlation
+- AI correlates incidents with nearby sensors, affected assets, transit disruptions, and impacted zones
+- Natural-language command center queries span all 9 entity types simultaneously
+- AI generates unified situational awareness reports aggregating all domains
 
 ---
 
 ## Scalability Requirements
 
-- 50,000 concurrent WebSocket connections for real-time AI-powered command center
-- 250,000 IoT sensor streams ingested with p99 latency < 500ms end-to-end
-- GPT-4o inference: 500 concurrent chat sessions with p95 < 3 seconds response time
-- AI Search: 1,000 queries/second across 500,000+ documents with hybrid vector + keyword search
-- Embeddings pipeline: process 10,000 document chunks/hour for index refresh
-- 10,000 citizen chat interactions per day with burst capacity of 2,000/hour
-- 500+ concurrent city operator sessions with natural-language query
-- Token budget: 2M tokens/hour across all AI agents with per-role rate limiting
-- 100TB+ blob storage for sensor data, media, and AI interaction audit logs
-- 5TB Cosmos DB with 50,000 RU/s for hot telemetry and AI session state
-- Redis 50GB for sensor buffering, session state, and AI response caching
-- Auto-scale from 4 to 40 container instances based on sensor ingestion + AI inference load
+- 50,000 concurrent WebSocket connections for real-time command center
+- 250,000 IoT sensor streams with p99 < 500ms ingestion latency
+- GPT-4o inference: 500 concurrent chat sessions with p95 < 3 seconds
+- AI Search: 1,000 queries/second across 500,000+ documents
+- 10,000 citizen interactions/day with burst capacity 2,000/hour
+- 500+ concurrent operator sessions
+- Token budget: 2M tokens/hour across all 6 AI agents
+- 100TB+ blob storage for sensor data, media, photos, audio, and audit logs
+- 5TB Cosmos DB at 50,000 RU/s for hot telemetry and AI sessions
+- Redis 50GB for buffering, sessions, and AI response caching
+- SQL database for relational asset registry, work orders, citizen cases, and fleet records
+- Table Storage for high-volume audit log archival (billions of entries)
+- Auto-scale 4 to 40 container instances based on sensor + AI load
 
 ---
 
 ## Security & Compliance
 
-- Entra ID authentication with Conditional Access for all operator and AI access
-- RBAC with 9 roles (Commander, Dispatcher, GridEngineer, ComplianceOfficer, CitizenAgent, TransitManager, MaintenancePlanner, DataAnalyst, AISafetyReviewer)
-- Azure OpenAI accessed exclusively via Managed Identity with Cognitive Services OpenAI User RBAC role — zero API keys
-- AI Search accessed via Managed Identity with Search Index Data Contributor + Search Service Contributor roles
-- Content safety filtering on all public-facing AI endpoints with custom blocklists
-- Prompt injection detection and mitigation on every inbound AI request
-- Complete AI audit logging: every prompt, completion, token usage, safety filter result, agent tool-call logged with 7-year retention
-- FedRAMP Moderate compliance including AI data residency (all inference in US regions only)
-- SOC2 Type II with AI-specific controls (model versioning, prompt governance, output validation)
-- HIPAA guidance for medical emergency data processed by AI agents
-- All data encrypted at rest (AES-256) and in transit (TLS 1.3)
-- Key Vault with HSM-backed keys for encryption and AI model access credentials
-- Private endpoints for Azure OpenAI, AI Search, Cosmos DB, SQL, and Blob Storage
-- Network segmentation: IoT ingestion in DMZ, AI inference in private subnet
-- Web Application Firewall on citizen-facing AI chat endpoints
-- Responsible AI documentation maintained per Microsoft RAI Standard v2
+- Entra ID with Conditional Access for all operator and AI interactions
+- RBAC with 11 roles: Commander, Dispatcher, GridEngineer, ComplianceOfficer, CitizenServiceAgent, TransitManager, FleetManager, ZoneAdmin, DataAnalyst, MaintenancePlanner, AISafetyReviewer
+- Azure OpenAI via Managed Identity with Cognitive Services OpenAI User role — zero API keys
+- AI Search via Managed Identity with Search Index Data Contributor + Search Service Contributor
+- Content safety filtering on public AI endpoints with custom blocklists
+- Prompt injection detection on every inbound AI request
+- AI audit logging with 7-year retention
+- FedRAMP Moderate with AI data residency (US regions only)
+- SOC2 Type II with AI-specific controls
+- HIPAA guidance for medical emergency data
+- Encryption at rest (AES-256) and in transit (TLS 1.3)
+- Key Vault with HSM-backed keys
+- Private endpoints for all Azure services
+- WAF on citizen-facing AI endpoints
+- Network segmentation: IoT DMZ, AI private subnet, management plane
 
 ---
 
 ## Performance Requirements
 
-- AI chat response: p50 < 1s, p95 < 3s, p99 < 5s (including RAG retrieval + LLM inference)
-- RAG retrieval: p50 < 100ms, p95 < 300ms from AI Search
-- Embeddings generation: < 500ms per document chunk
-- Agent tool-calling round-trip: < 2s per tool invocation
+- AI chat: p50 < 1s, p95 < 3s, p99 < 5s (RAG + LLM)
+- RAG retrieval: p50 < 100ms, p95 < 300ms
+- Agent tool-calling: < 2s per invocation
 - Sensor ingestion: p50 < 100ms, p95 < 250ms, p99 < 500ms
-- API response (non-AI): p50 < 50ms, p95 < 200ms, p99 < 500ms
-- Incident AI triage: < 30 seconds from sensor anomaly to dispatch recommendation
-- Content safety filtering: < 200ms additional latency per AI request
-- SLA: 99.99% uptime for AI services
-- RTO: 5 minutes, RPO: 30 seconds
+- API (non-AI): p50 < 50ms, p95 < 200ms, p99 < 500ms
+- AI incident triage: < 30 seconds end-to-end
+- Content safety: < 200ms additional latency
+- File upload analysis: < 10s for photos (Vision), < 30s for audio (Whisper)
+- Cross-domain correlation: < 5s for multi-entity AI query
+- SLA: 99.99%, RTO: 5 min, RPO: 30 sec
 
 ---
 
 ## Integration Requirements
 
-### Upstream Systems
-- Azure OpenAI Service (GPT-4o for reasoning, text-embedding-ada-002 for embeddings)
-- Azure AI Search for RAG vector store and hybrid search
-- 12 IoT sensor vendor APIs via normalized adapter layer
-- City GIS/mapping (ArcGIS) for spatial context in AI agent tool-calls
-- National Weather Service API for weather-correlated AI predictions
-- EPA AirNow API for regulatory threshold database
+### Upstream
+- Azure OpenAI Service (GPT-4o, GPT-4o Vision, Whisper, text-embedding-ada-002)
+- Azure AI Search for RAG vector store
+- 12 IoT sensor vendor APIs via normalized adapter
+- City GIS (ArcGIS) for spatial queries
+- National Weather Service API
+- EPA AirNow API
 
-### Downstream Systems
-- Computer-Aided Dispatch (CAD) — AI dispatch recommendations pushed via tool-calling
-- City ERP (SAP) — AI-generated work orders pushed automatically
-- Citizen notification service (SMS, email, push) — AI-composed messages
-- Open data portal (CKAN) — AI-generated public transparency reports
-- Regional transit feed (GTFS-RT) — AI-optimized route modifications
+### Downstream
+- Computer-Aided Dispatch (CAD)
+- City ERP (SAP) for work orders
+- Citizen notification service (SMS, email, push)
+- Open data portal (CKAN)
+- Regional transit feed (GTFS-RT)
+- Fleet GPS tracking provider
 
-### Event-Driven Integration
-- Event Grid for AI agent triggers (sensor anomaly -> DispatchAgent, threshold breach -> EnvironmentAgent)
-- Service Bus for citizen chat request queue with AI processing pipeline
-- Event Hub for sensor telemetry fan-out to AI anomaly detection and storage
-- Webhook callbacks with AI-generated status summaries for third-party systems
+### Event-Driven
+- Event Grid for agent triggers
+- Service Bus for citizen chat queue
+- Event Hub for sensor fan-out
+- Webhook callbacks for third-party systems
 
 ---
 
 ## Acceptance Criteria
 
-1. **AI Agent System**: Deploy 5 Semantic Kernel agents, verify each can autonomously execute at least 3 tool-calls in sequence, and produce domain-appropriate responses grounded in data
-2. **RAG Pipeline**: Index 10,000 test documents in AI Search, verify hybrid search returns relevant results with >0.75 relevance scores, and LLM responses cite retrieved context
-3. **Chat Interface**: Send 100 natural-language queries through the chat endpoint, verify AI responses are contextually accurate, grounded in city data, and include confidence scores
-4. **Content Safety**: Attempt 50 prompt injection and jailbreak payloads, verify 100% are blocked by content safety filters, and all attempts are audit-logged
-5. **Dispatch Agent**: Create 20 simulated incidents, verify AI classification accuracy >95%, dispatch recommendations generated in <30 seconds with appropriate unit matching
-6. **Predictive Maintenance**: Feed 1,000 historical failure patterns, verify the MaintenanceAgent detects >85% of known failure signatures via embeddings similarity search
-7. **Environmental Agent**: Inject sensor readings above EPA thresholds, verify AI-classified violation reports generated within 60 seconds with correct regulatory citations via RAG
-8. **Citizen Copilot**: Submit 500 citizen queries, verify >60% are resolved by AI without human escalation, semantic duplicate detection precision >85%
-9. **Security Audit**: Verify zero API keys in code, all AI services use Managed Identity, content safety enabled, full audit logging for every AI interaction
-10. **Performance**: AI chat p95 < 3 seconds under 100 concurrent sessions, RAG retrieval p95 < 300ms, total system handles 250,000 sensor streams + 500 AI sessions simultaneously
+1. **9 Entity CRUD**: All 9 entities (Incident, Asset, Sensor, ServiceRequest, TransitRoute, Vehicle, Zone, WorkOrder, AuditLog) have full CRUD endpoints with proper schemas, validation, and seed data
+2. **Action Endpoints**: All 35+ domain action endpoints (triage, dispatch, escalate, predict, calibrate, optimize, deploy, evacuate, approve, etc.) are generated and routable
+3. **AI Agents**: 6 Semantic Kernel agents deployed with tool-calling and agent-to-agent delegation
+4. **RAG Pipeline**: AI Search index with hybrid search, verified retrieval with >0.75 relevance
+5. **Content Safety**: 100% of injection attempts blocked, all flagged interactions audit-logged
+6. **Dashboard**: Interactive dashboard shows all 9 entity types with KPI tiles, status badges, and entity-specific metrics  
+7. **File Upload**: Photo analysis (Vision), audio transcription (Whisper), and document extraction working
+8. **Cross-Domain Query**: AI chat handles queries spanning multiple entity types simultaneously
+9. **Security**: Zero API keys, Managed Identity everywhere, WAF enabled, RBAC with 11 roles
+10. **Data Stores**: All 6 data stores (Cosmos, SQL, Blob, Redis, AI Search, Table) properly configured with Bicep modules
+11. **Governance**: 24/24 policy checks pass, WAF alignment >95% across all 5 pillars
+12. **Performance**: API p95 < 200ms, AI chat p95 < 3s, sensor ingestion p99 < 500ms under load

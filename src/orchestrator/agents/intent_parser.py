@@ -252,8 +252,8 @@ class IntentParserAgent:
         domain_type = self._detect_domain(intent_lower)
 
         # Extract entities and endpoints for the detected domain
-        entities = self._extract_entities(intent_lower, domain_type)
-        endpoints = self._extract_endpoints(intent_lower, domain_type)
+        entities = self._extract_entities(raw_intent, domain_type)
+        endpoints = self._extract_endpoints(raw_intent, domain_type)
 
         # Force AI flag for AI app types
         if app_type in (AppType.AI_AGENT, AppType.AI_APP):
@@ -558,25 +558,94 @@ class IntentParserAgent:
     def _extract_entities_dynamic(intent: str) -> list[EntitySpec]:
         """Extract domain entities semantically from intent text.
 
-        This engine reasons about the business intent rather than
-        matching isolated keywords. It works in four phases:
-
-        1. **Section analysis** — Parse markdown section headers to
-           identify functional areas (e.g. "Tank Monitoring & Smart
-           Scheduling" → Tank, Schedule).
-        2. **Noun-phrase extraction** — Find multi-word business
-           concepts (e.g. "delivery order", "tank reading", "driver
-           log", "price forecast") that describe real-world objects.
-        3. **Attribute harvesting** — For each candidate entity, scan
-           surrounding sentences for described properties, creating
-           contextual fields rather than generic ones.
-        4. **Relationship linking** — Detect parent-child references
-           (e.g. "per customer", "for each tank") to add foreign-key
-           fields.
-
-        The result is a set of entities that reflect what the
-        business *actually manages*, not just words that appear often.
+        If the intent contains explicit entity declarations
+        (``### Entity: Name`` headers with ``- Fields:`` lines), those
+        are parsed directly.  Otherwise the engine falls back to
+        heuristic NLP-based extraction.
         """
+        # ----------------------------------------------------------
+        # Fast path: explicit entity declarations
+        # ----------------------------------------------------------
+        explicit = IntentParserAgent._parse_explicit_entities(intent)
+        if explicit:
+            return explicit
+
+        # ----------------------------------------------------------
+        # Heuristic extraction (original engine)
+        # ----------------------------------------------------------
+        return IntentParserAgent._extract_entities_heuristic(intent)
+
+    @staticmethod
+    def _parse_explicit_entities(intent: str) -> list[EntitySpec]:
+        """Parse ``### Entity: Name (description)`` blocks.
+
+        The intent may be lowercased, so match case-insensitively
+        and restore PascalCase from the original token.
+        """
+        entity_header_re = re.compile(
+            r'^#{2,4}\s+entity:\s*(\w+)\s*(?:\(([^)]*)\))?',
+            re.MULTILINE | re.IGNORECASE,
+        )
+        headers = list(entity_header_re.finditer(intent))
+        if not headers:
+            return []
+
+        entities: list[EntitySpec] = []
+        lines = intent.split("\n")
+        for hm in headers:
+            name = hm.group(1)
+            desc = hm.group(2) or f"{name} domain entity"
+            # Find the line index of this header
+            header_line_idx = intent[: hm.start()].count("\n")
+            # Gather bullet lines that belong to this entity block
+            block_lines: list[str] = []
+            for i in range(header_line_idx + 1, len(lines)):
+                stripped = lines[i].strip()
+                if stripped.startswith("#"):
+                    break  # next section
+                if stripped == "---":
+                    break
+                block_lines.append(stripped)
+
+            fields: list[FieldSpec] = []
+            for bl in block_lines:
+                if bl.lower().startswith("- fields:"):
+                    fields = IntentParserAgent._parse_fields_line(bl)
+            entities.append(EntitySpec(
+                name=name, description=desc, fields=fields,
+            ))
+        return entities
+
+    @staticmethod
+    def _parse_fields_line(line: str) -> list[FieldSpec]:
+        """Parse ``- Fields: name (type), name2 (type) ...`` into FieldSpecs."""
+        # Strip leading "- Fields:" prefix
+        body = re.sub(r'^-\s*fields:\s*', '', line, flags=re.I)
+        fields: list[FieldSpec] = []
+        # Split on commas, but respect parenthesized content
+        # Pattern: field_name (type — possible_values)
+        field_re = re.compile(
+            r'(\w+)\s*\(([^)]+)\)',
+        )
+        for fm in field_re.finditer(body):
+            fname = fm.group(1)
+            raw_type = fm.group(2).strip()
+            # Extract the base type before any — description
+            dash_split = re.split(r'\s*—\s*', raw_type, maxsplit=1)
+            base_type = dash_split[0].strip()
+            desc = dash_split[1].strip() if len(dash_split) > 1 else ""
+            # Normalise type
+            type_map = {"str": "str", "int": "int", "float": "float",
+                        "bool": "bool", "list[str]": "list[str]"}
+            ftype = type_map.get(base_type, "str")
+            fields.append(FieldSpec(
+                name=fname, type=ftype, required=True, description=desc,
+            ))
+        return fields
+
+    @staticmethod
+    def _extract_entities_heuristic(intent: str) -> list[EntitySpec]:
+        """Heuristic NLP-based entity extraction (fallback)."""
         infra = IntentParserAgent._INFRA_WORDS
         abstract = IntentParserAgent._ABSTRACT_WORDS
 
@@ -1013,7 +1082,16 @@ class IntentParserAgent:
 
     @staticmethod
     def _extract_endpoints_dynamic(intent: str) -> list[EndpointSpec]:
-        """Generate API endpoints from semantically extracted entities."""
+        """Generate API endpoints from semantically extracted entities.
+
+        If the intent contains explicit REST declarations
+        (``POST /api/v1/things/{id}/action``), those are parsed
+        directly.  Otherwise the engine derives endpoints from the
+        entity list using heuristic matching.
+        """
+        # Try explicit endpoint declarations first
+        explicit_eps = IntentParserAgent._parse_explicit_endpoints(intent)
+
         entities = IntentParserAgent._extract_entities_dynamic(intent)
         endpoints: list[EndpointSpec] = []
         intent_lower = intent.lower()
@@ -1080,4 +1158,39 @@ class IntentParserAgent:
                         ))
                         break
 
+        # Merge explicit endpoints (dedup by method+path)
+        if explicit_eps:
+            existing = {(ep.method, ep.path) for ep in endpoints}
+            for ep in explicit_eps:
+                if (ep.method, ep.path) not in existing:
+                    endpoints.append(ep)
+
+        return endpoints
+
+    @staticmethod
+    def _parse_explicit_endpoints(intent: str) -> list[EndpointSpec]:
+        """Parse explicit REST endpoint declarations from the intent.
+
+        Matches lines like:
+            - POST /api/v1/incidents/{id}/triage — description
+            - GET /api/v1/audit_logs — Query with filters ...
+        """
+        ep_re = re.compile(
+            r'^\s*[-*]\s*(GET|POST|PUT|PATCH|DELETE)\s+'
+            r'(/\S+)'
+            r'(?:\s*[—–-]\s*(.+))?$',
+            re.MULTILINE | re.IGNORECASE,
+        )
+        endpoints: list[EndpointSpec] = []
+        for m in ep_re.finditer(intent):
+            method = m.group(1).upper()
+            raw_path = m.group(2).strip()
+            desc = (m.group(3) or "").strip()
+            # Normalise path: strip /api/v1 prefix, standardise {id}
+            path = re.sub(r'^/api/v\d+', '', raw_path)
+            # Replace {id} and similar with {id}
+            path = re.sub(r'\{[^}]*\}', '{id}', path)
+            endpoints.append(EndpointSpec(
+                method=method, path=path, description=desc,
+            ))
         return endpoints

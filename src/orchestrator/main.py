@@ -377,12 +377,30 @@ def _apply_file_overrides(spec: IntentSpec, parsed_file: "IntentFileResult") -> 
     config fields) that should take precedence.
     """
     from src.orchestrator.intent_schema import (
+        AppType,
         AuthModel,
         ComplianceFramework,
         DataStore,
     )
 
     overrides: dict[str, object] = {}
+
+    cfg = parsed_file.config
+
+    # App type from config
+    app_type_map = {
+        "api": AppType.API,
+        "web": AppType.WEB,
+        "worker": AppType.WORKER,
+        "function": AppType.FUNCTION,
+        "ai_agent": AppType.AI_AGENT,
+        "ai-agent": AppType.AI_AGENT,
+        "ai_app": AppType.AI_APP,
+        "ai-app": AppType.AI_APP,
+        "event-driven": AppType.WORKER,
+    }
+    if cfg.get("app_type") and cfg["app_type"].strip().lower() in app_type_map:
+        overrides["app_type"] = app_type_map[cfg["app_type"].strip().lower()]
 
     # Project name from H1 heading
     if parsed_file.project_name:
@@ -392,8 +410,6 @@ def _apply_file_overrides(spec: IntentSpec, parsed_file: "IntentFileResult") -> 
         name = re.sub(r"\s+", "-", name)[:39]
         if re.match(r"^[a-z][a-z0-9-]{2,38}$", name):
             overrides["project_name"] = name
-
-    cfg = parsed_file.config
 
     # Region from config
     if cfg.get("region"):
@@ -427,11 +443,13 @@ def _apply_file_overrides(spec: IntentSpec, parsed_file: "IntentFileResult") -> 
         "fedramp": ComplianceFramework.FEDRAMP_GUIDANCE,
     }
     if cfg.get("compliance"):
-        comp_key = cfg["compliance"].strip().lower()
-        if comp_key in compliance_map:
+        # Support comma-separated compliance values; use the first recognized one
+        raw_comps = [c.strip().lower() for c in cfg["compliance"].split(",")]
+        matched_comp = next((compliance_map[c] for c in raw_comps if c in compliance_map), None)
+        if matched_comp:
             sec_obj = overrides.get("security", spec.security)
             sec_dict = sec_obj.model_dump() if hasattr(sec_obj, "model_dump") else spec.security.model_dump()
-            sec_dict["compliance_framework"] = compliance_map[comp_key]
+            sec_dict["compliance_framework"] = matched_comp
             from src.orchestrator.intent_schema import SecurityRequirements
             overrides["security"] = SecurityRequirements(**sec_dict)
 
@@ -447,11 +465,24 @@ def _apply_file_overrides(spec: IntentSpec, parsed_file: "IntentFileResult") -> 
             "redis": DataStore.REDIS,
             "table": DataStore.TABLE_STORAGE,
             "table_storage": DataStore.TABLE_STORAGE,
+            "ai_search": DataStore.AI_SEARCH,
+            "ai-search": DataStore.AI_SEARCH,
         }
         raw_stores = [s.strip().lower() for s in cfg["data_stores"].split(",")]
         detected_stores = [store_map[s] for s in raw_stores if s in store_map]
         if detected_stores:
             overrides["data_stores"] = detected_stores
+
+    # Entities from explicit declarations in raw markdown
+    if parsed_file.raw_content:
+        from src.orchestrator.agents.intent_parser import IntentParserAgent
+        explicit_entities = IntentParserAgent._parse_explicit_entities(parsed_file.raw_content)
+        if explicit_entities:
+            overrides["entities"] = explicit_entities
+            # Also regenerate endpoints from the explicit entities
+            explicit_endpoints = IntentParserAgent._parse_explicit_endpoints(parsed_file.raw_content)
+            if explicit_endpoints:
+                overrides["endpoints"] = explicit_endpoints
 
     # Apply overrides by creating a new IntentSpec
     if overrides:
@@ -459,6 +490,8 @@ def _apply_file_overrides(spec: IntentSpec, parsed_file: "IntentFileResult") -> 
         for key, value in overrides.items():
             if key == "security":
                 data["security"] = value.model_dump()
+            elif key in ("entities", "endpoints"):
+                data[key] = [v.model_dump() if hasattr(v, "model_dump") else v for v in value]
             else:
                 data[key] = value
         # Clear resource_group_name so model_post_init regenerates it
