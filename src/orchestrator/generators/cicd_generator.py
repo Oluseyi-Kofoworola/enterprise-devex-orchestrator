@@ -90,7 +90,7 @@ permissions:
   contents: read
 
 env:
-  PYTHON_VERSION: '3.11'
+  PYTHON_VERSION: '3.12'
   AZURE_SUBSCRIPTION_ID: ${{{{ secrets.AZURE_SUBSCRIPTION_ID }}}}
   AZURE_RESOURCE_GROUP: '{spec.resource_group_name}'
 

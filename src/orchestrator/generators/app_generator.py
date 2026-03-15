@@ -17,10 +17,23 @@ Supports multiple languages:
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 from src.orchestrator.intent_schema import DataStore, EntitySpec, IntentSpec
 from src.orchestrator.logging import get_logger
 
 logger = get_logger(__name__)
+
+
+def _seed_timestamp(row: int, spread_days: int = 90) -> str:
+    """Generate a realistic ISO timestamp relative to now, spread over `spread_days`."""
+    now = datetime.now(timezone.utc)
+    offset_days = spread_days - (row - 1) * (spread_days // 12)
+    offset_days = max(1, offset_days)
+    hour = 6 + (row * 3) % 16
+    minute = (row * 17) % 60
+    dt = now - timedelta(days=offset_days, hours=24 - hour, minutes=60 - minute)
+    return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 # -- Helpers for dynamic code generation from EntitySpec ---------------
@@ -120,11 +133,7 @@ def _seed_value(field_spec, entity_name: str, row: int) -> str:
     if ftype == "dict":
         return "{}"
     if ftype == "datetime":
-        day = 1 + (row - 1) % 28
-        hour = (row * 3) % 24
-        minute = (row * 17) % 60
-        month = 1 + (row - 1) // 28 % 3
-        return f'"2024-0{month}-{day:02d}T{hour:02d}:{minute:02d}:00Z"'
+        return f'"{ _seed_timestamp(row) }"'
 
     # --- String type: contextual seed values based on field name patterns ---
     if name == "status" or name.endswith("_status") or name == "state":
@@ -230,10 +239,7 @@ def _seed_value(field_spec, entity_name: str, row: int) -> str:
     if name in ("target", "destination"):
         return f'"{_cities[(row - 1) % len(_cities)]}"'
     if "date" in name or name in ("created", "updated", "timestamp") or name.endswith("_date") or name.endswith("_at"):
-        day = 1 + (row - 1) % 28
-        hour = 6 + (row * 2) % 16
-        month = 1 + (row - 1) // 28 % 3
-        return f'"2024-0{month}-{day:02d}T{hour:02d}:00:00Z"'
+        return f'"{ _seed_timestamp(row) }"'
     if "amount" in name or "price" in name or "cost" in name or name in ("fee", "total", "balance"):
         amounts = [1250.0, 8500.0, 350.0, 22000.0, 4800.0, 15600.0, 970.0, 38000.0, 6200.0, 2100.0, 12500.0, 44000.0, 580.0, 19800.0, 7300.0]
         return str(amounts[(row - 1) % len(amounts)])
@@ -772,6 +778,7 @@ from datetime import datetime, timezone
 from azure.identity import DefaultAzureCredential
 from azure.keyvault.secrets import SecretClient
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 {storage_imports}
 from api.v1.router import router as v1_router
@@ -794,6 +801,20 @@ app = FastAPI(
     description="{spec.description}",
     docs_url="/docs",
     redoc_url=None,
+)
+
+# -- CORS Middleware --------------------------------------------------
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:5173",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # -- Mount versioned API router --------------------------------------
@@ -1371,14 +1392,7 @@ async def {action}_{sn}({sn}_id: str, settings: Settings = Depends(get_settings)
                         continue  # appended below with realistic timestamps
                     val = _seed_value(f, ent.name, rid)
                     record_parts.append(f'"{f.name}": {val}')
-                # Spread timestamps across Jan-Mar 2024 with varied times
-                day = 1 + (rid - 1) % 28
-                hour = 6 + (rid * 3) % 16
-                minute = (rid * 17) % 60
-                month = 1 + (rid - 1) // 10
-                if month > 3:
-                    month = 3
-                record_parts.append(f'"created_at": "2024-0{month}-{day:02d}T{hour:02d}:{minute:02d}:00Z"')
+                record_parts.append(f'"created_at": "{ _seed_timestamp(rid) }"')
                 lines.append(f'        {{{", ".join(record_parts)}}},')
             lines.append(f'    ],')
         lines.append('}')

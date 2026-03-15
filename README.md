@@ -530,6 +530,18 @@ Extension points:
 
 ## Changelog
 
+### v1.9.0
+
+- **Fix**: CORS middleware added to generated FastAPI apps — frontend dev servers (localhost:3000/5173) can now call the backend API without cross-origin errors
+- **Fix**: Dynamic seed data timestamps — generated timestamps are now relative to `datetime.now(UTC)` instead of hardcoded 2024 dates, so seed data always looks current
+- **Fix**: Frontend `.env` uses relative API path (`/api/v1`) instead of hardcoded `http://localhost:8000/api/v1` — works correctly with Vite proxy in development and nginx in production
+- **Fix**: Dashboard and detail page components read `VITE_API_BASE_URL` from environment variables with `/api/v1` fallback, eliminating hardcoded API base URLs
+- **Fix**: Responsive KPI grid (`grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5`) — better layout for intents with 5+ entities
+- **Fix**: AI Chat nav link conditionally rendered in Layout component when `spec.uses_ai` is True
+- **Fix**: Generated test conftest includes `KEY_VAULT_URI` environment variable alongside `KEY_VAULT_NAME`
+- **Fix**: CI/CD workflow Python version updated from 3.11 to 3.12
+- **Tests**: 609 tests passing
+
 ### v1.8.0
 
 - **Feature**: Hardened parser for extreme-complexity intents

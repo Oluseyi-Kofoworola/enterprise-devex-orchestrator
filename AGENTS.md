@@ -154,8 +154,8 @@ All generated code must follow enterprise security baselines:
 **Sub-generators:**
 - `BicepGenerator` -- 7+ Bicep modules + parameters + enterprise naming/tagging (includes Azure OpenAI + AI Search modules for AI workloads)
 - `CICDGenerator` -- 4 GitHub Actions workflows
-- `AppGenerator` -- FastAPI app + Docker + requirements with dynamic entity-driven services. AI workloads get `ai/client.py` (Managed Identity auth), `ai/chat.py` (chat router with RAG), `ai/agent.py` (Semantic Kernel agents with tool-calling). Generates **12 realistic seed records per entity** with domain-aware values (names, addresses, descriptions, statuses, priorities, timestamps spanning months).
-- `FrontendGenerator` -- Entity-driven React + Vite + TypeScript SPA (entity dashboards, API client, types, detail pages, AI chat page). Dynamic entity-driven generation for all domains via semantic extraction.
+- `AppGenerator` -- FastAPI app + Docker + requirements with dynamic entity-driven services. Includes CORS middleware for frontend dev servers (localhost:3000/5173). AI workloads get `ai/client.py` (Managed Identity auth), `ai/chat.py` (chat router with RAG), `ai/agent.py` (Semantic Kernel agents with tool-calling). Generates **12 realistic seed records per entity** with domain-aware values (names, addresses, descriptions, statuses, priorities, dynamic timestamps relative to current date).
+- `FrontendGenerator` -- Entity-driven React + Vite + TypeScript SPA (entity dashboards, API client, types, detail pages, AI chat page). Dynamic entity-driven generation for all domains via semantic extraction. Environment-variable-driven API base URL, responsive KPI grid, conditional AI Chat nav link.
 - `DocsGenerator` -- 7 documentation files + standards reference + improvement suggestions
 - `TestGenerator` -- Auto-generated pytest test suite (health, API, security, config, storage)
 - `AlertGenerator` -- Azure Monitor alert rules (Bicep) + action groups + alerting runbook

@@ -67,6 +67,7 @@ from fastapi.testclient import TestClient
 def _env_setup(monkeypatch: pytest.MonkeyPatch) -> None:
     """Set required environment variables for all tests."""
     monkeypatch.setenv("KEY_VAULT_NAME", "kv-test-vault")
+    monkeypatch.setenv("KEY_VAULT_URI", "https://kv-test-vault.vault.azure.net")
     monkeypatch.setenv("AZURE_CLIENT_ID", "00000000-0000-0000-0000-000000000000")
     monkeypatch.setenv("ENVIRONMENT", "test")
     monkeypatch.setenv("PORT", "8000")

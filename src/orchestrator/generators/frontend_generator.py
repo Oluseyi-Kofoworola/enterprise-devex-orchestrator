@@ -74,7 +74,7 @@ class FrontendGenerator:
         files["frontend/src/App.tsx"] = self._app_tsx(spec)
         files["frontend/src/api/client.ts"] = self._api_client(spec)
         files["frontend/src/types/index.ts"] = self._types(spec)
-        files["frontend/src/components/Layout.tsx"] = self._layout(project)
+        files["frontend/src/components/Layout.tsx"] = self._layout(project, spec)
         files["frontend/src/components/StatusBadge.tsx"] = self._status_badge()
         files["frontend/src/pages/Dashboard.tsx"] = self._dashboard(spec)
         files["frontend/src/pages/DetailPage.tsx"] = self._detail_page(spec)
@@ -84,7 +84,7 @@ class FrontendGenerator:
             files["frontend/src/pages/ChatPage.tsx"] = self._chat_page(spec)
 
         # -- Static / env --
-        files["frontend/.env"] = f'VITE_API_BASE_URL=http://localhost:8000/api/v1\nVITE_APP_TITLE="{project}"\n'
+        files["frontend/.env"] = f'VITE_API_BASE_URL=/api/v1\nVITE_APP_TITLE="{project}"\n'
         files["frontend/Dockerfile"] = self._dockerfile()
         files["frontend/docker-entrypoint.sh"] = self._docker_entrypoint()
 
@@ -289,7 +289,10 @@ export const api = {{
 """
         return base
 
-    def _layout(self, project: str) -> str:
+    def _layout(self, project: str, spec: IntentSpec | None = None) -> str:
+        chat_link = ''
+        if spec and spec.uses_ai:
+            chat_link = '\n            <Link to="/chat" className="hover:underline">AI Chat</Link>'
         return f"""import {{ ReactNode }} from 'react';
 import {{ Link }} from 'react-router-dom';
 
@@ -302,7 +305,7 @@ export default function Layout({{ children }}: {{ children: ReactNode }}) {{
             {project}
           </Link>
           <nav className="flex gap-4 text-sm">
-            <Link to="/" className="hover:underline">Dashboard</Link>
+            <Link to="/" className="hover:underline">Dashboard</Link>{chat_link}
           </nav>
         </div>
       </header>
@@ -676,7 +679,7 @@ export default function ChatPage() {{
 # Static component templates used by dynamic generators
 # ====================================================================
 
-_DASHBOARD_COMPONENT = r"""const API_BASE = '/api/v1';
+_DASHBOARD_COMPONENT = r"""const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
 export default function Dashboard() {
   const [allData, setAllData] = useState<Record<string, any[]>>({});
@@ -755,7 +758,7 @@ export default function Dashboard() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
         {tabKeys.map(key => (
           <div
             key={key}
@@ -889,7 +892,7 @@ export default function Dashboard() {
 }
 """
 
-_DETAIL_PAGE_COMPONENT = r"""const API_BASE = '/api/v1';
+_DETAIL_PAGE_COMPONENT = r"""const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
 export default function DetailPage() {
   const { id } = useParams<{ id: string }>();
