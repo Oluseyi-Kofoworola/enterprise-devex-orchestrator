@@ -364,10 +364,10 @@ class TestAppGeneratorDDD:
         router = files["src/app/api/v1/router.py"]
         assert "APIRouter" in router
 
-    def test_v1_router_has_items_endpoint(self) -> None:
+    def test_v1_router_has_resource_endpoint(self) -> None:
         files = self.gen.generate(_make_spec())
         router = files["src/app/api/v1/router.py"]
-        assert "/items" in router
+        assert "/resources" in router
 
     def test_v1_schemas_has_pydantic_model(self) -> None:
         files = self.gen.generate(_make_spec())
@@ -387,7 +387,7 @@ class TestAppGeneratorDDD:
     def test_core_services_has_item_service(self) -> None:
         files = self.gen.generate(_make_spec())
         services = files["src/app/core/services.py"]
-        assert "ItemService" in services
+        assert "ResourceService" in services
 
     def test_ddd_total_file_count(self) -> None:
         files = self.gen.generate(_make_spec())

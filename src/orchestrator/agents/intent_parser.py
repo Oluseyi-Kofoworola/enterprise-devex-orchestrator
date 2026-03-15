@@ -722,10 +722,10 @@ class IntentParserAgent:
 
         if not merged:
             return [
-                EntitySpec(name="Item", description="Generic domain entity", fields=[
-                    FieldSpec(name="name", type="str", required=True, description="Item name"),
-                    FieldSpec(name="description", type="str", required=False, description="Item description"),
-                    FieldSpec(name="status", type="str", required=False, description="Item status"),
+                EntitySpec(name="Resource", description="Generic domain resource", fields=[
+                    FieldSpec(name="name", type="str", required=True, description="Resource name"),
+                    FieldSpec(name="description", type="str", required=False, description="Resource description"),
+                    FieldSpec(name="status", type="str", required=False, description="Resource status"),
                 ]),
             ]
 

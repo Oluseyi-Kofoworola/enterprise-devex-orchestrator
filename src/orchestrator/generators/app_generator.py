@@ -17,7 +17,7 @@ Supports multiple languages:
 
 from __future__ import annotations
 
-from src.orchestrator.intent_schema import DataStore, DomainType, EntitySpec, IntentSpec
+from src.orchestrator.intent_schema import DataStore, EntitySpec, IntentSpec
 from src.orchestrator.logging import get_logger
 
 logger = get_logger(__name__)
@@ -41,12 +41,8 @@ def _plural(name: str) -> str:
 
 
 def _has_custom_entities(spec: IntentSpec) -> bool:
-    """Return True if spec has domain-specific entities (not just default Item)."""
-    if not spec.entities:
-        return False
-    if len(spec.entities) == 1 and spec.entities[0].name == "Item":
-        return False
-    return True
+    """Return True if spec has any entities (including fallback Resource)."""
+    return bool(spec.entities)
 
 
 def _python_type_default(field_type: str) -> str:
@@ -330,10 +326,15 @@ class AppGenerator:
 
     def _python_static_dashboard(self, spec: IntentSpec) -> str:
         """Return the static (dev-facing) dashboard HTML block."""
+        # Derive entity slug from spec entities or fallback to 'resources'
+        if spec.entities:
+            _primary = _snake(_plural(spec.entities[0].name))
+        else:
+            _primary = "resources"
         compliance_badges = self._enterprise_compliance_badges(spec)
         data_stores = self._enterprise_data_stores(spec)
-        quick_actions = '<a class="action-btn" href="/docs"><span class="icon">\xf0\x9f\x93\x9a</span>API Documentation</a>\\n                    <a class="action-btn" href="/health"><span class="icon">\xf0\x9f\x92\x9a</span>Health Check</a>\\n                    <a class="action-btn" href="/keyvault/status"><span class="icon">\xf0\x9f\x94\x90</span>Key Vault Status</a>\\n                    <a class="action-btn" href="/api/v1/items"><span class="icon">\xf0\x9f\x93\xa6</span>API v1 Items</a>'
-        endpoint_list = '<li><span class="method-badge get">GET</span><span class="endpoint-path">/health</span><span class="endpoint-desc">Liveness probe</span></li>\\n                    <li><span class="method-badge get">GET</span><span class="endpoint-path">/docs</span><span class="endpoint-desc">OpenAPI docs</span></li>\\n                    <li><span class="method-badge get">GET</span><span class="endpoint-path">/keyvault/status</span><span class="endpoint-desc">Vault connectivity</span></li>\\n                    <li><span class="method-badge get">GET</span><span class="endpoint-path">/api/v1/items</span><span class="endpoint-desc">Resource listing</span></li>\\n                    <li><span class="method-badge post">POST</span><span class="endpoint-path">/api/v1/items</span><span class="endpoint-desc">Create resource</span></li>'
+        quick_actions = f'<a class="action-btn" href="/docs"><span class="icon">\xf0\x9f\x93\x9a</span>API Documentation</a>\\n                    <a class="action-btn" href="/health"><span class="icon">\xf0\x9f\x92\x9a</span>Health Check</a>\\n                    <a class="action-btn" href="/keyvault/status"><span class="icon">\xf0\x9f\x94\x90</span>Key Vault Status</a>\\n                    <a class="action-btn" href="/api/v1/{_primary}"><span class="icon">\xf0\x9f\x93\xa6</span>API v1 {_primary.replace("_", " ").title()}</a>'
+        endpoint_list = f'<li><span class="method-badge get">GET</span><span class="endpoint-path">/health</span><span class="endpoint-desc">Liveness probe</span></li>\\n                    <li><span class="method-badge get">GET</span><span class="endpoint-path">/docs</span><span class="endpoint-desc">OpenAPI docs</span></li>\\n                    <li><span class="method-badge get">GET</span><span class="endpoint-path">/keyvault/status</span><span class="endpoint-desc">Vault connectivity</span></li>\\n                    <li><span class="method-badge get">GET</span><span class="endpoint-path">/api/v1/{_primary}</span><span class="endpoint-desc">Resource listing</span></li>\\n                    <li><span class="method-badge post">POST</span><span class="endpoint-path">/api/v1/{_primary}</span><span class="endpoint-desc">Create resource</span></li>'
         # Helper refs to produce single-brace {VAR} in the generated f-string
         _an = "{APP_NAME}"
         _ver = "{VERSION}"
@@ -843,8 +844,6 @@ CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
     # ===============================================================
 
     def _python_v1_router(self, spec: IntentSpec) -> str:
-        domain = spec.domain_type if hasattr(spec, "domain_type") else DomainType.GENERIC
-
         storage_routes = ""
         if DataStore.BLOB_STORAGE in spec.data_stores:
             storage_routes = """
@@ -876,56 +875,56 @@ Add domain-specific routes here as the application grows.
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
-from api.v1.schemas import ItemCreate, ItemResponse
+from api.v1.schemas import ResourceCreate, ResourceResponse
 from core.dependencies import get_settings, get_repository
 from core.config import Settings
-from core.services import ItemService{storage_import}{storage_dep}
+from core.services import ResourceService{storage_import}{storage_dep}
 
 router = APIRouter()
 
 
-@router.get("/items", response_model=list[ItemResponse], summary="List items")
-async def list_items(settings: Settings = Depends(get_settings)):
-    """Return items from the service layer."""
-    repo = get_repository("item", settings.storage_mode)
-    svc = ItemService(project_name=settings.app_name, repo=repo)
-    return svc.list_items()
+@router.get("/resources", response_model=list[ResourceResponse], summary="List resources")
+async def list_resources(settings: Settings = Depends(get_settings)):
+    """Return resources from the service layer."""
+    repo = get_repository("resource", settings.storage_mode)
+    svc = ResourceService(project_name=settings.app_name, repo=repo)
+    return svc.list_resources()
 
 
-@router.post("/items", response_model=ItemResponse, status_code=201, summary="Create item")
-async def create_item(payload: ItemCreate, settings: Settings = Depends(get_settings)):
-    """Create a new item via the service layer."""
-    repo = get_repository("item", settings.storage_mode)
-    svc = ItemService(project_name=settings.app_name, repo=repo)
-    return svc.create_item(payload.name, payload.description)
+@router.post("/resources", response_model=ResourceResponse, status_code=201, summary="Create resource")
+async def create_resource(payload: ResourceCreate, settings: Settings = Depends(get_settings)):
+    """Create a new resource via the service layer."""
+    repo = get_repository("resource", settings.storage_mode)
+    svc = ResourceService(project_name=settings.app_name, repo=repo)
+    return svc.create_resource(payload.name, payload.description)
 
 
-@router.get("/items/{{item_id}}", summary="Get item by ID")
-async def get_item(item_id: str, settings: Settings = Depends(get_settings)):
-    repo = get_repository("item", settings.storage_mode)
-    svc = ItemService(project_name=settings.app_name, repo=repo)
-    item = svc.get_item(item_id)
-    if not item:
-        raise HTTPException(status_code=404, detail="Item not found")
-    return item
+@router.get("/resources/{{resource_id}}", summary="Get resource by ID")
+async def get_resource(resource_id: str, settings: Settings = Depends(get_settings)):
+    repo = get_repository("resource", settings.storage_mode)
+    svc = ResourceService(project_name=settings.app_name, repo=repo)
+    resource = svc.get_resource(resource_id)
+    if not resource:
+        raise HTTPException(status_code=404, detail="Resource not found")
+    return resource
 
 
-@router.put("/items/{{item_id}}", summary="Update item")
-async def update_item(item_id: str, payload: ItemCreate, settings: Settings = Depends(get_settings)):
-    repo = get_repository("item", settings.storage_mode)
-    svc = ItemService(project_name=settings.app_name, repo=repo)
-    item = svc.update_item(item_id, payload.name, payload.description)
-    if not item:
-        raise HTTPException(status_code=404, detail="Item not found")
-    return item
+@router.put("/resources/{{resource_id}}", summary="Update resource")
+async def update_resource(resource_id: str, payload: ResourceCreate, settings: Settings = Depends(get_settings)):
+    repo = get_repository("resource", settings.storage_mode)
+    svc = ResourceService(project_name=settings.app_name, repo=repo)
+    resource = svc.update_resource(resource_id, payload.name, payload.description)
+    if not resource:
+        raise HTTPException(status_code=404, detail="Resource not found")
+    return resource
 
 
-@router.delete("/items/{{item_id}}", status_code=204, summary="Delete item")
-async def delete_item(item_id: str, settings: Settings = Depends(get_settings)):
-    repo = get_repository("item", settings.storage_mode)
-    svc = ItemService(project_name=settings.app_name, repo=repo)
-    if not svc.delete_item(item_id):
-        raise HTTPException(status_code=404, detail="Item not found")
+@router.delete("/resources/{{resource_id}}", status_code=204, summary="Delete resource")
+async def delete_resource(resource_id: str, settings: Settings = Depends(get_settings)):
+    repo = get_repository("resource", settings.storage_mode)
+    svc = ResourceService(project_name=settings.app_name, repo=repo)
+    if not svc.delete_resource(resource_id):
+        raise HTTPException(status_code=404, detail="Resource not found")
 {storage_routes}'''
 
     # ===============================================================
@@ -967,20 +966,31 @@ async def delete_item(item_id: str, settings: Settings = Depends(get_settings)):
             sn = _snake(ent.name)
             slug = _snake(_plural(ent.name))
             label = ent.name
+            has_status = any(f.name in ("status", "state") for f in ent.fields)
 
             # Build the list of writable field names for create/update
-            writable_fields = [f for f in ent.fields if f.name != "status"]
+            writable_fields = [f for f in ent.fields if f.name not in ("status", "state")]
             create_kwargs = ", ".join(f"payload.{f.name}" for f in writable_fields)
 
-            lines.append(f'''
-
+            # List endpoint — only include status filter if entity has a status/state field
+            if has_status:
+                list_block = f'''
 # --- {label} CRUD ---
 @router.get("/{slug}", response_model=list[{label}Response], summary="List {_plural(label).lower()}")
 async def list_{slug}(status: str | None = None, settings: Settings = Depends(get_settings)):
     repo = get_repository("{sn}", settings.storage_mode)
     svc = {label}Service(repo)
-    return svc.list_all(status)
+    return svc.list_all(status)'''
+            else:
+                list_block = f'''
+# --- {label} CRUD ---
+@router.get("/{slug}", response_model=list[{label}Response], summary="List {_plural(label).lower()}")
+async def list_{slug}(settings: Settings = Depends(get_settings)):
+    repo = get_repository("{sn}", settings.storage_mode)
+    svc = {label}Service(repo)
+    return svc.list_all()'''
 
+            lines.append(list_block + f'''
 
 @router.post("/{slug}", response_model={label}Response, status_code=201, summary="Create {label.lower()}")
 async def create_{sn}(payload: {label}Create, settings: Settings = Depends(get_settings)):
@@ -988,26 +998,23 @@ async def create_{sn}(payload: {label}Create, settings: Settings = Depends(get_s
     svc = {label}Service(repo)
     return svc.create(payload)
 
-
 @router.get("/{slug}/{{{sn}_id}}", summary="Get {label.lower()} by ID")
 async def get_{sn}({sn}_id: str, settings: Settings = Depends(get_settings)):
     repo = get_repository("{sn}", settings.storage_mode)
     svc = {label}Service(repo)
-    item = svc.get({sn}_id)
-    if not item:
+    record = svc.get({sn}_id)
+    if not record:
         raise HTTPException(status_code=404, detail="{label} not found")
-    return item
-
+    return record
 
 @router.put("/{slug}/{{{sn}_id}}", summary="Update {label.lower()}")
 async def update_{sn}({sn}_id: str, payload: {label}Create, settings: Settings = Depends(get_settings)):
     repo = get_repository("{sn}", settings.storage_mode)
     svc = {label}Service(repo)
-    item = svc.update({sn}_id, payload)
-    if not item:
+    record = svc.update({sn}_id, payload)
+    if not record:
         raise HTTPException(status_code=404, detail="{label} not found")
-    return item
-
+    return record
 
 @router.delete("/{slug}/{{{sn}_id}}", status_code=204, summary="Delete {label.lower()}")
 async def delete_{sn}({sn}_id: str, settings: Settings = Depends(get_settings)):
@@ -1028,8 +1035,8 @@ async def delete_{sn}({sn}_id: str, settings: Settings = Depends(get_settings)):
 async def {action}_{sn}({sn}_id: str, settings: Settings = Depends(get_settings)):
     repo = get_repository("{sn}", settings.storage_mode)
     svc = {label}Service(repo)
-    item = svc.{action}({sn}_id)
-    if not item:
+    record = svc.{action}({sn}_id)
+    if not record:
         raise HTTPException(status_code=404, detail="{label} not found")
     return item''')
 
@@ -1115,6 +1122,7 @@ async def {action}_{sn}({sn}_id: str, settings: Settings = Depends(get_settings)
             sn = _snake(ent.name)
             label = ent.name
             slug = _snake(_plural(ent.name))
+            has_status = any(f.name in ("status", "state") for f in ent.fields)
 
             lines.append(f'class {label}Service:')
             lines.append(f'    """{ent.description or f"Manages {label} domain entities."}"""')
@@ -1123,12 +1131,16 @@ async def {action}_{sn}({sn}_id: str, settings: Settings = Depends(get_settings)
             lines.append('        self.repo = repo')
             lines.append('')
 
-            # list_all
-            lines.append('    def list_all(self, status: str | None = None) -> list[dict]:')
-            lines.append('        items = self.repo.list_all()')
-            lines.append('        if status:')
-            lines.append('            items = [i for i in items if i.get("status") == status]')
-            lines.append('        return items')
+            # list_all — only filter by status if entity has a status/state field
+            if has_status:
+                lines.append('    def list_all(self, status: str | None = None) -> list[dict]:')
+                lines.append('        items = self.repo.list_all()')
+                lines.append('        if status:')
+                lines.append('            items = [i for i in items if i.get("status") == status]')
+                lines.append('        return items')
+            else:
+                lines.append('    def list_all(self) -> list[dict]:')
+                lines.append('        return self.repo.list_all()')
             lines.append('')
 
             # get
@@ -2009,8 +2021,6 @@ async def {action}_{sn}({sn}_id: str, settings: Settings = Depends(get_settings)
         return raw.replace(lb, lb * 2).replace(rb, rb * 2)
 
     def _python_v1_schemas(self, spec: IntentSpec) -> str:
-        domain = spec.domain_type if hasattr(spec, "domain_type") else DomainType.GENERIC
-
         # Dynamic generation when entities come from intent parsing
         if _has_custom_entities(spec):
             return self._dynamic_schemas(spec)
@@ -2026,19 +2036,19 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 
 
-class ItemCreate(BaseModel):
-    """Schema for creating a new item."""
+class ResourceCreate(BaseModel):
+    """Schema for creating a new resource."""
 
-    name: str = Field(..., min_length=1, max_length=120, description="Item name")
-    description: str = Field(default="", max_length=500, description="Item description")
+    name: str = Field(..., min_length=1, max_length=120, description="Resource name")
+    description: str = Field(default="", max_length=500, description="Resource description")
 
 
-class ItemResponse(BaseModel):
-    """Schema returned by item endpoints."""
+class ResourceResponse(BaseModel):
+    """Schema returned by resource endpoints."""
 
-    id: str = Field(..., description="Unique item identifier")
-    name: str = Field(..., description="Item name")
-    description: str = Field(default="", description="Item description")
+    id: str = Field(..., description="Unique resource identifier")
+    name: str = Field(..., description="Resource name")
+    description: str = Field(default="", description="Resource description")
     project: str = Field(..., description="Owning project name")
 '''
 
@@ -2169,8 +2179,6 @@ def get_keyvault_client() -> SecretClient:
 {storage_dep}'''
 
     def _python_core_services(self, spec: IntentSpec) -> str:
-        domain = spec.domain_type if hasattr(spec, "domain_type") else DomainType.GENERIC
-
         if _has_custom_entities(spec):
             return self._dynamic_services(spec)
 
@@ -2189,29 +2197,29 @@ from datetime import datetime, timezone
 from domain.repositories import BaseRepository
 
 
-class ItemService:
+class ResourceService:
     """Generic CRUD domain service with repository-backed persistence."""
 
     def __init__(self, project_name: str = "{spec.project_name}", repo: BaseRepository | None = None) -> None:
         self.project_name = project_name
         self.repo = repo
 
-    def list_items(self) -> list[dict]:
-        """Return all items from the repository."""
+    def list_resources(self) -> list[dict]:
+        """Return all resources from the repository."""
         if self.repo:
             return self.repo.list_all()
         return [
             {{
                 "id": "sample-001",
-                "name": "Example Item",
+                "name": "Example Resource",
                 "description": "Replace this stub with your data store query.",
                 "project": self.project_name,
             }}
         ]
 
-    def create_item(self, name: str, description: str = "") -> dict:
-        """Create and return a new item."""
-        item = {{
+    def create_resource(self, name: str, description: str = "") -> dict:
+        """Create and return a new resource."""
+        resource = {{
             "id": str(uuid.uuid4()),
             "name": name,
             "description": description,
@@ -2219,34 +2227,34 @@ class ItemService:
             "created_at": datetime.now(timezone.utc).isoformat(),
         }}
         if self.repo:
-            self.repo.create(item["id"], item)
-        return item
+            self.repo.create(resource["id"], resource)
+        return resource
 
-    def get_item(self, item_id: str) -> dict | None:
-        """Get a single item by ID."""
+    def get_resource(self, resource_id: str) -> dict | None:
+        """Get a single resource by ID."""
         if self.repo:
-            return self.repo.get(item_id)
+            return self.repo.get(resource_id)
         return None
 
-    def update_item(self, item_id: str, name: str | None = None, description: str | None = None) -> dict | None:
-        """Update an existing item."""
+    def update_resource(self, resource_id: str, name: str | None = None, description: str | None = None) -> dict | None:
+        """Update an existing resource."""
         if not self.repo:
             return None
-        item = self.repo.get(item_id)
-        if not item:
+        resource = self.repo.get(resource_id)
+        if not resource:
             return None
         if name is not None:
-            item["name"] = name
+            resource["name"] = name
         if description is not None:
-            item["description"] = description
-        item["updated_at"] = datetime.now(timezone.utc).isoformat()
-        self.repo.update(item_id, item)
-        return item
+            resource["description"] = description
+        resource["updated_at"] = datetime.now(timezone.utc).isoformat()
+        self.repo.update(resource_id, resource)
+        return resource
 
-    def delete_item(self, item_id: str) -> bool:
-        """Delete an item by ID."""
+    def delete_resource(self, resource_id: str) -> bool:
+        """Delete a resource by ID."""
         if self.repo:
-            return self.repo.delete(item_id)
+            return self.repo.delete(resource_id)
         return False
 '''
 
@@ -2255,8 +2263,6 @@ class ItemService:
     # ===============================================================
 
     def _python_domain_models(self, spec: IntentSpec) -> str:
-        domain = spec.domain_type if hasattr(spec, "domain_type") else DomainType.GENERIC
-
         if _has_custom_entities(spec):
             return self._dynamic_models(spec)
 
@@ -2342,8 +2348,6 @@ class InMemoryRepository(BaseRepository):
 '''
 
     def _python_seed_data(self, spec: IntentSpec) -> str:
-        domain = spec.domain_type if hasattr(spec, "domain_type") else DomainType.GENERIC
-
         if _has_custom_entities(spec):
             return self._dynamic_seed_data(spec)
 
@@ -2353,12 +2357,12 @@ class InMemoryRepository(BaseRepository):
 from __future__ import annotations
 
 _SEED: dict[str, list[dict]] = {
-    "item": [
-        {"id": "item-001", "name": "Example Widget", "description": "A sample product item", "status": "active", "project": "demo", "created_at": "2024-03-15T08:00:00Z"},
-        {"id": "item-002", "name": "Test Service", "description": "A sample service offering", "status": "active", "project": "demo", "created_at": "2024-03-15T09:00:00Z"},
-        {"id": "item-003", "name": "Draft Report", "description": "Quarterly financial summary", "status": "draft", "project": "demo", "created_at": "2024-03-15T10:00:00Z"},
-        {"id": "item-004", "name": "Archived Task", "description": "Completed migration task", "status": "archived", "project": "demo", "created_at": "2024-03-14T14:00:00Z"},
-        {"id": "item-005", "name": "Pending Review", "description": "Code review for feature branch", "status": "pending", "project": "demo", "created_at": "2024-03-15T11:00:00Z"},
+    "resource": [
+        {"id": "res-001", "name": "Example Widget", "description": "A sample resource", "status": "active", "project": "demo", "created_at": "2024-03-15T08:00:00Z"},
+        {"id": "res-002", "name": "Test Service", "description": "A sample service offering", "status": "active", "project": "demo", "created_at": "2024-03-15T09:00:00Z"},
+        {"id": "res-003", "name": "Draft Report", "description": "Quarterly financial summary", "status": "draft", "project": "demo", "created_at": "2024-03-15T10:00:00Z"},
+        {"id": "res-004", "name": "Archived Task", "description": "Completed migration task", "status": "archived", "project": "demo", "created_at": "2024-03-14T14:00:00Z"},
+        {"id": "res-005", "name": "Pending Review", "description": "Code review for feature branch", "status": "pending", "project": "demo", "created_at": "2024-03-15T11:00:00Z"},
     ],
 }
 
@@ -2613,8 +2617,6 @@ CMD ["node", "index.js"]
 
     def _node_services(self, spec: IntentSpec) -> str:
         """Generate domain service layer for Node.js."""
-        domain = spec.domain_type if hasattr(spec, "domain_type") else DomainType.GENERIC
-
         if _has_custom_entities(spec):
             return self._dynamic_node_services(spec)
 
@@ -2622,41 +2624,39 @@ CMD ["node", "index.js"]
         return """const { v4: uuid } = require("uuid");
 const { seedData } = require("./data");
 
-const db = { items: { ...seedData.items } };
+const db = { resources: { ...seedData.resources } };
 
-class ItemService {
-  list() { return Object.values(db.items); }
-  get(id) { return db.items[id] || null; }
+class ResourceService {
+  list() { return Object.values(db.resources); }
+  get(id) { return db.resources[id] || null; }
   create({ name, description }) {
-    const item = { id: uuid(), name, description: description || "", project: "default", created_at: new Date().toISOString() };
-    db.items[item.id] = item;
-    return item;
+    const resource = { id: uuid(), name, description: description || "", project: "default", created_at: new Date().toISOString() };
+    db.resources[resource.id] = resource;
+    return resource;
   }
   update(id, { name, description }) {
-    const item = db.items[id];
-    if (!item) return null;
-    if (name !== undefined) item.name = name;
-    if (description !== undefined) item.description = description;
-    return item;
+    const resource = db.resources[id];
+    if (!resource) return null;
+    if (name !== undefined) resource.name = name;
+    if (description !== undefined) resource.description = description;
+    return resource;
   }
-  delete(id) { const existed = !!db.items[id]; delete db.items[id]; return existed; }
+  delete(id) { const existed = !!db.resources[id]; delete db.resources[id]; return existed; }
 }
 
-module.exports = { ItemService };
+module.exports = { ResourceService };
 """
 
     def _node_seed_data(self, spec: IntentSpec) -> str:
         """Generate seed data for Node.js."""
-        domain = spec.domain_type if hasattr(spec, "domain_type") else DomainType.GENERIC
-
         if _has_custom_entities(spec):
             return self._dynamic_node_seed_data(spec)
 
         return """const seedData = {
-  items: {
-    "i1": { id: "i1", name: "Sample Item 1", description: "First demo item", project: "default", created_at: "2024-01-01T00:00:00Z" },
-    "i2": { id: "i2", name: "Sample Item 2", description: "Second demo item", project: "default", created_at: "2024-01-02T00:00:00Z" },
-    "i3": { id: "i3", name: "Sample Item 3", description: "Third demo item", project: "default", created_at: "2024-01-03T00:00:00Z" },
+  resources: {
+    "r1": { id: "r1", name: "Sample Resource 1", description: "First demo resource", project: "default", created_at: "2024-01-01T00:00:00Z" },
+    "r2": { id: "r2", name: "Sample Resource 2", description: "Second demo resource", project: "default", created_at: "2024-01-02T00:00:00Z" },
+    "r3": { id: "r3", name: "Sample Resource 3", description: "Third demo resource", project: "default", created_at: "2024-01-03T00:00:00Z" },
   },
 };
 module.exports = { seedData };
@@ -2964,8 +2964,6 @@ CMD ["dotnet", "{spec.project_name}.dll"]
 
     def _dotnet_services(self, spec: IntentSpec) -> str:
         """Generate domain services for .NET."""
-        domain = spec.domain_type if hasattr(spec, "domain_type") else DomainType.GENERIC
-
         if _has_custom_entities(spec):
             return self._dynamic_dotnet_services(spec)
 
@@ -2975,25 +2973,23 @@ using System.Collections.Concurrent;
 
 namespace App.Services;
 
-public record Item(string Id, string Name, string Description, string Project, DateTime CreatedAt);
+public record Resource(string Id, string Name, string Description, string Project, DateTime CreatedAt);
 
-public class ItemService
+public class ResourceService
 {
-    private readonly ConcurrentDictionary<string, Item> _items = new();
+    private readonly ConcurrentDictionary<string, Resource> _resources = new();
 
-    public ItemService(SeedData seed) { foreach (var i in seed.Items) _items[i.Id] = i; }
-    public IEnumerable<Item> List() => _items.Values;
-    public Item? Get(string id) => _items.GetValueOrDefault(id);
-    public Item Create(string name, string? description = null) { var i = new Item(Guid.NewGuid().ToString(), name, description ?? "", "default", DateTime.UtcNow); _items[i.Id] = i; return i; }
-    public Item? Update(string id, string name, string? description = null) { if (!_items.TryGetValue(id, out var old)) return null; var u = old with { Name = name, Description = description ?? old.Description }; _items[id] = u; return u; }
-    public bool Delete(string id) => _items.TryRemove(id, out _);
+    public ResourceService(SeedData seed) { foreach (var r in seed.Resources) _resources[r.Id] = r; }
+    public IEnumerable<Resource> List() => _resources.Values;
+    public Resource? Get(string id) => _resources.GetValueOrDefault(id);
+    public Resource Create(string name, string? description = null) { var r = new Resource(Guid.NewGuid().ToString(), name, description ?? "", "default", DateTime.UtcNow); _resources[r.Id] = r; return r; }
+    public Resource? Update(string id, string name, string? description = null) { if (!_resources.TryGetValue(id, out var old)) return null; var u = old with { Name = name, Description = description ?? old.Description }; _resources[id] = u; return u; }
+    public bool Delete(string id) => _resources.TryRemove(id, out _);
 }
 """
 
     def _dotnet_seed_data(self, spec: IntentSpec) -> str:
         """Generate seed data for .NET."""
-        domain = spec.domain_type if hasattr(spec, "domain_type") else DomainType.GENERIC
-
         if _has_custom_entities(spec):
             return self._dynamic_dotnet_seed_data(spec)
 
@@ -3002,11 +2998,11 @@ namespace App.Services;
 
 public class SeedData
 {
-    public List<Item> Items { get; } = new()
+    public List<Resource> Resources { get; } = new()
     {
-        new("i1", "Sample Item 1", "First demo item", "default", DateTime.Parse("2024-01-01T00:00:00Z")),
-        new("i2", "Sample Item 2", "Second demo item", "default", DateTime.Parse("2024-01-02T00:00:00Z")),
-        new("i3", "Sample Item 3", "Third demo item", "default", DateTime.Parse("2024-01-03T00:00:00Z")),
+        new("r1", "Sample Resource 1", "First demo resource", "default", DateTime.Parse("2024-01-01T00:00:00Z")),
+        new("r2", "Sample Resource 2", "Second demo resource", "default", DateTime.Parse("2024-01-02T00:00:00Z")),
+        new("r3", "Sample Resource 3", "Third demo resource", "default", DateTime.Parse("2024-01-03T00:00:00Z")),
     };
 }
 """
