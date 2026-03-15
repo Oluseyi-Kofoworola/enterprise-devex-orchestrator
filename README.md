@@ -194,7 +194,7 @@ The same engine generates production scaffolds for **any business domain** -- no
 
 | Intent | Entities Extracted | Endpoints Generated | Data Stores |
 |--------|-------------------|-------------------|-------------|
-| Healthcare voice agent | Patient, Appointment, VoiceSession | CRUD + schedule, cancel | In-memory |
+| AI voice agent (12 entities) | VoiceSession, Patient, Provider, Equipment + 8 more | 70+ endpoints incl. triage, refill, escalate | Cosmos, SQL, Blob, Redis, Table |
 | Legal contract review | Contract, Clause, ReviewResult | CRUD + analyze, approve | Blob, Cosmos DB |
 | Smart city IoT (9 entities) | Sensor, Incident, Route, ServiceRequest + 5 more | 79 endpoints incl. dispatch, triage, correlate | Cosmos, SQL, Blob, Redis, AI Search, Table |
 | Propane delivery logistics | Delivery, Tank, Route, Customer | CRUD + optimize, schedule | Cosmos DB |
@@ -211,8 +211,8 @@ Ready-to-run examples are in [`examples/`](examples/):
 
 | File | Description |
 |------|-------------|
-| [`intent.md`](examples/intent.md) | Healthcare voice agent (v1) |
-| [`intent.v2.md`](examples/intent.v2.md) | Voice agent upgrade (v2) |
+| [`intent.md`](examples/intent.md) | AI voice agent platform (12 entities, 5 data stores, 4 AI agents) |
+| [`intent.v2.md`](examples/intent.v2.md) | Voice agent v2 upgrade (14 entities, all 6 data stores, FedRAMP) |
 | [`contract-review-intent.md`](examples/contract-review-intent.md) | Legal contract review AI |
 | [`doc-intelligence-intent.md`](examples/doc-intelligence-intent.md) | Document processing service |
 | [`propane-delivery-intent.md`](examples/propane-delivery-intent.md) | Propane delivery logistics |

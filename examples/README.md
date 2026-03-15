@@ -24,21 +24,21 @@ Every generated scaffold includes:
 
 ## Available Examples
 
-### 1. Voice Agent (v1)
+### 1. AI Voice Agent Platform (v1)
 
 **File:** [`intent.md`](intent.md)
 
-A voice-enabled patient information system for a healthcare network. Cross-browser speech recognition with auto-retry, synthetic patient clinical data, appointment scheduling, and multi-turn conversation context.
+A full-scale AI-powered voice agent platform for a 14-clinic healthcare network. **12 entities** (VoiceSession, Patient, Appointment, Prescription, TriageRecord, Provider, Facility, StaffMember, Equipment, InsuranceClaim, KnowledgeArticle, Notification, AuditLog) across 5 data stores (Cosmos DB, SQL, Redis, Blob, Table Storage). 4 Semantic Kernel agents (TriageAgent, SchedulingAgent, PharmacyAgent, AnalyticsAgent), RAG-grounded clinical knowledge, multi-parameter endpoints, complex field types (`list[str]`, `list[int]`, `boolean`, `decimal`), 10 user personas, and HIPAA + SOC2 compliance. Designed as a comprehensive stress test.
 
 ```powershell
 devex scaffold --file examples/intent.md -o ./voice-agent-output
 ```
 
-### 2. Voice Agent (v2 -- Upgrade)
+### 2. AI Voice Agent Platform (v2 -- Upgrade)
 
 **File:** [`intent.v2.md`](intent.v2.md)
 
-An upgraded version of the voice agent adding multi-language support, advanced analytics, and blob storage for call recordings. Demonstrates the versioned upgrade workflow.
+An upgrade of the v1 voice agent adding **2 new entities** (Referral, LabOrder), AI Search RAG pipeline, Mandarin language support, predictive analytics, and FedRAMP Moderate compliance. Expands to all 6 data stores and 6 AI agents. Demonstrates the versioned upgrade workflow with entity additions.
 
 ```powershell
 devex upgrade --file examples/intent.v2.md -o ./voice-agent-output
@@ -98,18 +98,18 @@ devex scaffold --file examples/extreme-healthcare-intent.md -o ./extreme-healthc
 
 ## Comparison
 
-| Feature | Voice Agent | Contract Review | Doc Intelligence | Propane Delivery | Smart City | Extreme Healthcare |
-|---------|-------------|-----------------|------------------|------------------|------------|--------------------|
-| Industry | Healthcare Ops | Legal Ops | Document Processing | Logistics | Government/IoT | Healthcare Network |
-| Primary User | Clinical staff | Legal team | Back-office staff | Delivery operations | City operators | Clinical staff |
-| Entities | 3 | 3 | 3 | 4 | 9 | **15** |
-| Data Stores | None (in-memory) | Blob, Cosmos DB | Blob | Cosmos DB | All 6 | **All 6** |
-| AI/ML | Pattern matching | GPT-4, clause extraction | Document Intelligence | Route optimization | Multi-agent AI | Multi-agent AI |
-| Compliance | HIPAA | HIPAA, SOC2 | SOC2 | SOC2 | FedRAMP, SOC2, HIPAA | **HIPAA, SOC2, FedRAMP** |
-| Auth | Entra ID | Entra ID + RBAC | Managed Identity | Managed Identity | Entra ID | Entra ID |
-| Entity Discovery | Semantic NLP | Semantic NLP | Semantic NLP | Semantic NLP | Semantic NLP | **Explicit + Semantic** |
-| Bicep Modules | 5 | 6 | 5 | 6 | 10 | **10+** |
-| Multi-param paths | No | No | No | No | No | **Yes** |
+| Feature | Voice Agent v1 | Voice Agent v2 | Contract Review | Doc Intelligence | Propane Delivery | Smart City | Extreme Healthcare |
+|---------|----------------|----------------|-----------------|------------------|------------------|------------|--------------------|
+| Industry | Healthcare | Healthcare | Legal Ops | Document Processing | Logistics | Government/IoT | Healthcare Network |
+| Primary User | Clinical staff | Clinical staff | Legal team | Back-office staff | Delivery operations | City operators | Clinical staff |
+| Entities | **12** | **14** | 3 | 3 | 4 | 9 | **15** |
+| Data Stores | 5 | **All 6** | Blob, Cosmos DB | Blob | Cosmos DB | All 6 | **All 6** |
+| AI/ML | 4 SK agents, RAG | 6 SK agents, RAG | GPT-4, clause extraction | Document Intelligence | Route optimization | Multi-agent AI | Multi-agent AI |
+| Compliance | HIPAA, SOC2 | HIPAA, SOC2, FedRAMP | HIPAA, SOC2 | SOC2 | SOC2 | FedRAMP, SOC2, HIPAA | **HIPAA, SOC2, FedRAMP** |
+| Auth | Managed Identity | Managed Identity | Entra ID + RBAC | Managed Identity | Managed Identity | Entra ID | Entra ID |
+| Entity Discovery | Explicit + Semantic | Explicit + Semantic | Semantic NLP | Semantic NLP | Semantic NLP | Semantic NLP | **Explicit + Semantic** |
+| Bicep Modules | 10 | **12** | 6 | 5 | 6 | 10 | **10+** |
+| Multi-param paths | **Yes** | **Yes** | No | No | No | No | **Yes** |
 
 ---
 
