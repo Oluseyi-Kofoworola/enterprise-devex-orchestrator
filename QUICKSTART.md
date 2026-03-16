@@ -118,8 +118,14 @@ npm install
 npm run dev
 ```
 
+> **Windows note:** If `npm run dev` fails with an ENOENT error, use the local Vite binary directly:
+> ```powershell
+> .\node_modules\.bin\vite.cmd --port 3000
+> ```
+> **Never use `npx vite`** — it may pull a different version (e.g., Vite 8 vs the local 5.x) and crash with JSX transform errors.
+
 Open `http://localhost:3000` (or `http://localhost:5173`) in your browser for the **production React SPA dashboard**.
-The backend API docs are available at `http://127.0.0.1:8000/docs`.
+The backend API docs are available at `http://127.0.0.1:8000/docs` — every scaffold includes auto-generated **Swagger/OpenAPI** documentation for all REST endpoints.
 
 | Dashboard | URL | Description |
 |-----------|-----|-------------|
@@ -147,6 +153,26 @@ The backend API docs are available at `http://127.0.0.1:8000/docs`.
 **Production deployment**: In production (Azure Container App), the frontend is pre-built
 and served from the same container as the backend — no separate frontend server needed.
 The React SPA static files are bundled into `src/app/static/` at build time.
+
+---
+
+## 5c. What to Customize First
+
+After scaffolding, you'll see 89+ files. Here's where to start:
+
+| File | What to Customize |
+|------|-------------------|
+| `src/app/services/*.py` | Add your business logic to entity services |
+| `src/app/main.py` | Adjust middleware settings, add custom routes |
+| `frontend/src/pages/` | Customize dashboard pages and layout |
+| `frontend/src/lib/design-tokens.ts` | Change theme colors, fonts, spacing |
+| `infra/bicep/parameters/dev.parameters.json` | Set your Azure subscription, region, SKU |
+| `infra/bicep/main.bicep` | Add or remove Azure resources |
+| `.github/workflows/deploy.yml` | Configure deployment environments and approvals |
+| `docs/plan.md` | Update ADRs with your team's architectural decisions |
+
+> **Tip:** The best starting point is `src/app/services/` — the generated CRUD is functional but generic.
+> Add your domain-specific validation, business rules, and integrations there.
 
 ---
 
@@ -332,14 +358,23 @@ az group delete --name rg-<project-name>-dev --yes --no-wait
 
 | Problem | Solution |
 |---------|----------|
-| `devex` not found | Activate venv: `.venv\Scripts\Activate.ps1` |
-| `uvicorn` not found | Activate venv first: `.venv\Scripts\Activate.ps1` |
-| `npm run dev` ENOENT | Run `cd my-first-output/frontend` and `npm run dev` in the same terminal |
+| `devex` not found | Activate venv: `.venv\Scripts\Activate.ps1` (Windows) or `source .venv/bin/activate` (macOS/Linux) |
+| `uvicorn` not found | Activate venv first — each new terminal needs its own activation |
+| `npm run dev` ENOENT | Run `cd my-first-output/frontend` and `npm run dev` in the **same** terminal session |
+| `npm run dev` still fails | Use the local binary: `.\node_modules\.bin\vite.cmd --port 3000` (Windows) |
+| `npx vite` crashes with JSX error | **Never use `npx vite`** — it pulls Vite 8.x instead of local 5.x. Use `npm run dev` or the local binary |
+| Dashboard shows blank page | Check browser console for CSP errors. The generated CSP includes `'unsafe-eval'` for dev mode |
+| 429 errors flooding console | Rate limiter is set to 600 req/min. If you still hit it, increase `limit` in `main.py` |
 | "No intent provided" | Pass `--file` or quote inline: `devex scaffold "Build an API" -o ./out` |
-| LLM connection error | Expected -- falls back to template-only mode automatically |
+| LLM connection error | Expected — falls back to template-only mode automatically. Output is identical. |
 | pip install fails | Check Python 3.11+: `python --version` |
-| GitHub Actions OIDC fails | Verify federated credential `subject` matches your repo/branch |
-| `az deployment` errors | Run `az account show` and check subscription |
+| Port 8000 already in use | Kill existing process: `Get-NetTCPConnection -LocalPort 8000` (Windows) or `lsof -i :8000` (macOS/Linux) |
+| GitHub Actions OIDC fails | Verify federated credential `subject` matches your repo and branch exactly |
+| `az deployment` errors | Run `az account show` and verify subscription. Check `az provider list --output table` for required providers |
+| Frontend API calls fail | Ensure backend is running on port 8000. The frontend expects `http://localhost:8000` by default |
+
+> **Windows vs macOS/Linux:** All commands in this guide use PowerShell syntax. On macOS/Linux,
+> replace `.venv\Scripts\Activate.ps1` with `source .venv/bin/activate` and use forward slashes in paths.
 
 ---
 

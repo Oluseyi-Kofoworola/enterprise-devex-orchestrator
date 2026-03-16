@@ -221,9 +221,21 @@ graph TD
 
 **Key modules:** `config.py` (LLMConfig, auto-detection), `llm_client.py` (provider adapters), `agent.py` (AgentRuntime integration).
 
+## Why This Architecture?
+
+The 4-agent chain isn't just a technical choice — it solves the core enterprise AI adoption problem: **consistency with governance**.
+
+**Why 4 agents instead of 1?** A single AI agent producing everything has no separation of concerns. The Governance Reviewer exists as a *separate* agent specifically so it can reject the Planner's output. This mirrors enterprise design review processes — the person who designs the system shouldn't be the same person who approves it.
+
+**Why schemas instead of chat?** Chat-based AI tools produce non-deterministic output. The IntentSpec Pydantic schema normalizes any business description into a strict typed contract. Two developers describing the same system in different words produce the same schema — and therefore the same downstream output.
+
+**Why deterministic fallbacks?** Enterprise environments often have restricted network access. Every agent has a rule-based fallback that activates if the LLM is unavailable. The orchestrator produces identical output with or without an AI provider — the LLM enhances, but doesn't define, the output.
+
+**Why GitHub Copilot SDK as default?** Most enterprises already have Copilot licenses approved through procurement. Using the SDK as the default LLM provider means zero new vendor approvals, zero new DPAs, and zero new security reviews. Teams can start generating scaffolds immediately on infrastructure they already own.
+
 ---
 
-*4-agent chain | 9 MCP tools | 9 generators | 25 policies | 543 tests*
+*4-agent chain | 9 MCP tools | 9 generators | 25 policies | 636 tests*
 *Multi-provider LLM: GitHub Copilot SDK (default) · Azure OpenAI · OpenAI · Anthropic (Claude)*
 *Azure CAF naming + enterprise tagging + WAF 5-pillar alignment*
 *Domain-agnostic semantic extraction: Any business domain*
