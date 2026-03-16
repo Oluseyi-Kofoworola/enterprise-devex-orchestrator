@@ -144,6 +144,32 @@ class DesignTokens:
         "#f59e0b", "#ef4444", "#ec4899", "#8b5cf6",
     ])
 
+    # Layout configuration -- drives dynamic page structure
+    # header_style: "gradient" | "solid" | "transparent" | "glass"
+    header_style: str = "gradient"
+    # kpi_layout: "grid-compact" | "grid-wide" | "horizontal-scroll" | "masonry"
+    kpi_layout: str = "grid-compact"
+    # kpi_card_style: "flat" | "elevated" | "bordered" | "glass"
+    kpi_card_style: str = "bordered"
+    # summary_position: "top" | "sidebar" | "inline-header"
+    summary_position: str = "top"
+    # table_density: "compact" | "comfortable" | "spacious"
+    table_density: str = "comfortable"
+    # nav_style: "top-bar" | "sidebar" | "top-tabs"
+    nav_style: str = "top-bar"
+    # kpi_cols: grid column spec for KPI cards
+    kpi_cols: str = "grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7"
+    # summary_cols: grid column spec for summary metric cards
+    summary_cols: str = "grid-cols-2 sm:grid-cols-4"
+    # card_radius: border radius class for cards
+    card_radius: str = "rounded-xl"
+    # font_weight_heading: weight for title text
+    font_weight_heading: str = "font-bold"
+    # page_max_width: container max-width class
+    page_max_width: str = "max-w-7xl"
+    # accent_border: whether KPI cards have a colored top accent border
+    accent_border: bool = False
+
     # Anti-patterns
     anti_patterns: list[str] = field(default_factory=list)
 
@@ -166,6 +192,17 @@ _PRESETS: dict[str, dict] = {
             "#0891b2", "#0d9488", "#06b6d4", "#14b8a6",
             "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899",
         ],
+        "header_style": "solid",
+        "kpi_layout": "grid-wide",
+        "kpi_card_style": "elevated",
+        "summary_position": "top",
+        "table_density": "spacious",
+        "kpi_cols": "grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5",
+        "summary_cols": "grid-cols-2 sm:grid-cols-4",
+        "card_radius": "rounded-2xl",
+        "font_weight_heading": "font-bold",
+        "page_max_width": "max-w-7xl",
+        "accent_border": True,
         "anti_patterns": [
             "Never use red as primary — red signals danger in medical contexts",
             "Avoid playful or cartoon-style icons",
@@ -185,6 +222,17 @@ _PRESETS: dict[str, dict] = {
             "#1e40af", "#059669", "#d97706", "#dc2626",
             "#7c3aed", "#0891b2", "#ec4899", "#f59e0b",
         ],
+        "header_style": "solid",
+        "kpi_layout": "grid-compact",
+        "kpi_card_style": "bordered",
+        "summary_position": "sidebar",
+        "table_density": "compact",
+        "kpi_cols": "grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6",
+        "summary_cols": "grid-cols-1",
+        "card_radius": "rounded-lg",
+        "font_weight_heading": "font-semibold",
+        "page_max_width": "max-w-screen-2xl",
+        "accent_border": False,
         "anti_patterns": [
             "No AI purple/pink gradients — finance requires conservative colors",
             "No playful animations — every micro-interaction should feel precise",
@@ -204,6 +252,17 @@ _PRESETS: dict[str, dict] = {
             "#7c3aed", "#2563eb", "#f59e0b", "#10b981",
             "#ef4444", "#06b6d4", "#ec4899", "#8b5cf6",
         ],
+        "header_style": "gradient",
+        "kpi_layout": "horizontal-scroll",
+        "kpi_card_style": "glass",
+        "summary_position": "inline-header",
+        "table_density": "comfortable",
+        "kpi_cols": "flex overflow-x-auto gap-3 pb-2",
+        "summary_cols": "grid-cols-2 sm:grid-cols-4",
+        "card_radius": "rounded-2xl",
+        "font_weight_heading": "font-extrabold",
+        "page_max_width": "max-w-7xl",
+        "accent_border": True,
         "anti_patterns": [
             "CTA must be above the fold and high-contrast",
             "Avoid small or low-contrast buttons — conversion killers",
@@ -222,6 +281,16 @@ _PRESETS: dict[str, dict] = {
             "#ea580c", "#2563eb", "#0891b2", "#10b981",
             "#f59e0b", "#7c3aed", "#ef4444", "#ec4899",
         ],
+        "header_style": "gradient",
+        "kpi_layout": "grid-compact",
+        "kpi_card_style": "flat",
+        "summary_position": "top",
+        "table_density": "compact",
+        "kpi_cols": "grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6",
+        "summary_cols": "grid-cols-4",
+        "card_radius": "rounded-lg",
+        "page_max_width": "max-w-screen-2xl",
+        "accent_border": True,
         "anti_patterns": [
             "Avoid overcrowded tables — use progressive disclosure",
             "Map visualizations must be high-contrast for outdoor/mobile use",
@@ -248,6 +317,17 @@ _PRESETS: dict[str, dict] = {
             "#22d3ee", "#a78bfa", "#34d399", "#fbbf24",
             "#f87171", "#fb923c", "#c084fc", "#2dd4bf",
         ],
+        "header_style": "glass",
+        "kpi_layout": "masonry",
+        "kpi_card_style": "glass",
+        "summary_position": "inline-header",
+        "table_density": "compact",
+        "kpi_cols": "grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5",
+        "summary_cols": "grid-cols-2 sm:grid-cols-4",
+        "card_radius": "rounded-xl",
+        "font_weight_heading": "font-bold",
+        "page_max_width": "max-w-screen-2xl",
+        "accent_border": False,
         "anti_patterns": [
             "Light backgrounds waste screen real-estate on monitoring dashboards",
             "Avoid low-contrast text — operators need to read at a glance",
@@ -267,6 +347,21 @@ _PRESETS: dict[str, dict] = {
             "#1e3a5f", "#92400e", "#b45309", "#2563eb",
             "#059669", "#7c3aed", "#dc2626", "#0891b2",
         ],
+        "header_style": "solid",
+        "kpi_layout": "grid-wide",
+        "kpi_card_style": "bordered",
+        "summary_position": "top",
+        "table_density": "spacious",
+        "kpi_cols": "grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4",
+        "summary_cols": "grid-cols-2 sm:grid-cols-4",
+        "card_radius": "rounded-lg",
+        "font_weight_heading": "font-semibold",
+        "page_max_width": "max-w-6xl",
+        "accent_border": False,
+        "radius_sm": "0.25rem",
+        "radius_md": "0.375rem",
+        "radius_lg": "0.5rem",
+        "radius_xl": "0.75rem",
         "anti_patterns": [
             "Avoid sans-serif-only design — serif fonts convey authority",
             "No playful colors or animations",
@@ -286,6 +381,18 @@ _PRESETS: dict[str, dict] = {
             "#2563eb", "#16a34a", "#f59e0b", "#ef4444",
             "#7c3aed", "#0891b2", "#ec4899", "#8b5cf6",
         ],
+        "header_style": "gradient",
+        "kpi_layout": "grid-wide",
+        "kpi_card_style": "elevated",
+        "summary_position": "top",
+        "table_density": "spacious",
+        "kpi_cols": "grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5",
+        "summary_cols": "grid-cols-2 sm:grid-cols-4",
+        "card_radius": "rounded-2xl",
+        "font_weight_heading": "font-bold",
+        "page_max_width": "max-w-7xl",
+        "accent_border": True,
+        "radius_xl": "1.25rem",
         "anti_patterns": [
             "Text contrast must exceed 4.5:1 — many students use low-quality displays",
             "Avoid auto-playing media",
@@ -304,6 +411,17 @@ _PRESETS: dict[str, dict] = {
             "#6366f1", "#8b5cf6", "#06b6d4", "#10b981",
             "#f59e0b", "#ef4444", "#ec4899", "#f97316",
         ],
+        "header_style": "transparent",
+        "kpi_layout": "horizontal-scroll",
+        "kpi_card_style": "elevated",
+        "summary_position": "inline-header",
+        "table_density": "comfortable",
+        "kpi_cols": "flex overflow-x-auto gap-3 pb-2",
+        "summary_cols": "grid-cols-2 sm:grid-cols-4",
+        "card_radius": "rounded-2xl",
+        "font_weight_heading": "font-extrabold",
+        "page_max_width": "max-w-7xl",
+        "accent_border": True,
         "anti_patterns": [
             "Avoid feature overload on first view — use progressive disclosure",
         ],
@@ -321,6 +439,17 @@ _PRESETS: dict[str, dict] = {
             "#7c3aed", "#2563eb", "#06b6d4", "#10b981",
             "#f59e0b", "#ef4444", "#ec4899", "#8b5cf6",
         ],
+        "header_style": "glass",
+        "kpi_layout": "masonry",
+        "kpi_card_style": "glass",
+        "summary_position": "sidebar",
+        "table_density": "comfortable",
+        "kpi_cols": "grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5",
+        "summary_cols": "grid-cols-1",
+        "card_radius": "rounded-2xl",
+        "font_weight_heading": "font-bold",
+        "page_max_width": "max-w-7xl",
+        "accent_border": True,
         "anti_patterns": [
             "Chat bubbles must render HTML/markdown from LLM responses",
             "Typing indicators should have subtle animation",
@@ -339,6 +468,19 @@ _PRESETS: dict[str, dict] = {
             "#0f766e", "#b45309", "#d97706", "#2563eb",
             "#7c3aed", "#ef4444", "#ec4899", "#0891b2",
         ],
+        "header_style": "transparent",
+        "kpi_layout": "grid-wide",
+        "kpi_card_style": "elevated",
+        "summary_position": "top",
+        "table_density": "spacious",
+        "kpi_cols": "grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4",
+        "summary_cols": "grid-cols-2 sm:grid-cols-4",
+        "card_radius": "rounded-2xl",
+        "font_weight_heading": "font-semibold",
+        "page_max_width": "max-w-6xl",
+        "accent_border": False,
+        "shadow_md": "0 8px 16px -4px rgb(0 0 0 / 0.08)",
+        "shadow_lg": "0 20px 25px -5px rgb(0 0 0 / 0.1)",
         "anti_patterns": [
             "Property images must be high-resolution and prominent",
             "Avoid cluttered listing cards — clean layouts sell",
@@ -444,6 +586,17 @@ class DesignSystem:
   --chart-6: {tokens.chart_palette[5]};
   --chart-7: {tokens.chart_palette[6]};
   --chart-8: {tokens.chart_palette[7]};
+
+  /* Layout tokens */
+  --header-style: {tokens.header_style};
+  --kpi-layout: {tokens.kpi_layout};
+  --kpi-card-style: {tokens.kpi_card_style};
+  --summary-position: {tokens.summary_position};
+  --table-density: {tokens.table_density};
+  --nav-style: {tokens.nav_style};
+  --card-radius: {tokens.card_radius};
+  --font-weight-heading: {tokens.font_weight_heading};
+  --page-max-width: {tokens.page_max_width};
 }}
 
 /* Dark mode */
@@ -560,6 +713,20 @@ button, a, input, select, textarea {{
                 "mono": tokens.font_mono,
             },
             "chartPalette": tokens.chart_palette,
+            "layout": {
+                "headerStyle": tokens.header_style,
+                "kpiLayout": tokens.kpi_layout,
+                "kpiCardStyle": tokens.kpi_card_style,
+                "kpiCols": tokens.kpi_cols,
+                "summaryPosition": tokens.summary_position,
+                "summaryCols": tokens.summary_cols,
+                "tableDensity": tokens.table_density,
+                "navStyle": tokens.nav_style,
+                "cardRadius": tokens.card_radius,
+                "fontWeightHeading": tokens.font_weight_heading,
+                "pageMaxWidth": tokens.page_max_width,
+                "accentBorder": tokens.accent_border,
+            },
             "antiPatterns": tokens.anti_patterns,
         }
         return json.dumps(data, indent=2) + "\n"

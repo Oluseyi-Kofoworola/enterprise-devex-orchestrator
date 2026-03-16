@@ -52,6 +52,38 @@ planned. There is no AI or machine learning in any part of the operation.
 
 ## Functional Requirements
 
+### Entity: Customer
+- Fields: name (str), account_number (str), address (str), city (str), state (str), zip_code (str), phone (str), email (str), customer_type (str), status (str), latitude (float), longitude (float), zone (str), credit_status (str), balance (float), notes (str)
+- Endpoints: POST /customers, GET /customers, GET /customers/{id}, PUT /customers/{id}, DELETE /customers/{id}
+
+### Entity: Tank
+- Fields: serial_number (str), customer_id (str), tank_size_gallons (int), install_date (datetime), last_inspection (datetime), next_inspection (datetime), latitude (float), longitude (float), address (str), status (str), sensor_id (str), current_level_pct (float), last_reading_at (datetime), tank_type (str), location (str)
+- Endpoints: POST /tanks, GET /tanks, GET /tanks/{id}, PUT /tanks/{id}, POST /tanks/{id}/inspect
+
+### Entity: TankReading
+- Fields: tank_id (str), sensor_id (str), reading (float), temperature (float), pressure (float), battery_voltage (float), timestamp (datetime), signal_strength (int), anomaly_flag (bool), device_id (str)
+- Endpoints: POST /tank_readings, GET /tank_readings, GET /tank_readings/{id}
+
+### Entity: Delivery
+- Fields: customer_id (str), tank_id (str), driver_id (str), route_id (str), scheduled_date (datetime), delivered_at (datetime), gallons_delivered (float), meter_start (float), meter_end (float), unit_price (float), amount (float), status (str), delivery_type (str), latitude (float), longitude (float), notes (str), signature_url (str)
+- Endpoints: POST /deliveries, GET /deliveries, GET /deliveries/{id}, PUT /deliveries/{id}, POST /deliveries/{id}/complete, POST /deliveries/{id}/cancel
+
+### Entity: Route
+- Fields: name (str), driver_id (str), date (datetime), status (str), total_stops (int), completed_stops (int), total_gallons (float), total_miles (float), started_at (datetime), completed_at (datetime), depot_id (str), zone (str), estimated_duration_mins (int)
+- Endpoints: POST /routes, GET /routes, GET /routes/{id}, PUT /routes/{id}, POST /routes/{id}/start, POST /routes/{id}/complete
+
+### Entity: ServiceCall
+- Fields: customer_id (str), tank_id (str), assigned_to (str), status (str), priority (str), category (str), description (str), scheduled_date (datetime), completed_at (datetime), resolution (str), review_notes (str), parts_used (str), labor_hours (float), cost (float)
+- Endpoints: POST /service_calls, GET /service_calls, GET /service_calls/{id}, PUT /service_calls/{id}, POST /service_calls/{id}/complete, POST /service_calls/{id}/escalate
+
+### Entity: Invoice
+- Fields: customer_id (str), delivery_id (str), invoice_number (str), amount (float), tax (float), total (float), status (str), issued_date (datetime), due_date (datetime), paid_date (datetime), payment_method (str), balance (float), notes (str)
+- Endpoints: POST /invoices, GET /invoices, GET /invoices/{id}, POST /invoices/{id}/send, POST /invoices/{id}/pay
+
+### Entity: Inventory
+- Fields: depot_id (str), product (str), quantity (float), units_available (float), units_reserved (float), reorder_point (float), last_delivery_date (datetime), cost_per_gallon (float), stock_level (float), status (str), warehouse (str)
+- Endpoints: POST /inventory, GET /inventory, GET /inventory/{id}, PUT /inventory/{id}, POST /inventory/{id}/reorder
+
 ### Tank Monitoring & Smart Scheduling
 - IoT tank-level ingestion API: receive telemetry from ultrasonic/pressure tank sensors (MQTT or HTTP POST) with tank ID, level percentage, temperature, timestamp
 - Tank level history storage with configurable read intervals (default: every 4 hours)

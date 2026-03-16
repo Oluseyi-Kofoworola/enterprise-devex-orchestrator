@@ -84,7 +84,7 @@ npm install && npm run dev
 
 # Backend API runs separately:
 cd ../src/app
-pip install fastapi uvicorn pydantic pydantic-settings
+pip install -r requirements.txt
 uvicorn main:app --host 127.0.0.1 --port 8000 --reload
 # API docs at http://127.0.0.1:8000/docs
 ```
@@ -208,6 +208,8 @@ The same engine generates production scaffolds for **any business domain** -- no
 | Agentic document processor | Document, Task, Agent | CRUD + analyze, dispatch | Blob, AI Search |
 | Extreme stress test (15 entities) | Patient, Claim, Provider, Appointment + 11 more | 100+ endpoints with multi-param paths | All 6 data stores |
 | Metro Command (14 entities) | Incident, Asset, Sensor, Vehicle, Zone + 9 more | 100+ endpoints with 8 AI agents | All 6 data stores |
+| Retail supply chain (10 entities) | Product, Supplier, PurchaseOrder, Warehouse + 6 more | 60+ endpoints with demand forecasting | Cosmos DB |
+| Global supply chain (15 entities) | Supplier, Shipment, DisruptionEvent, RiskAssessment + 11 more | 90+ endpoints with risk intelligence | Cosmos, SQL, Redis, Blob, Table |
 
 **Every scaffold gets the same enterprise treatment**: Bicep IaC, CI/CD, governance, WAF assessment, production dashboard with donut charts, tests, and documentation.
 
@@ -225,6 +227,8 @@ Ready-to-run examples are in [`examples/`](examples/):
 | [`smart-city-intent.md`](examples/smart-city-intent.md) | Smart city operations (stress test — 6 data stores, 9 entities, 10 Bicep modules) |
 | [`metro-command-intent.md`](examples/metro-command-intent.md) | Metro Command AI operations (14 entities, all 6 data stores, 8 AI agents, production UI showcase) |
 | [`extreme-healthcare-intent.md`](examples/extreme-healthcare-intent.md) | Extreme stress test — 15 entities, 25 fields/entity, all 6 data stores, multi-param endpoints |
+| [`retail-supply-chain-intent.md`](examples/retail-supply-chain-intent.md) | Retail inventory & supply chain AI (10 entities, explicit declarations) |
+| [`global-supply-chain-intent.md`](examples/global-supply-chain-intent.md) | Global supply chain risk intelligence (15 entities, 5 data stores, SOC2 + ISO27001) |
 
 See [`examples/README.md`](examples/README.md) for details on each example.
 

@@ -515,6 +515,10 @@ def _resolve_intent(intent: str | None, intent_file: str | None) -> str:
             )
         return result.full_intent
     if intent:
+        # Auto-detect: if intent argument is a path to an existing .md file, treat it as a file
+        intent_path = Path(intent)
+        if intent_path.suffix.lower() == ".md" and intent_path.exists():
+            return _resolve_intent(None, intent_file=intent)
         return intent
     console.print("[red]Error:[/] Provide INTENT as an argument or use --file intent.md")
     sys.exit(1)
@@ -548,6 +552,11 @@ def _resolve_intent_with_meta(intent: str | None, intent_file: str | None) -> tu
             console.print(f"  [dim]Missing: {', '.join(missing)}[/]")
 
         return result.full_intent, result
+    # Auto-detect: if intent argument is a path to an existing .md file, treat it as a file
+    if intent and not intent_file:
+        intent_path = Path(intent)
+        if intent_path.suffix.lower() == ".md" and intent_path.exists():
+            return _resolve_intent_with_meta(None, intent_file=intent)
     if intent:
         return intent, None
     console.print("[red]Error:[/] Provide INTENT as an argument or use --file intent.md")

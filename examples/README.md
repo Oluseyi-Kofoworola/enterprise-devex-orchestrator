@@ -104,22 +104,42 @@ An enterprise-grade AI-powered metropolitan operations intelligence platform orc
 devex scaffold --file examples/metro-command-intent.md -o ./metro-command-output
 ```
 
+### 9. Retail Supply Chain AI
+
+**File:** [`retail-supply-chain-intent.md`](retail-supply-chain-intent.md)
+
+AI-powered retail inventory and supply chain optimization platform with **10 explicit entities** (Product, Supplier, PurchaseOrder, Warehouse, InventoryItem, ShipmentTracking, DemandForecast, StockAlert, ReturnItem, SupplierContract). Demonstrates explicit `### Entity:` declarations for precise entity control.
+
+```powershell
+devex scaffold --file examples/retail-supply-chain-intent.md -o ./retail-supply-chain-output
+```
+
+### 10. Global Supply Chain Risk Intelligence
+
+**File:** [`global-supply-chain-intent.md`](global-supply-chain-intent.md)
+
+Enterprise-grade AI-powered supply chain risk intelligence platform with **15 explicit entities** (Supplier, SupplierDependency, Shipment, DisruptionEvent, RiskAssessment, InventoryPosition, PurchaseOrder, Scenario, Playbook, Port, Carrier, ProductionLine, ComplianceRecord, AlertConfiguration, CostAnalysis) across all 5 data stores (Cosmos DB, SQL, Redis, Blob, Table Storage). SOC2 + ISO27001 compliance, 6 RBAC roles, and 5 user personas. Designed as a comprehensive cross-domain stress test.
+
+```powershell
+devex scaffold --file examples/global-supply-chain-intent.md -o ./global-supply-chain-output
+```
+
 ---
 
 ## Comparison
 
-| Feature | Voice Agent v1 | Voice Agent v2 | Contract Review | Doc Intelligence | Propane Delivery | Smart City | Extreme Healthcare | Metro Command |
-|---------|----------------|----------------|-----------------|------------------|------------------|------------|--------------------|--------------|
-| Industry | Healthcare | Healthcare | Legal Ops | Document Processing | Logistics | Government/IoT | Healthcare Network | Government/IoT |
-| Primary User | Clinical staff | Clinical staff | Legal team | Back-office staff | Delivery operations | City operators | Clinical staff | City operators |
-| Entities | **12** | **14** | 3 | 3 | 4 | 9 | **15** | **14** |
-| Data Stores | 5 | **All 6** | Blob, Cosmos DB | Blob | Cosmos DB | All 6 | **All 6** | **All 6** |
-| AI/ML | 4 SK agents, RAG | 6 SK agents, RAG | GPT-4, clause extraction | Document Intelligence | Route optimization | Multi-agent AI | Multi-agent AI | **8 SK agents**, RAG, Vision, Whisper |
-| Compliance | HIPAA, SOC2 | HIPAA, SOC2, FedRAMP | HIPAA, SOC2 | SOC2 | SOC2 | FedRAMP, SOC2, HIPAA | **HIPAA, SOC2, FedRAMP** | **HIPAA, SOC2, FedRAMP** |
-| Auth | Managed Identity | Managed Identity | Entra ID + RBAC | Managed Identity | Managed Identity | Entra ID | Entra ID | Entra ID |
-| Entity Discovery | Explicit + Semantic | Explicit + Semantic | Semantic NLP | Semantic NLP | Semantic NLP | Semantic NLP | **Explicit + Semantic** | **Explicit + Semantic** |
-| Bicep Modules | 10 | **12** | 6 | 5 | 6 | 10 | **10+** | **10+** |
-| Multi-param paths | **Yes** | **Yes** | No | No | No | No | **Yes** | No |
+| Feature | Voice Agent v1 | Voice Agent v2 | Contract Review | Doc Intelligence | Propane Delivery | Smart City | Extreme Healthcare | Metro Command | Retail Supply Chain | Global Supply Chain |
+|---------|----------------|----------------|-----------------|------------------|------------------|------------|--------------------|--------------|---------------------|---------------------|
+| Industry | Healthcare | Healthcare | Legal Ops | Document Processing | Logistics | Government/IoT | Healthcare Network | Government/IoT | Retail | Manufacturing/Logistics |
+| Primary User | Clinical staff | Clinical staff | Legal team | Back-office staff | Delivery operations | City operators | Clinical staff | City operators | Supply chain managers | Supply chain analysts |
+| Entities | **12** | **14** | 3 | 3 | 4 | 9 | **15** | **14** | **10** | **15** |
+| Data Stores | 5 | **All 6** | Blob, Cosmos DB | Blob | Cosmos DB | All 6 | **All 6** | **All 6** | Cosmos DB | 5 (Cosmos, SQL, Redis, Blob, Table) |
+| AI/ML | 4 SK agents, RAG | 6 SK agents, RAG | GPT-4, clause extraction | Document Intelligence | Route optimization | Multi-agent AI | Multi-agent AI | **8 SK agents**, RAG, Vision, Whisper | Demand forecasting | Risk intelligence |
+| Compliance | HIPAA, SOC2 | HIPAA, SOC2, FedRAMP | HIPAA, SOC2 | SOC2 | SOC2 | FedRAMP, SOC2, HIPAA | **HIPAA, SOC2, FedRAMP** | **HIPAA, SOC2, FedRAMP** | SOC2 | SOC2, ISO27001 |
+| Auth | Managed Identity | Managed Identity | Entra ID + RBAC | Managed Identity | Managed Identity | Entra ID | Entra ID | Entra ID | Managed Identity | Managed Identity |
+| Entity Discovery | Explicit + Semantic | Explicit + Semantic | Semantic NLP | Semantic NLP | Semantic NLP | Semantic NLP | **Explicit + Semantic** | **Explicit + Semantic** | **Explicit** | **Explicit** |
+| Bicep Modules | 10 | **12** | 6 | 5 | 6 | 10 | **10+** | **10+** | 6 | **10+** |
+| Multi-param paths | **Yes** | **Yes** | No | No | No | No | **Yes** | No | No | No |
 
 ---
 
@@ -175,7 +195,7 @@ After scaffolding, run the **React frontend dashboard** and **backend API** sepa
 
 ```powershell
 cd <output-dir>/src/app
-pip install fastapi uvicorn pydantic pydantic-settings
+pip install -r requirements.txt
 uvicorn main:app --host 127.0.0.1 --port 8000 --reload
 ```
 

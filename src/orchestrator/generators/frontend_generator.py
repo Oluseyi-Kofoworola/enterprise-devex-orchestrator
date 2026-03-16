@@ -25,12 +25,14 @@ from __future__ import annotations
 import re as _re
 
 from src.orchestrator.generators.design_system import DesignSystem
+from src.orchestrator.generators.component_intelligence import ComponentIntelligence, DetectedCapabilities
 from src.orchestrator.intent_schema import IntentSpec
 from src.orchestrator.logging import get_logger
 
 logger = get_logger(__name__)
 
 _design_system = DesignSystem()
+_component_intelligence = ComponentIntelligence()
 
 
 # -- Helpers for dynamic frontend generation ---------------------------
@@ -43,6 +45,23 @@ def _snake(name: str) -> str:
 def _plural(name: str) -> str:
     """Simple English pluralizer."""
     lower = name.lower()
+    _IRREGULARS = {
+        "analysis": "analyses", "diagnosis": "diagnoses", "basis": "bases",
+        "crisis": "crises", "thesis": "theses", "hypothesis": "hypotheses",
+        "synopsis": "synopses", "parenthesis": "parentheses",
+        "person": "people", "child": "children", "man": "men", "woman": "women",
+        "staff": "staff", "sheep": "sheep", "fish": "fish", "deer": "deer",
+    }
+    if lower in _IRREGULARS:
+        plural = _IRREGULARS[lower]
+        if name[0].isupper():
+            return plural[0].upper() + plural[1:]
+        return plural
+    # Handle compound names ending with an irregular word (e.g. CostAnalysis)
+    for irr_singular, irr_plural in _IRREGULARS.items():
+        if lower.endswith(irr_singular) and lower != irr_singular:
+            prefix = name[: len(name) - len(irr_singular)]
+            return prefix + (irr_plural[0].upper() + irr_plural[1:] if name[-len(irr_singular)].isupper() else irr_plural)
     if lower.endswith("y") and lower[-2:] not in ("ay", "ey", "oy", "uy"):
         return name[:-1] + "ies"
     if lower.endswith(("s", "sh", "ch", "x", "z")):
@@ -168,6 +187,7 @@ class FrontendGenerator:
         """Return file-path -> content mapping for the frontend SPA."""
         project = spec.project_name
         tokens = _design_system.generate_tokens(spec)
+        caps = _component_intelligence.detect(spec)
 
         files: dict[str, str] = {}
 
@@ -179,14 +199,15 @@ class FrontendGenerator:
         files["frontend/tsconfig.json"] = self._tsconfig()
         files["frontend/tsconfig.node.json"] = self._tsconfig_node()
         files["frontend/vite.config.ts"] = self._vite_config()
+        files["frontend/src/vite-env.d.ts"] = '/// <reference types="vite/client" />\n'
         files["frontend/index.html"] = self._index_html(project, tokens)
 
         # -- Source files --
         files["frontend/src/main.tsx"] = self._main_tsx()
-        files["frontend/src/App.tsx"] = self._app_tsx(spec)
+        files["frontend/src/App.tsx"] = self._app_tsx(spec, caps)
         files["frontend/src/api/client.ts"] = self._api_client(spec)
         files["frontend/src/types/index.ts"] = self._types(spec)
-        files["frontend/src/components/Layout.tsx"] = self._layout(project, spec)
+        files["frontend/src/components/Layout.tsx"] = self._layout(project, spec, tokens, caps)
         files["frontend/src/components/StatusBadge.tsx"] = self._status_badge()
         files["frontend/src/components/Icons.tsx"] = self._icons()
         files["frontend/src/components/Skeleton.tsx"] = self._skeleton()
@@ -194,12 +215,22 @@ class FrontendGenerator:
         files["frontend/src/components/ErrorBoundary.tsx"] = self._error_boundary()
         files["frontend/src/components/MiniChart.tsx"] = self._mini_chart()
         files["frontend/src/components/ThemeToggle.tsx"] = self._theme_toggle()
-        files["frontend/src/pages/Dashboard.tsx"] = self._dashboard(spec)
+        files["frontend/src/pages/Dashboard.tsx"] = self._dashboard(spec, tokens)
         files["frontend/src/pages/DetailPage.tsx"] = self._detail_page(spec)
 
         # -- AI Chat page (when uses_ai is True) --
         if spec.uses_ai:
             files["frontend/src/pages/ChatPage.tsx"] = self._chat_page(spec)
+
+        # -- Domain-specific pages (from capability detection) --
+        if caps.has_file_upload or caps.has_document_processing:
+            files["frontend/src/pages/UploadPage.tsx"] = self._upload_page(spec, caps)
+        if caps.has_batch_processing:
+            files["frontend/src/pages/ProcessingPage.tsx"] = self._processing_page(spec, caps)
+        if caps.has_review_workflow:
+            files["frontend/src/pages/ReviewQueuePage.tsx"] = self._review_queue_page(spec, caps)
+        if caps.has_confidence_metrics or caps.has_extraction_results:
+            files["frontend/src/pages/AnalyticsPage.tsx"] = self._analytics_page(spec, caps)
 
         # -- Static / env --
         files["frontend/.env"] = f'VITE_API_BASE_URL=/api/v1\nVITE_APP_TITLE="{project}"\n'
@@ -255,7 +286,8 @@ class FrontendGenerator:
     "strict": true,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+    "types": ["vite/client"]
   },
   "include": ["src"],
   "references": [{ "path": "./tsconfig.node.json" }]
@@ -346,18 +378,35 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 );
 """
 
-    def _app_tsx(self, spec: IntentSpec) -> str:
-        chat_import = ""
-        chat_route = ""
+    def _app_tsx(self, spec: IntentSpec, caps: "DetectedCapabilities | None" = None) -> str:
+        extra_imports: list[str] = []
+        extra_routes: list[str] = []
+
         if spec.uses_ai:
-            chat_import = "import ChatPage from './pages/ChatPage';"
-            chat_route = '        <Route path="/chat" element={<ChatPage />} />'
+            extra_imports.append("import ChatPage from './pages/ChatPage';")
+            extra_routes.append('        <Route path="/chat" element={<ChatPage />} />')
+
+        if caps:
+            if caps.has_file_upload or caps.has_document_processing:
+                extra_imports.append("import UploadPage from './pages/UploadPage';")
+                extra_routes.append('        <Route path="/upload" element={<UploadPage />} />')
+            if caps.has_batch_processing:
+                extra_imports.append("import ProcessingPage from './pages/ProcessingPage';")
+                extra_routes.append('        <Route path="/processing" element={<ProcessingPage />} />')
+            if caps.has_review_workflow:
+                extra_imports.append("import ReviewQueuePage from './pages/ReviewQueuePage';")
+                extra_routes.append('        <Route path="/reviews" element={<ReviewQueuePage />} />')
+            if caps.has_confidence_metrics or caps.has_extraction_results:
+                extra_imports.append("import AnalyticsPage from './pages/AnalyticsPage';")
+                extra_routes.append('        <Route path="/analytics" element={<AnalyticsPage />} />')
+
+        imports_str = ("\n" + "\n".join(extra_imports)) if extra_imports else ""
+        routes_str = ("\n" + "\n".join(extra_routes)) if extra_routes else ""
 
         return f"""import {{ Routes, Route }} from 'react-router-dom';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
-import DetailPage from './pages/DetailPage';
-{chat_import}
+import DetailPage from './pages/DetailPage';{imports_str}
 
 export default function App() {{
   return (
@@ -365,7 +414,7 @@ export default function App() {{
       <Routes>
         <Route path="/" element={{<Dashboard />}} />
         <Route path="/detail/:id" element={{<DetailPage />}} />
-{chat_route}
+{routes_str}
       </Routes>
     </Layout>
   );
@@ -422,7 +471,7 @@ export const api = {{
 """
         return base
 
-    def _layout(self, project: str, spec: IntentSpec | None = None) -> str:
+    def _layout(self, project: str, spec: IntentSpec | None = None, tokens: "DesignTokens | None" = None, caps: "DetectedCapabilities | None" = None) -> str:
         display = _pretty_name(project)
         chat_link = ''
         chat_mobile = ''
@@ -431,6 +480,47 @@ export const api = {{
             chat_mobile = '''
                 <Link to="/chat" onClick={() => setOpen(false)}
                   className="block px-3 py-2 rounded-md text-sm hover:bg-white/10">AI Chat</Link>'''
+
+        # -- Capability-driven nav links --
+        cap_links = ''
+        cap_mobile = ''
+        if caps:
+            nav_items: list[tuple[str, str]] = []
+            if caps.has_file_upload or caps.has_document_processing:
+                nav_items.append(("/upload", "Upload"))
+            if caps.has_batch_processing:
+                nav_items.append(("/processing", "Processing"))
+            if caps.has_review_workflow:
+                nav_items.append(("/reviews", "Reviews"))
+            if caps.has_confidence_metrics or caps.has_extraction_results:
+                nav_items.append(("/analytics", "Analytics"))
+            for path, label in nav_items:
+                cap_links += f'\n            <Link to="{path}" className="hover:opacity-80 transition-opacity">{label}</Link>'
+                cap_mobile += (
+                    '\n                <Link to="' + path + '" onClick={() => setOpen(false)}'
+                    '\n                  className="block px-3 py-2 rounded-md text-sm hover:bg-white/10">' + label + '</Link>'
+                )
+
+        # -- Dynamic header style --
+        header_style = tokens.header_style if tokens else "gradient"
+        header_bg_map = {
+            "gradient": "background: 'var(--gradient-header)'",
+            "solid": "background: 'var(--color-primary-dark)'",
+            "transparent": "background: 'transparent'",
+            "glass": "background: 'rgba(15,23,42,0.7)', backdropFilter: 'blur(12px)'",
+        }
+        header_style_attr = header_bg_map.get(header_style, header_bg_map["gradient"])
+        header_text_cls = "text-white" if header_style != "transparent" else "text-[var(--text-primary)]"
+        header_shadow = "shadow-lg" if header_style in ("gradient", "solid") else ""
+        if header_style == "glass":
+            header_shadow = "shadow-md"
+
+        # -- Dynamic page width --
+        page_width = tokens.page_max_width if tokens else "max-w-7xl"
+
+        # -- Dynamic heading weight --
+        heading_weight = tokens.font_weight_heading if tokens else "font-bold"
+
         return f"""import {{ ReactNode, useState }} from 'react';
 import {{ Link }} from 'react-router-dom';
 import ThemeToggle from './ThemeToggle';
@@ -441,15 +531,15 @@ export default function Layout({{ children }}: {{ children: ReactNode }}) {{
 
   return (
     <div className="min-h-screen flex flex-col bg-[var(--bg-primary)] text-[var(--text-primary)]">
-      <header style={{{{ background: 'var(--gradient-header)' }}}} className="text-white shadow-lg">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <Link to="/" className="text-xl font-bold tracking-tight hover:opacity-90 font-[var(--font-heading)]">
+      <header style={{{{{header_style_attr}}}}} className="{header_text_cls} {header_shadow}">
+        <div className="{page_width} mx-auto px-4 py-4 flex items-center justify-between">
+          <Link to="/" className="text-xl {heading_weight} tracking-tight hover:opacity-90 font-[var(--font-heading)]">
             {display}
           </Link>
 
           {{/* Desktop nav */}}
           <nav className="hidden md:flex items-center gap-4 text-sm">
-            <Link to="/" className="hover:opacity-80 transition-opacity">Dashboard</Link>{chat_link}
+            <Link to="/" className="hover:opacity-80 transition-opacity">Dashboard</Link>{cap_links}{chat_link}
             <ThemeToggle />
           </nav>
 
@@ -464,13 +554,13 @@ export default function Layout({{ children }}: {{ children: ReactNode }}) {{
         {{open && (
           <div className="md:hidden border-t border-white/20 px-4 py-3 space-y-1">
             <Link to="/" onClick={{() => setOpen(false)}}
-              className="block px-3 py-2 rounded-md text-sm hover:bg-white/10">Dashboard</Link>{chat_mobile}
+              className="block px-3 py-2 rounded-md text-sm hover:bg-white/10">Dashboard</Link>{cap_mobile}{chat_mobile}
             <div className="px-3 py-2"><ThemeToggle /></div>
           </div>
         )}}
       </header>
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-8">
+      <main className="flex-1 {page_width} w-full mx-auto px-4 py-8">
         {{children}}
       </main>
 
@@ -481,6 +571,732 @@ export default function Layout({{ children }}: {{ children: ReactNode }}) {{
   );
 }}
 """
+
+    # ================================================================
+    # Domain-specific specialized pages (from component intelligence)
+    # ================================================================
+
+    def _upload_page(self, spec: IntentSpec, caps: "DetectedCapabilities") -> str:
+        """Generate a file-upload page with drag-drop, progress, and recent uploads."""
+        slug = caps.upload_entity_slug or "documents"
+        entity = caps.upload_entity or "Document"
+        # Build create-form fields from entity definition
+        form_fields: list[str] = []
+        for ent in spec.entities:
+            if ent.name == entity:
+                for f in ent.fields:
+                    if f.name not in ("id", "status", "created_at", "updated_at"):
+                        form_fields.append(f.name)
+                break
+        if not form_fields:
+            form_fields = ["filename", "file_type"]
+        # Generate form inputs
+        form_inputs = ""
+        for fname in form_fields[:6]:
+            label = fname.replace("_", " ").title()
+            form_inputs += (
+                '              <div>\n'
+                '                <label className="block text-sm font-medium'
+                ' text-[var(--text-secondary)] mb-1">' + label + '</label>\n'
+                "                <input value={formData." + fname + " || ''}"
+                " onChange={e => setFormData({...formData, " + fname + ": e.target.value})}\n"
+                '                  className="w-full border border-[var(--border-color)]'
+                ' rounded-lg px-3 py-2 text-sm bg-[var(--bg-primary)]'
+                ' text-[var(--text-primary)]" />\n'
+                '              </div>\n'
+            )
+
+        # Check for analyze action
+        has_analyze = any(
+            ep.method == "POST" and "analyze" in ep.path
+            for ep in (spec.endpoints or [])
+        )
+        analyze_btn = ""
+        if has_analyze:
+            analyze_btn = (
+                "                {(doc.status === 'uploaded' || doc.status === 'pending') && (\n"
+                "                  <button onClick={() => handleAction(doc.id, 'analyze')}\n"
+                '                    className="px-3 py-1.5 text-xs rounded-lg text-white font-medium'
+                ' hover:opacity-90 transition-opacity"\n'
+                "                    style={{ background: 'var(--color-primary)' }}>Analyze</button>\n"
+                "                )}\n"
+            )
+
+        component = r"""import { useState, useEffect, useCallback } from 'react';
+import StatusBadge from '../components/StatusBadge';
+import { IconUpload, IconRefresh } from '../components/Icons';
+import { useToast } from '../components/Toast';
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api/v1';
+
+export default function UploadPage() {
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [dragActive, setDragActive] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [formData, setFormData] = useState<Record<string, string>>({});
+  const { addToast } = useToast();
+
+  const fetchData = useCallback(() => {
+    setLoading(true);
+    fetch(`${API_BASE}/__SLUG__`)
+      .then(r => r.json()).then(setItems).catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(e.type === 'dragenter' || e.type === 'dragover');
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragActive(false);
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      const file = files[0];
+      setFormData({ filename: file.name, file_type: file.type || file.name.split('.').pop() || 'unknown',
+        file_size_bytes: String(file.size), status: 'uploaded' });
+      setShowForm(true);
+    }
+  };
+
+  const handleCreate = async () => {
+    try {
+      await fetch(`${API_BASE}/__SLUG__`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
+      setShowForm(false); setFormData({});
+      addToast('__ENTITY__ uploaded successfully', 'success');
+      fetchData();
+    } catch { addToast('Upload failed', 'error'); }
+  };
+
+  const handleAction = async (id: string, action: string) => {
+    try {
+      await fetch(`${API_BASE}/__SLUG__/${id}/${action}`, { method: 'POST' });
+      addToast(`Action "${action}" started`, 'success');
+      fetchData();
+    } catch { addToast(`Action failed`, 'error'); }
+  };
+
+  const uploaded = items.filter(d => d.status === 'uploaded' || d.status === 'pending').length;
+  const processing = items.filter(d => ['processing', 'analyzing', 'in_progress'].includes(d.status)).length;
+  const done = items.filter(d => ['analyzed', 'completed', 'approved'].includes(d.status)).length;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-[var(--text-primary)]">__ENTITY__ Upload</h1>
+          <p className="text-sm text-[var(--text-muted)] mt-1">Upload and process __LABEL_PLURAL__ for extraction</p>
+        </div>
+        <button onClick={fetchData} className="p-2 rounded-lg border border-[var(--border-color)] hover:bg-[var(--bg-tertiary)]"
+          title="Refresh"><IconRefresh width={16} height={16} className="text-[var(--text-secondary)]" /></button>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-4">
+        <div className="bg-[var(--surface-card)] rounded-xl border border-[var(--border-color)] p-4">
+          <p className="text-xs font-medium text-[var(--text-muted)] uppercase">Uploaded</p>
+          <p className="text-3xl font-bold text-purple-600 dark:text-purple-400">{uploaded}</p>
+        </div>
+        <div className="bg-[var(--surface-card)] rounded-xl border border-[var(--border-color)] p-4">
+          <p className="text-xs font-medium text-[var(--text-muted)] uppercase">Processing</p>
+          <p className="text-3xl font-bold text-amber-600 dark:text-amber-400">{processing}</p>
+        </div>
+        <div className="bg-[var(--surface-card)] rounded-xl border border-[var(--border-color)] p-4">
+          <p className="text-xs font-medium text-[var(--text-muted)] uppercase">Completed</p>
+          <p className="text-3xl font-bold text-green-600 dark:text-green-400">{done}</p>
+        </div>
+      </div>
+
+      {/* Upload drop zone */}
+      <div
+        onDragEnter={handleDrag} onDragLeave={handleDrag}
+        onDragOver={handleDrag} onDrop={handleDrop}
+        onClick={() => setShowForm(true)}
+        className={`relative border-2 border-dashed rounded-2xl p-12 text-center cursor-pointer transition-all
+          ${dragActive
+            ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/5 scale-[1.01]'
+            : 'border-[var(--border-color)] hover:border-[var(--color-primary)]/50 hover:bg-[var(--bg-tertiary)]'
+          }`}
+      >
+        <div className="flex flex-col items-center gap-3">
+          <div className={`p-4 rounded-full ${dragActive ? 'bg-[var(--color-primary)]/10' : 'bg-[var(--bg-tertiary)]'}`}>
+            <IconUpload width={32} height={32} className="text-[var(--color-primary)]" />
+          </div>
+          <div>
+            <p className="text-lg font-semibold text-[var(--text-primary)]">
+              {dragActive ? 'Drop file here' : 'Drag & drop or click to upload'}
+            </p>
+            <p className="text-sm text-[var(--text-muted)] mt-1">
+              Supported: PDF, DOCX, XLSX, Images, JSON
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Form modal */}
+      {showForm && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={e => { if (e.target === e.currentTarget) { setShowForm(false); setFormData({}); } }}>
+          <div className="bg-[var(--bg-primary)] rounded-2xl shadow-2xl w-full max-w-md border border-[var(--border-color)]">
+            <div className="px-6 py-4 border-b border-[var(--border-color)]">
+              <h3 className="text-lg font-semibold text-[var(--text-primary)]">New __ENTITY__</h3>
+            </div>
+            <div className="p-6 space-y-4">
+__FORM_INPUTS__
+            </div>
+            <div className="px-6 py-4 border-t border-[var(--border-color)] flex justify-end gap-3">
+              <button onClick={() => { setShowForm(false); setFormData({}); }}
+                className="px-4 py-2 text-sm rounded-lg border border-[var(--border-color)] hover:bg-[var(--bg-tertiary)] cursor-pointer">Cancel</button>
+              <button onClick={handleCreate}
+                className="px-4 py-2 text-sm rounded-lg text-white font-medium cursor-pointer hover:opacity-90"
+                style={{ background: 'var(--color-primary)' }}>Upload</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Recent items */}
+      <div className="bg-[var(--surface-card)] rounded-xl border border-[var(--border-color)] overflow-hidden">
+        <div className="px-4 py-3 border-b border-[var(--border-color)]">
+          <h2 className="text-lg font-semibold text-[var(--text-primary)]">Recent __LABEL_PLURAL__</h2>
+        </div>
+        {loading ? (
+          <div className="p-8 text-center text-[var(--text-muted)]">Loading...</div>
+        ) : items.length === 0 ? (
+          <div className="p-8 text-center text-[var(--text-muted)]">No __LABEL_PLURAL_LOWER__ yet. Upload your first one above.</div>
+        ) : (
+          <div className="divide-y divide-[var(--border-color)]">
+            {items.slice(0, 20).map((doc: any) => (
+              <div key={doc.id} className="px-4 py-3 flex items-center justify-between hover:bg-[var(--bg-tertiary)] transition-colors">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-lg bg-[var(--color-primary)]/10 flex items-center justify-center flex-shrink-0">
+                    <span className="text-xs font-bold" style={{ color: 'var(--color-primary)' }}>
+                      {(doc.file_type || doc.filename || doc.name || '?').slice(0, 3).toUpperCase()}
+                    </span>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-[var(--text-primary)] truncate">
+                      {doc.filename || doc.name || doc.title || doc.id}
+                    </p>
+                    <p className="text-xs text-[var(--text-muted)]">
+                      {doc.file_type || doc.type || ''}{doc.page_count ? ` · ${doc.page_count} pages` : ''}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <StatusBadge status={doc.status || 'uploaded'} />
+__ANALYZE_BTN__
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+"""
+        label_plural = _plural(entity)
+        return (
+            component
+            .replace("__SLUG__", slug)
+            .replace("__ENTITY__", entity)
+            .replace("__LABEL_PLURAL__", label_plural)
+            .replace("__LABEL_PLURAL_LOWER__", label_plural.lower())
+            .replace("__FORM_INPUTS__", form_inputs)
+            .replace("__ANALYZE_BTN__", analyze_btn)
+        )
+
+    def _processing_page(self, spec: IntentSpec, caps: "DetectedCapabilities") -> str:
+        """Generate a batch-processing / job-queue page with progress bars."""
+        slug = caps.batch_entity_slug or "batch_jobs"
+        entity = caps.batch_entity or "BatchJob"
+        label_plural = _plural(entity)
+
+        # Detect cancel/retry actions
+        action_buttons = ""
+        for ep in (spec.endpoints or []):
+            parts = ep.path.strip("/").split("/")
+            if len(parts) >= 3 and ep.method == "POST" and parts[0] == slug:
+                action = parts[-1]
+                if action in ("cancel", "retry", "pause", "resume"):
+                    btn_color = "red" if action == "cancel" else "blue"
+                    action_buttons += (
+                        "                    <button onClick={() => handleAction(job.id, '" + action + "')}\n"
+                        f'                      className="px-2.5 py-1 text-xs rounded-lg border'
+                        f' border-{btn_color}-300 text-{btn_color}-600'
+                        f' hover:bg-{btn_color}-50 cursor-pointer">'
+                        f'{action.capitalize()}</button>\n'
+                    )
+
+        component = r"""import { useState, useEffect, useCallback } from 'react';
+import StatusBadge from '../components/StatusBadge';
+import { ProgressBar } from '../components/MiniChart';
+import { IconRefresh, IconActivity } from '../components/Icons';
+import { useToast } from '../components/Toast';
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api/v1';
+
+export default function ProcessingPage() {
+  const [jobs, setJobs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { addToast } = useToast();
+
+  const fetchData = useCallback(() => {
+    setLoading(true);
+    fetch(`${API_BASE}/__SLUG__`)
+      .then(r => r.json()).then(setJobs).catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { fetchData(); const t = setInterval(fetchData, 10000); return () => clearInterval(t); }, [fetchData]);
+
+  const handleAction = async (id: string, action: string) => {
+    try {
+      await fetch(`${API_BASE}/__SLUG__/${id}/${action}`, { method: 'POST' });
+      addToast(`Action "${action}" executed`, 'success');
+      fetchData();
+    } catch { addToast(`Action "${action}" failed`, 'error'); }
+  };
+
+  const active = jobs.filter(j => ['processing', 'running', 'in_progress', 'queued'].includes(j.status)).length;
+  const completed = jobs.filter(j => ['completed', 'done'].includes(j.status)).length;
+  const failed = jobs.filter(j => ['failed', 'error'].includes(j.status)).length;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-[var(--text-primary)]">Processing Queue</h1>
+          <p className="text-sm text-[var(--text-muted)] mt-1">{jobs.length} total jobs &middot; {active} active</p>
+        </div>
+        <button onClick={fetchData} className="p-2 rounded-lg border border-[var(--border-color)] hover:bg-[var(--bg-tertiary)]"
+          title="Refresh"><IconRefresh width={16} height={16} /></button>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-4">
+        <div className="bg-[var(--surface-card)] rounded-xl border border-[var(--border-color)] p-4">
+          <div className="flex items-center gap-2 text-[var(--text-muted)] mb-1">
+            <IconActivity width={14} height={14} />
+            <span className="text-xs font-medium uppercase">Active</span>
+          </div>
+          <p className="text-3xl font-bold text-amber-600 dark:text-amber-400">{active}</p>
+        </div>
+        <div className="bg-[var(--surface-card)] rounded-xl border border-[var(--border-color)] p-4">
+          <p className="text-xs font-medium text-[var(--text-muted)] uppercase mb-1">Completed</p>
+          <p className="text-3xl font-bold text-green-600 dark:text-green-400">{completed}</p>
+        </div>
+        <div className="bg-[var(--surface-card)] rounded-xl border border-[var(--border-color)] p-4">
+          <p className="text-xs font-medium text-[var(--text-muted)] uppercase mb-1">Failed</p>
+          <p className="text-3xl font-bold text-red-600 dark:text-red-400">{failed}</p>
+        </div>
+      </div>
+
+      {/* Job list */}
+      <div className="space-y-3">
+        {loading && jobs.length === 0 ? (
+          <div className="bg-[var(--surface-card)] rounded-xl border border-[var(--border-color)] p-8 text-center text-[var(--text-muted)]">
+            Loading jobs...
+          </div>
+        ) : jobs.length === 0 ? (
+          <div className="bg-[var(--surface-card)] rounded-xl border border-[var(--border-color)] p-8 text-center text-[var(--text-muted)]">
+            No batch jobs found.
+          </div>
+        ) : (
+          jobs.map((job: any) => {
+            const progress = Number(job.progress_pct || 0);
+            const processed = job.processed_count || 0;
+            const total = job.total_documents || job.total || 0;
+            return (
+              <div key={job.id} className="bg-[var(--surface-card)] rounded-xl border border-[var(--border-color)] p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-[var(--text-primary)] truncate">
+                      {job.name || job.title || `Job ${job.id.slice(0, 8)}`}
+                    </p>
+                    <p className="text-xs text-[var(--text-muted)]">
+                      {processed}/{total} processed
+                      {job.failed_count ? ` · ${job.failed_count} failed` : ''}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <StatusBadge status={job.status || 'queued'} />
+__ACTION_BUTTONS__
+                  </div>
+                </div>
+                <ProgressBar value={progress} />
+                {job.error_summary && (
+                  <p className="text-xs text-red-500 mt-2 truncate">{job.error_summary}</p>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}
+"""
+        return component.replace("__SLUG__", slug).replace("__ACTION_BUTTONS__", action_buttons)
+
+    def _review_queue_page(self, spec: IntentSpec, caps: "DetectedCapabilities") -> str:
+        """Generate a review workflow page with approve/reject actions."""
+        slug = caps.review_entity_slug or "review_tasks"
+        entity = caps.review_entity or "ReviewTask"
+        label_plural = _plural(entity)
+
+        # Detect approve/reject/complete actions
+        action_defs: list[tuple[str, str, str]] = []
+        for ep in (spec.endpoints or []):
+            parts = ep.path.strip("/").split("/")
+            if len(parts) >= 3 and ep.method == "POST" and parts[0] == slug:
+                action = parts[-1]
+                if action in ("approve", "complete"):
+                    action_defs.append((action, action.capitalize(), "green"))
+                elif action in ("reject", "escalate"):
+                    action_defs.append((action, action.capitalize(), "red"))
+                elif action == "reassign":
+                    action_defs.append((action, "Reassign", "blue"))
+        if not action_defs:
+            action_defs = [("approve", "Approve", "green"), ("reject", "Reject", "red")]
+
+        action_buttons = ""
+        for aname, alabel, acolor in action_defs:
+            if acolor == "green":
+                cls = "bg-green-600 text-white hover:bg-green-700"
+            elif acolor == "red":
+                cls = "bg-red-600 text-white hover:bg-red-700"
+            else:
+                cls = "border border-blue-300 text-blue-600 hover:bg-blue-50"
+            action_buttons += (
+                "                    <button onClick={() => handleAction(task.id, '" + aname + "')}\n"
+                f'                      className="px-3 py-1.5 text-xs rounded-lg {cls}'
+                f' cursor-pointer font-medium">{alabel}</button>\n'
+            )
+
+        component = r"""import { useState, useEffect, useCallback } from 'react';
+import StatusBadge from '../components/StatusBadge';
+import { IconRefresh, IconClipboard, IconCheck } from '../components/Icons';
+import { useToast } from '../components/Toast';
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api/v1';
+
+export default function ReviewQueuePage() {
+  const [tasks, setTasks] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<string>('all');
+  const { addToast } = useToast();
+
+  const fetchData = useCallback(() => {
+    setLoading(true);
+    fetch(`${API_BASE}/__SLUG__`)
+      .then(r => r.json()).then(setTasks).catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  const handleAction = async (id: string, action: string) => {
+    try {
+      await fetch(`${API_BASE}/__SLUG__/${id}/${action}`, { method: 'POST' });
+      addToast(`${action} successful`, 'success');
+      fetchData();
+    } catch { addToast(`${action} failed`, 'error'); }
+  };
+
+  const pending = tasks.filter(t => t.status === 'pending' || t.status === 'assigned').length;
+  const approved = tasks.filter(t => t.status === 'approved' || t.status === 'completed').length;
+
+  const filtered = filter === 'all' ? tasks :
+    filter === 'pending' ? tasks.filter(t => ['pending', 'assigned', 'in_progress'].includes(t.status)) :
+    tasks.filter(t => t.status === filter);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-[var(--text-primary)]">Review Queue</h1>
+          <p className="text-sm text-[var(--text-muted)] mt-1">{pending} pending reviews &middot; {approved} completed</p>
+        </div>
+        <button onClick={fetchData} className="p-2 rounded-lg border border-[var(--border-color)] hover:bg-[var(--bg-tertiary)]"
+          title="Refresh"><IconRefresh width={16} height={16} /></button>
+      </div>
+
+      {/* Filter pills */}
+      <div className="flex gap-2">
+        {['all', 'pending', 'approved', 'rejected', 'completed'].map(s => (
+          <button key={s} onClick={() => setFilter(s)}
+            className={`px-3 py-1.5 text-xs rounded-full border cursor-pointer capitalize transition-colors ${
+              filter === s
+                ? 'border-[var(--color-primary)] text-[var(--color-primary)] bg-[var(--color-primary)]/10'
+                : 'border-[var(--border-color)] text-[var(--text-muted)] hover:border-[var(--text-secondary)]'
+            }`}>{s}</button>
+        ))}
+      </div>
+
+      {/* Review list */}
+      <div className="space-y-3">
+        {loading && tasks.length === 0 ? (
+          <div className="bg-[var(--surface-card)] rounded-xl border border-[var(--border-color)] p-8 text-center text-[var(--text-muted)]">
+            Loading review tasks...
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="bg-[var(--surface-card)] rounded-xl border border-[var(--border-color)] p-8 text-center text-[var(--text-muted)]">
+            {filter === 'all' ? 'No review tasks found.' : `No ${filter} tasks.`}
+          </div>
+        ) : (
+          filtered.map((task: any) => (
+            <div key={task.id} className="bg-[var(--surface-card)] rounded-xl border border-[var(--border-color)] p-4">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <IconClipboard width={16} height={16} className="text-[var(--color-primary)] flex-shrink-0" />
+                    <p className="text-sm font-semibold text-[var(--text-primary)] truncate">
+                      {task.title || task.name || `Review ${task.id.slice(0, 8)}`}
+                    </p>
+                    <StatusBadge status={task.status || 'pending'} />
+                  </div>
+                  {task.assigned_to && (
+                    <p className="text-xs text-[var(--text-muted)]">Assigned to: {task.assigned_to}</p>
+                  )}
+                  {task.confidence_flag && (
+                    <span className="inline-block mt-1 px-2 py-0.5 text-[10px] rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">
+                      Low confidence — needs review
+                    </span>
+                  )}
+                  {task.review_notes && (
+                    <p className="text-xs text-[var(--text-secondary)] mt-2 line-clamp-2">{task.review_notes}</p>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+__ACTION_BUTTONS__
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+"""
+        return component.replace("__SLUG__", slug).replace("__ACTION_BUTTONS__", action_buttons)
+
+    def _analytics_page(self, spec: IntentSpec, caps: "DetectedCapabilities") -> str:
+        """Generate an analytics page with confidence/accuracy metrics."""
+        # Determine which entity to fetch metrics from
+        entity_slugs: list[str] = []
+        for ent in spec.entities:
+            slug = _snake(_plural(ent.name))
+            entity_slugs.append(slug)
+
+        # Build fetch calls for all entities
+        fetch_entries = ",\n          ".join(
+            f"fetch(`${{API_BASE}}/{s}`).then(r => r.json()).catch(() => [])"
+            for s in entity_slugs
+        )
+        entity_keys = str(entity_slugs)
+
+        component = r"""import { useState, useEffect, useMemo } from 'react';
+import { IconTrendingUp, IconBarChart, IconActivity, IconRefresh } from '../components/Icons';
+import { DonutChart } from '../components/MiniChart';
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api/v1';
+const ENTITY_KEYS: string[] = __ENTITY_KEYS__;
+
+export default function AnalyticsPage() {
+  const [allData, setAllData] = useState<Record<string, any[]>>({});
+  const [loading, setLoading] = useState(true);
+
+  const fetchData = () => {
+    setLoading(true);
+    Promise.all([
+      __FETCH_ENTRIES__
+    ]).then(results => {
+      const data: Record<string, any[]> = {};
+      ENTITY_KEYS.forEach((key, i) => { data[key] = results[i]; });
+      setAllData(data);
+    }).finally(() => setLoading(false));
+  };
+
+  useEffect(() => { fetchData(); }, []);
+
+  const allItems = useMemo(() =>
+    Object.values(allData).flat(),
+    [allData],
+  );
+  const totalRecords = allItems.length;
+
+  // Confidence metrics across all entities
+  const confidenceItems = allItems.filter(i => typeof i.confidence_score === 'number' || typeof i.confidence_avg === 'number');
+  const avgConfidence = confidenceItems.length
+    ? (confidenceItems.reduce((sum, i) => sum + (i.confidence_score || i.confidence_avg || 0), 0) / confidenceItems.length).toFixed(1)
+    : '—';
+  const minConfidence = confidenceItems.length
+    ? Math.min(...confidenceItems.map(i => i.confidence_score || i.confidence_avg || 100)).toFixed(1)
+    : '—';
+
+  // Accuracy metrics
+  const accuracyItems = allItems.filter(i => typeof i.accuracy_rate === 'number' || typeof i.avg_accuracy === 'number');
+  const avgAccuracy = accuracyItems.length
+    ? (accuracyItems.reduce((sum, i) => sum + (i.accuracy_rate || i.avg_accuracy || 0), 0) / accuracyItems.length).toFixed(1)
+    : null;
+
+  // Status distribution
+  const statusCounts: Record<string, number> = {};
+  allItems.forEach(item => {
+    const s = String(item.status || 'unknown').toLowerCase();
+    statusCounts[s] = (statusCounts[s] || 0) + 1;
+  });
+  const statusSegments = Object.entries(statusCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8)
+    .map(([label, value]) => ({ label, value }));
+
+  // Per-entity counts
+  const entityStats = ENTITY_KEYS.map(key => ({
+    name: key.replace(/_/g, ' '),
+    count: (allData[key] || []).length,
+  })).sort((a, b) => b.count - a.count);
+
+  if (loading) return (
+    <div className="flex items-center justify-center min-h-[400px]">
+      <p className="text-[var(--text-muted)]">Loading analytics...</p>
+    </div>
+  );
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-[var(--text-primary)]">Analytics</h1>
+          <p className="text-sm text-[var(--text-muted)] mt-1">Performance metrics and data insights</p>
+        </div>
+        <button onClick={fetchData} className="p-2 rounded-lg border border-[var(--border-color)] hover:bg-[var(--bg-tertiary)]"
+          title="Refresh"><IconRefresh width={16} height={16} /></button>
+      </div>
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="bg-[var(--surface-card)] rounded-xl border border-[var(--border-color)] p-4">
+          <div className="flex items-center gap-2 text-[var(--text-muted)] mb-1">
+            <IconBarChart width={14} height={14} />
+            <span className="text-xs font-medium uppercase">Total Records</span>
+          </div>
+          <p className="text-3xl font-bold text-[var(--text-primary)]">{totalRecords}</p>
+        </div>
+        <div className="bg-[var(--surface-card)] rounded-xl border border-[var(--border-color)] p-4">
+          <div className="flex items-center gap-2 text-[var(--text-muted)] mb-1">
+            <IconTrendingUp width={14} height={14} />
+            <span className="text-xs font-medium uppercase">Avg Confidence</span>
+          </div>
+          <p className="text-3xl font-bold" style={{ color: 'var(--color-primary)' }}>{avgConfidence}%</p>
+        </div>
+        <div className="bg-[var(--surface-card)] rounded-xl border border-[var(--border-color)] p-4">
+          <div className="flex items-center gap-2 text-[var(--text-muted)] mb-1">
+            <IconActivity width={14} height={14} />
+            <span className="text-xs font-medium uppercase">Min Confidence</span>
+          </div>
+          <p className="text-3xl font-bold text-amber-600 dark:text-amber-400">{minConfidence}%</p>
+        </div>
+        {avgAccuracy && (
+          <div className="bg-[var(--surface-card)] rounded-xl border border-[var(--border-color)] p-4">
+            <div className="flex items-center gap-2 text-[var(--text-muted)] mb-1">
+              <IconTrendingUp width={14} height={14} />
+              <span className="text-xs font-medium uppercase">Avg Accuracy</span>
+            </div>
+            <p className="text-3xl font-bold text-green-600 dark:text-green-400">{avgAccuracy}%</p>
+          </div>
+        )}
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-6">
+        {/* Status Distribution */}
+        <div className="bg-[var(--surface-card)] rounded-xl border border-[var(--border-color)] p-6">
+          <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-4">Status Distribution</h3>
+          <div className="flex items-center gap-6">
+            <DonutChart segments={statusSegments} size={120} />
+            <div className="space-y-2 flex-1">
+              {statusSegments.map(s => (
+                <div key={s.label} className="flex items-center justify-between text-sm">
+                  <span className="capitalize text-[var(--text-secondary)]">{s.label.replace(/_/g, ' ')}</span>
+                  <span className="font-medium text-[var(--text-primary)]">{s.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Entity Breakdown */}
+        <div className="bg-[var(--surface-card)] rounded-xl border border-[var(--border-color)] p-6">
+          <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-4">Entity Breakdown</h3>
+          <div className="space-y-3">
+            {entityStats.map(e => {
+              const pct = totalRecords ? Math.round((e.count / totalRecords) * 100) : 0;
+              return (
+                <div key={e.name}>
+                  <div className="flex justify-between text-sm mb-1">
+                    <span className="capitalize text-[var(--text-secondary)]">{e.name}</span>
+                    <span className="font-medium text-[var(--text-primary)]">{e.count}</span>
+                  </div>
+                  <div className="w-full h-2 rounded-full bg-[var(--bg-tertiary)]">
+                    <div className="h-2 rounded-full transition-all"
+                      style={{ width: `${pct}%`, background: 'var(--color-primary)' }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Confidence Distribution */}
+      {confidenceItems.length > 0 && (
+        <div className="bg-[var(--surface-card)] rounded-xl border border-[var(--border-color)] p-6">
+          <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-4">Confidence Distribution</h3>
+          <div className="grid grid-cols-5 gap-2">
+            {[
+              { label: '90-100%', min: 90, max: 100, color: 'bg-green-500' },
+              { label: '80-89%', min: 80, max: 89, color: 'bg-blue-500' },
+              { label: '70-79%', min: 70, max: 79, color: 'bg-yellow-500' },
+              { label: '60-69%', min: 60, max: 69, color: 'bg-orange-500' },
+              { label: '<60%', min: 0, max: 59, color: 'bg-red-500' },
+            ].map(range => {
+              const count = confidenceItems.filter(i => {
+                const v = (i.confidence_score || i.confidence_avg || 0) * (i.confidence_score > 1 ? 1 : 100);
+                return v >= range.min && v <= range.max;
+              }).length;
+              return (
+                <div key={range.label} className="text-center">
+                  <div className={`h-16 ${range.color} rounded-lg opacity-80 flex items-end justify-center pb-2`}
+                    style={{ height: `${Math.max(20, (count / Math.max(1, confidenceItems.length)) * 100)}px` }}>
+                    <span className="text-xs font-bold text-white">{count}</span>
+                  </div>
+                  <p className="text-[10px] text-[var(--text-muted)] mt-1">{range.label}</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+"""
+        return (
+            component
+            .replace("__ENTITY_KEYS__", entity_keys)
+            .replace("__FETCH_ENTRIES__", fetch_entries)
+        )
 
     def _status_badge(self) -> str:
         return """const colors: Record<string, string> = {
@@ -575,6 +1391,12 @@ export const IconEye = (p: React.SVGProps<SVGSVGElement>) =>
   <I d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" {...p} />;
 export const IconBarChart = (p: React.SVGProps<SVGSVGElement>) =>
   <I d="M12 20V10|M18 20V4|M6 20v-4" {...p} />;
+export const IconUpload = (p: React.SVGProps<SVGSVGElement>) =>
+  <I d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4|M17 8l-5-5-5 5|M12 3v12" {...p} />;
+export const IconClipboard = (p: React.SVGProps<SVGSVGElement>) =>
+  <I d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2|M9 2h6a1 1 0 011 1v1H8V3a1 1 0 011-1z" {...p} />;
+export const IconTrendingUp = (p: React.SVGProps<SVGSVGElement>) =>
+  <I d="M23 6l-9.5 9.5-5-5L1 18|M17 6h6v6" {...p} />;
 """
 
     def _skeleton(self) -> str:
@@ -818,10 +1640,10 @@ export default function ThemeToggle() {
 }
 """
 
-    def _dashboard(self, spec: IntentSpec) -> str:
+    def _dashboard(self, spec: IntentSpec, tokens: "DesignTokens | None" = None) -> str:
         # Always use the dynamic entity-driven dashboard
         if _has_custom_entities(spec):
-            return self._dynamic_dashboard(spec)
+            return self._dynamic_dashboard(spec, tokens)
         return """import { useEffect, useState } from 'react';
 
 export default function Dashboard() {
@@ -999,10 +1821,50 @@ exec nginx -g 'daemon off;'
             lines.append("")
         return "\n".join(lines)
 
-    def _dynamic_dashboard(self, spec: IntentSpec) -> str:
+    def _dynamic_dashboard(self, spec: IntentSpec, tokens: "DesignTokens | None" = None) -> str:
         """Generate a fully interactive, entity-driven Dashboard component."""
         tab_config = self._dynamic_tab_config(spec)
         display_name = _pretty_name(spec.project_name)
+
+        # Apply layout tokens to the dashboard component
+        kpi_cols = tokens.kpi_cols if tokens else "grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7"
+        summary_cols = tokens.summary_cols if tokens else "grid-cols-2 sm:grid-cols-4"
+        card_radius = tokens.card_radius if tokens else "rounded-xl"
+        card_style = tokens.kpi_card_style if tokens else "bordered"
+        accent_border = tokens.accent_border if tokens else False
+        heading_weight = tokens.font_weight_heading if tokens else "font-bold"
+
+        # Card style classes
+        card_style_map = {
+            "flat": "bg-[var(--surface-card)]",
+            "elevated": "bg-[var(--surface-card)] shadow-md",
+            "bordered": "bg-[var(--surface-card)] border border-[var(--border-color)]",
+            "glass": "bg-[var(--surface-card)]/80 backdrop-blur-sm border border-white/10",
+        }
+        kpi_card_cls = card_style_map.get(card_style, card_style_map["bordered"])
+        accent_cls = " border-l-4 border-l-[var(--color-primary)]" if accent_border else ""
+
+        component = _DASHBOARD_COMPONENT
+        # Replace hardcoded KPI grid
+        component = component.replace(
+            'grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7',
+            kpi_cols,
+        )
+        # Replace hardcoded summary grid
+        component = component.replace(
+            'grid-cols-2 sm:grid-cols-4',
+            summary_cols,
+        )
+        # Replace hardcoded card radius
+        component = component.replace('rounded-xl', card_radius)
+        # Replace hardcoded heading weight
+        component = component.replace('font-bold', heading_weight)
+        # Inject KPI card styling
+        component = component.replace(
+            "bg-[var(--surface-card)] rounded",
+            f"{kpi_card_cls}{accent_cls} rounded",
+        )
+
         return (
             "import { useEffect, useState, useMemo } from 'react';\n"
             "import { Link } from 'react-router-dom';\n"
@@ -1016,7 +1878,7 @@ exec nginx -g 'daemon off;'
             "\n"
             + tab_config + "\n\n"
             f"const DISPLAY_NAME = '{display_name}';\n\n"
-            + _DASHBOARD_COMPONENT
+            + component
         )
 
     def _dynamic_detail_page(self, spec: IntentSpec) -> str:

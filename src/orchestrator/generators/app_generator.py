@@ -46,6 +46,25 @@ def _snake(name: str) -> str:
 def _plural(name: str) -> str:
     """Simple English pluralizer for entity names."""
     lower = name.lower()
+    # Irregular plurals
+    _IRREGULARS = {
+        "analysis": "analyses", "diagnosis": "diagnoses", "basis": "bases",
+        "crisis": "crises", "thesis": "theses", "hypothesis": "hypotheses",
+        "synopsis": "synopses", "parenthesis": "parentheses",
+        "person": "people", "child": "children", "man": "men", "woman": "women",
+        "staff": "staff", "sheep": "sheep", "fish": "fish", "deer": "deer",
+    }
+    if lower in _IRREGULARS:
+        # Preserve the original casing style
+        plural = _IRREGULARS[lower]
+        if name[0].isupper():
+            return plural[0].upper() + plural[1:]
+        return plural
+    # Handle compound names ending with an irregular word (e.g. CostAnalysis)
+    for irr_singular, irr_plural in _IRREGULARS.items():
+        if lower.endswith(irr_singular) and lower != irr_singular:
+            prefix = name[: len(name) - len(irr_singular)]
+            return prefix + (irr_plural[0].upper() + irr_plural[1:] if name[-len(irr_singular)].isupper() else irr_plural)
     if lower.endswith("y") and lower[-2:] not in ("ay", "ey", "oy", "uy"):
         return name[:-1] + "ies"
     if lower.endswith(("s", "sh", "ch", "x", "z")):
@@ -714,6 +733,7 @@ class AppGenerator:
         return files
 
     def _python_main(self, spec: IntentSpec) -> str:
+        safe_desc = spec.description.replace('\n', ' ').replace('\r', ' ').replace('"', "'")[:200].strip()
         storage_imports = ""
         storage_client = ""
         storage_endpoint = ""
@@ -725,13 +745,13 @@ class AppGenerator:
             ai_router_mount = 'app.include_router(ai_router, prefix="/api/v1/ai", tags=["ai"])'
 
         if DataStore.BLOB_STORAGE in spec.data_stores:
-            storage_imports = """
-from azure.storage.blob import BlobServiceClient
-"""
             storage_client = """
 # -- Storage Client ---------------------------------------------------
-def get_blob_client() -> BlobServiceClient:
+def get_blob_client():
     \"\"\"Create an authenticated Blob Storage client using Managed Identity.\"\"\"
+    from azure.identity import DefaultAzureCredential
+    from azure.storage.blob import BlobServiceClient
+
     credential = DefaultAzureCredential(
         managed_identity_client_id=os.getenv("AZURE_CLIENT_ID")
     )
@@ -778,16 +798,13 @@ from __future__ import annotations
 import logging
 import os
 from datetime import datetime, timezone
-
-from azure.identity import DefaultAzureCredential
-from azure.keyvault.secrets import SecretClient
 from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-{storage_imports}
+
 from api.v1.router import router as v1_router
 {ai_import}
 # -- Configuration ----------------------------------------------------
@@ -805,7 +822,7 @@ logger = logging.getLogger(APP_NAME)
 app = FastAPI(
     title=APP_NAME,
     version=VERSION,
-    description="{spec.description}",
+    description="{safe_desc}",
     docs_url="/docs",
     redoc_url=None,
 )
@@ -867,13 +884,16 @@ app.include_router(v1_router, prefix="/api/v1", tags=["v1"])
 
 
 # -- Key Vault Client ------------------------------------------------
-def get_keyvault_client() -> SecretClient:
+def get_keyvault_client():
     \"\"\"Create an authenticated Key Vault client using Managed Identity.
     
     Supports two configuration patterns:
     1. KEY_VAULT_URI - full vault URL (https://vault-name.vault.azure.net)
     2. KEY_VAULT_NAME - vault name only (will construct URL)
     \"\"\"
+    from azure.identity import DefaultAzureCredential
+    from azure.keyvault.secrets import SecretClient
+
     credential = DefaultAzureCredential(
         managed_identity_client_id=os.getenv("AZURE_CLIENT_ID")
     )
@@ -2323,8 +2343,9 @@ class Settings(BaseSettings):
         if DataStore.BLOB_STORAGE in spec.data_stores:
             storage_dep = """
 
-def get_blob_service() -> BlobServiceClient:
+def get_blob_service():
     \"\"\"Dependency that yields an authenticated BlobServiceClient.\"\"\"
+    from azure.identity import DefaultAzureCredential
     from azure.storage.blob import BlobServiceClient
 
     settings = get_settings()
@@ -2348,8 +2369,6 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from azure.identity import DefaultAzureCredential
-from azure.keyvault.secrets import SecretClient
 from core.config import Settings
 from domain.repositories import InMemoryRepository
 
@@ -2388,8 +2407,11 @@ def get_repository(entity_name: str, storage_mode: str = "memory"):
     return _repositories[key]
 
 
-def get_keyvault_client() -> SecretClient:
+def get_keyvault_client():
     \"\"\"Dependency that yields an authenticated SecretClient.\"\"\"
+    from azure.identity import DefaultAzureCredential
+    from azure.keyvault.secrets import SecretClient
+
     settings = get_settings()
     credential = DefaultAzureCredential(
         managed_identity_client_id=settings.azure_client_id or None
@@ -2783,7 +2805,7 @@ app.listen(PORT, () => {{
         return f"""{{
   "name": "{spec.project_name}",
   "version": "1.0.0",
-  "description": "{spec.description}",
+  "description": "{spec.description.replace(chr(10), ' ').replace(chr(13), ' ').replace(chr(34), chr(39))[:200].strip()}",
   "main": "index.js",
   "scripts": {{
     "start": "node index.js",

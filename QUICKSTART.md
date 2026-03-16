@@ -103,7 +103,7 @@ Before deploying to Azure, run the **React frontend dashboard** and the **backen
 
 ```powershell
 cd my-first-output/src/app
-pip install fastapi uvicorn pydantic pydantic-settings
+pip install -r requirements.txt
 uvicorn main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
@@ -180,6 +180,8 @@ devex scaffold --file examples/contract-review-intent.md -o ./contract-review
 devex scaffold --file examples/doc-intelligence-intent.md -o ./doc-intelligence
 devex scaffold --file examples/propane-delivery-intent.md -o ./propane-delivery
 devex scaffold --file examples/metro-command-intent.md -o ./metro-command-output
+devex scaffold --file examples/retail-supply-chain-intent.md -o ./retail-supply-chain
+devex scaffold --file examples/global-supply-chain-intent.md -o ./global-supply-chain
 ```
 
 The Metro Command intent (`metro-command-intent.md`) is the recommended showcase example — 14 entities, all 6 data stores, 8 AI agents, and demonstrates the full production dashboard with donut charts, type-aware rendering, and grouped detail pages.

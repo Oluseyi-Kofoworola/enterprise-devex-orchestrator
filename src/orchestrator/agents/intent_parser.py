@@ -560,6 +560,57 @@ class IntentParserAgent:
         "default", "option", "options", "mode", "threshold", "limit",
         "period", "interval", "cycle", "window", "range", "scope",
         "volume", "size", "count", "total", "average", "percentage",
+        "head", "heads", "officer", "officers", "member", "members",
+        "user", "users", "person", "persona",
+        # Process/concept words that are not standalone entities
+        "agreement", "agreements", "notification", "notifications",
+        "onboarding", "upload", "uploads", "download", "downloads",
+        "intelligence", "team", "teams", "institutional", "breach",
+        "coverage", "posture", "library", "category", "categories",
+        "approach", "cycle", "impact", "initiative",
+    }
+
+    # Descriptor/modifier words that should never prefix entity names.
+    # Includes prepositions, quantifiers, adjectives, adverbs, and verbs
+    # that appear in descriptive text but are not entity modifiers.
+    _DESCRIPTOR_WORDS: set[str] = {
+        # Prepositions
+        "per", "to", "for", "in", "on", "at", "by", "of", "from",
+        "into", "onto", "with", "within", "about", "after", "before",
+        "between", "through", "during", "under", "over", "above",
+        # Quantifiers & comparatives
+        "concurrent", "simultaneous", "parallel", "faster", "slower",
+        "larger", "smaller", "higher", "lower", "maximum", "minimum",
+        "more", "less", "fewer", "multiple", "single", "additional",
+        # Verbs that appear before nouns in descriptive text
+        "reduce", "increase", "improve", "enable", "generate", "create",
+        "validate", "verify", "confirm", "ensure", "detect", "analyze",
+        "retrieve", "display", "export", "import", "upload", "download",
+        "send", "receive", "accept", "return", "support", "handle",
+        "manage", "track", "measure", "evaluate", "identify", "extract",
+        "provide", "include", "require", "allow", "prevent", "maintain",
+        # Adjectives describing properties not entity prefixes
+        "full", "complete", "automated", "automatic", "manual",
+        "standard", "custom", "existing", "specific", "direct",
+        "critical", "required", "available", "potential", "overall",
+        "cross", "end", "long", "short", "high", "low",
+        # Time-related modifiers
+        "daily", "weekly", "monthly", "hourly", "annual", "yearly",
+        "continuous", "sustained", "peak",
+        # Document format names (not entity modifiers)
+        "docx", "pdf", "csv", "xlsx", "json", "xml", "html",
+        # Common verbs that precede nouns in imperative phrases
+        "mark", "set", "get", "run", "add", "list", "view", "show",
+        "fetch", "load", "save", "delete", "remove", "clear",
+        "increases", "decreases", "ongoing", "remaining", "typical",
+        "missed", "missing", "weak", "strong", "poor", "adequate",
+        # Misc modifiers
+        "driven", "based", "ready", "aware", "enabled", "facing",
+        "page", "sample", "test", "demo",
+        # Ordinals/positional words from persona headers
+        "primary", "secondary", "tertiary", "first", "second", "third",
+        # Boilerplate words
+        "powered", "generated", "project", "intent", "output",
     }
 
     @staticmethod
@@ -684,13 +735,18 @@ class IntentParserAgent:
             header_clean = re.sub(
                 r'\b(?:management|processing|tracking|automation|engine'
                 r'|optimization|requirements?|system|module|integration'
+                r'|generation|dashboard|framework|frameworks|configuration'
+                r'|upstream|downstream|trigger|triggers|validation'
+                r'|benchmark|benchmarks|criteria|tests?|checks?'
                 r'|& |and )\b', ' ', header, flags=re.I,
             )
             # Extract meaningful nouns from the cleaned header
             words = re.findall(r'[A-Za-z][a-z]{2,}', header_clean)
             for w in words:
                 wl = w.lower()
-                if wl not in infra and wl not in abstract and len(wl) > 2:
+                if (wl not in infra and wl not in abstract
+                        and wl not in IntentParserAgent._DESCRIPTOR_WORDS
+                        and len(wl) > 2):
                     section_concepts[wl] = section_concepts.get(wl, 0) + 8
 
         # ----------------------------------------------------------
@@ -706,12 +762,15 @@ class IntentParserAgent:
             r'\b([A-Za-z][a-z]+)\s+([A-Za-z][a-z]+)'
             r'(?:\s+([A-Za-z][a-z]+))?\b'
         )
+        descriptors = IntentParserAgent._DESCRIPTOR_WORDS
         for m in compound_re.finditer(intent):
             w1, w2, w3 = m.group(1).lower(), m.group(2).lower(), m.group(3)
             w3 = w3.lower() if w3 else None
-            # 2-word compounds
+            # 2-word compounds -- reject if either word is a descriptor
             if (w1 not in infra and w1 not in abstract
-                    and w2 not in infra and w2 not in abstract):
+                    and w1 not in descriptors
+                    and w2 not in infra and w2 not in abstract
+                    and w2 not in descriptors):
                 phrase = f"{w1}_{w2}"
                 compound_candidates[phrase] = compound_candidates.get(phrase, 0) + 1
 
@@ -736,8 +795,8 @@ class IntentParserAgent:
         )
         for m in domain_noun_re.finditer(intent.lower()):
             modifier, noun = m.group(1), m.group(2)
-            if modifier in infra or modifier in abstract:
-                # Use just the noun
+            if modifier in infra or modifier in abstract or modifier in descriptors:
+                # Use just the noun -- modifier is not meaningful
                 key = noun
             else:
                 key = f"{modifier}_{noun}"
@@ -802,12 +861,14 @@ class IntentParserAgent:
             if count >= 2 and any(p in merged for p in parts):
                 merged[phrase] = merged.get(phrase, 0) + count * 2
 
-        # Filter out pure infra/abstract
+        # Filter out pure infra/abstract and descriptor-prefixed compounds
         merged = {
             k: v for k, v in merged.items()
             if k not in infra
             and k not in abstract
-            and not all(p in infra or p in abstract for p in k.split("_"))
+            and k not in descriptors
+            and not all(p in infra or p in abstract or p in descriptors for p in k.split("_"))
+            and k.split("_")[0] not in descriptors  # reject descriptor-prefixed compounds
         }
 
         if not merged:
@@ -823,10 +884,9 @@ class IntentParserAgent:
         ranked = sorted(merged.items(), key=lambda x: -x[1])
 
         # Connector/adjective words that should not start entity names
-        _CONNECTOR_WORDS = {
-            "and", "or", "the", "for", "with", "from", "into", "onto",
-            "smart", "real", "auto", "each", "every", "all", "any",
-            "new", "old", "current", "daily", "weekly", "monthly",
+        _CONNECTOR_WORDS = IntentParserAgent._DESCRIPTOR_WORDS | {
+            "and", "or", "the", "smart", "real", "auto",
+            "each", "every", "all", "any", "new", "old", "current",
         }
 
         # Deduplicate: merge singular/plural, prefer compound form
@@ -846,6 +906,12 @@ class IntentParserAgent:
             def _safe_singular(w: str) -> str:
                 if w in _no_strip:
                     return w
+                # Handle double-plural mangling: "officerses" → "officer"
+                if w.endswith("ses") and len(w) > 5:
+                    base = w[:-2]  # strip "es"
+                    if base.endswith("s") and not base.endswith("ss"):
+                        return base[:-1]  # strip trailing s too
+                    return base
                 if w.endswith("ies") and len(w) > 4:
                     return w[:-3] + "y"  # deliveries → delivery
                 if w.endswith("ses") and len(w) > 4:
@@ -860,6 +926,14 @@ class IntentParserAgent:
                 continue
             # Skip if a single-word form is already covered by a compound
             if len(parts) == 1 and any(parts[0] in s for s in seen_roots if "_" in s):
+                continue
+            # Skip compound entities where ALL parts are already standalone entities
+            if len(roots) > 1 and all(r in seen_roots for r in roots):
+                continue
+            # Skip compounds where one part is already standalone and other is abstract/infra
+            if len(roots) > 1 and any(r in seen_roots for r in roots) and any(
+                r in abstract or r in infra or r in descriptors for r in roots
+            ):
                 continue
             seen_roots.add(root_key)
             selected.append(key)
