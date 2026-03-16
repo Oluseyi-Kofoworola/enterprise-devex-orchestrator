@@ -622,7 +622,7 @@ export default function Layout({{ children }}: {{ children: ReactNode }}) {{
                 "                )}\n"
             )
 
-        component = r"""import { useState, useEffect, useCallback } from 'react';
+        component = r"""import { useState, useEffect, useCallback, useRef } from 'react';
 import StatusBadge from '../components/StatusBadge';
 import { IconUpload, IconRefresh } from '../components/Icons';
 import { useToast } from '../components/Toast';
@@ -634,7 +634,11 @@ export default function UploadPage() {
   const [loading, setLoading] = useState(true);
   const [dragActive, setDragActive] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [formData, setFormData] = useState<Record<string, string>>({});
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { addToast } = useToast();
 
   const fetchData = useCallback(() => {
@@ -652,28 +656,65 @@ export default function UploadPage() {
     setDragActive(e.type === 'dragenter' || e.type === 'dragover');
   };
 
+  const prepareFile = (file: File) => {
+    setSelectedFile(file);
+    setFormData({ filename: file.name, file_type: file.type || file.name.split('.').pop() || 'unknown',
+      file_size_bytes: String(file.size), status: 'uploaded' });
+    setShowForm(true);
+  };
+
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragActive(false);
     const files = e.dataTransfer.files;
-    if (files.length > 0) {
-      const file = files[0];
-      setFormData({ filename: file.name, file_type: file.type || file.name.split('.').pop() || 'unknown',
-        file_size_bytes: String(file.size), status: 'uploaded' });
-      setShowForm(true);
-    }
+    if (files.length > 0) prepareFile(files[0]);
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) prepareFile(files[0]);
+    e.target.value = '';
   };
 
   const handleCreate = async () => {
+    setUploading(true);
     try {
+      let analysisText = '';
+      // Step 1: Try uploading file bytes to AI upload endpoint for processing
+      if (selectedFile) {
+        setUploadProgress('Uploading file...');
+        const uploadBody = new FormData();
+        uploadBody.append('file', selectedFile);
+        try {
+          const uploadRes = await fetch(`${API_BASE}/ai/upload`, {
+            method: 'POST', body: uploadBody,
+          });
+          if (uploadRes.ok) {
+            const result = await uploadRes.json();
+            analysisText = result.analysis || result.text || '';
+            setUploadProgress('Processing complete. Saving record...');
+            if (result.file_type) formData.file_type = result.file_type;
+            if (result.size_bytes) formData.file_size_bytes = String(result.size_bytes);
+            if (analysisText) formData.extracted_text = analysisText.slice(0, 2000);
+            formData.status = 'analyzed';
+          } else {
+            setUploadProgress('Saving record...');
+          }
+        } catch {
+          // AI upload endpoint not available -- continue with metadata-only
+          setUploadProgress('Saving record...');
+        }
+      }
+      // Step 2: Create the entity record with metadata
       await fetch(`${API_BASE}/__SLUG__`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       });
-      setShowForm(false); setFormData({});
-      addToast('__ENTITY__ uploaded successfully', 'success');
+      setShowForm(false); setFormData({}); setSelectedFile(null); setUploadProgress('');
+      addToast(analysisText ? '__ENTITY__ uploaded and analyzed' : '__ENTITY__ uploaded successfully', 'success');
       fetchData();
     } catch { addToast('Upload failed', 'error'); }
+    finally { setUploading(false); setUploadProgress(''); }
   };
 
   const handleAction = async (id: string, action: string) => {
@@ -715,11 +756,15 @@ export default function UploadPage() {
         </div>
       </div>
 
+      {/* Hidden file input for click-to-browse */}
+      <input type="file" ref={fileInputRef} onChange={handleFileSelect} className="hidden"
+        accept=".pdf,.docx,.xlsx,.csv,.json,.txt,.png,.jpg,.jpeg,.tiff,.bmp" />
+
       {/* Upload drop zone */}
       <div
         onDragEnter={handleDrag} onDragLeave={handleDrag}
         onDragOver={handleDrag} onDrop={handleDrop}
-        onClick={() => setShowForm(true)}
+        onClick={() => fileInputRef.current?.click()}
         className={`relative border-2 border-dashed rounded-2xl p-12 text-center cursor-pointer transition-all
           ${dragActive
             ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/5 scale-[1.01]'
@@ -744,20 +789,34 @@ export default function UploadPage() {
       {/* Form modal */}
       {showForm && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-          onClick={e => { if (e.target === e.currentTarget) { setShowForm(false); setFormData({}); } }}>
+          onClick={e => { if (e.target === e.currentTarget) { setShowForm(false); setFormData({}); setSelectedFile(null); } }}>
           <div className="bg-[var(--bg-primary)] rounded-2xl shadow-2xl w-full max-w-md border border-[var(--border-color)]">
             <div className="px-6 py-4 border-b border-[var(--border-color)]">
               <h3 className="text-lg font-semibold text-[var(--text-primary)]">New __ENTITY__</h3>
+              {selectedFile && (
+                <p className="text-sm text-[var(--text-muted)] mt-1">
+                  File: {selectedFile.name} ({(selectedFile.size / 1024).toFixed(1)} KB)
+                </p>
+              )}
             </div>
             <div className="p-6 space-y-4">
 __FORM_INPUTS__
             </div>
+            {uploading && uploadProgress && (
+              <div className="px-6 pb-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-[var(--color-primary)] border-t-transparent rounded-full animate-spin" />
+                  <span className="text-sm text-[var(--text-secondary)]">{uploadProgress}</span>
+                </div>
+              </div>
+            )}
             <div className="px-6 py-4 border-t border-[var(--border-color)] flex justify-end gap-3">
-              <button onClick={() => { setShowForm(false); setFormData({}); }}
-                className="px-4 py-2 text-sm rounded-lg border border-[var(--border-color)] hover:bg-[var(--bg-tertiary)] cursor-pointer">Cancel</button>
-              <button onClick={handleCreate}
-                className="px-4 py-2 text-sm rounded-lg text-white font-medium cursor-pointer hover:opacity-90"
-                style={{ background: 'var(--color-primary)' }}>Upload</button>
+              <button onClick={() => { setShowForm(false); setFormData({}); setSelectedFile(null); }}
+                className="px-4 py-2 text-sm rounded-lg border border-[var(--border-color)] hover:bg-[var(--bg-tertiary)] cursor-pointer"
+                disabled={uploading}>Cancel</button>
+              <button onClick={handleCreate} disabled={uploading}
+                className="px-4 py-2 text-sm rounded-lg text-white font-medium cursor-pointer hover:opacity-90 disabled:opacity-50"
+                style={{ background: 'var(--color-primary)' }}>{uploading ? 'Uploading...' : 'Upload'}</button>
             </div>
           </div>
         </div>

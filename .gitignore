@@ -30,6 +30,7 @@ Thumbs.db
 .azure/
 
 # Generated scaffold outputs (disposable -- regenerate with `devex scaffold`)
+output/
 *-output/
 out-*/
 out/
@@ -77,6 +78,7 @@ test-intent.md
 
 # Node
 node_modules/
+.vite/
 
 # Run artifacts (logs, temp output)
 *.output.txt

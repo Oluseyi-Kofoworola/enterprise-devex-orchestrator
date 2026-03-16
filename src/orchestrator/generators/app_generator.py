@@ -72,6 +72,15 @@ def _plural(name: str) -> str:
     return name + "s"
 
 
+def _past_tense(verb: str) -> str:
+    """Return simple past tense of a verb for status transitions."""
+    if verb.endswith("e"):
+        return verb + "d"
+    if verb.endswith("y") and len(verb) > 1 and verb[-2] not in "aeiou":
+        return verb[:-1] + "ied"
+    return verb + "ed"
+
+
 def _has_custom_entities(spec: IntentSpec) -> bool:
     """Return True if spec has any entities (including fallback Resource)."""
     return bool(spec.entities)
@@ -1251,9 +1260,10 @@ async def delete_{sn}({sn}_id: str, settings: Settings = Depends(get_settings)):
                 parts = ep.path.strip("/").split("/")
                 if len(parts) >= 3 and ep.method == "POST" and parts[0] == slug:
                     action = parts[-1]
+                    desc = ep.description or f"{action.title()} {label}"
                     lines.append(f'''
 
-@router.post("/{slug}/{{{sn}_id}}/{action}", summary="{ep.description}")
+@router.post("/{slug}/{{{sn}_id}}/{action}", summary="{desc}")
 async def {action}_{sn}({sn}_id: str, settings: Settings = Depends(get_settings)):
     repo = get_repository("{sn}", settings.storage_mode)
     svc = {label}Service(repo)
@@ -1291,21 +1301,29 @@ async def {action}_{sn}({sn}_id: str, settings: Settings = Depends(get_settings)
             '',
         ]
         for ent in spec.entities:
-            # Create schema — writable fields
+            # Create schema — writable fields (all optional with defaults for flexibility)
             lines.append(f'class {ent.name}Create(BaseModel):')
             lines.append(f'    """Schema for creating a {ent.name.lower()}."""')
             lines.append('')
             for field in ent.fields:
                 if field.name == "status":
                     continue  # status is set by the service, not the client
-                req = "..." if field.required else f'"{""}"' if field.type == "str" else "None"
+                # Use sensible defaults so partial creation works (e.g. file uploads)
+                type_defaults = {
+                    "str": '""', "int": "0", "float": "0.0", "bool": "False",
+                    "datetime": "None",
+                }
+                default = type_defaults.get(field.type, '""')
                 if field.type in ("list", "list[str]"):
-                    req = "Field(default_factory=list)" if not field.required else "..."
-                lines.append(f'    {field.name}: {field.type} = Field(default={req}, description="{field.description}")')
+                    lines.append(f'    {field.name}: {field.type} = Field(default_factory=list, description="{field.description}")')
+                elif field.type == "datetime":
+                    lines.append(f'    {field.name}: datetime | None = Field(default={default}, description="{field.description}")')
+                else:
+                    lines.append(f'    {field.name}: {field.type} = Field(default={default}, description="{field.description}")')
             lines.append('')
             lines.append('')
 
-            # Response schema — all fields
+            # Response schema — all fields with optional support
             lines.append(f'class {ent.name}Response(BaseModel):')
             lines.append(f'    """Schema returned by {ent.name.lower()} endpoints."""')
             lines.append('')
@@ -1313,10 +1331,12 @@ async def {action}_{sn}({sn}_id: str, settings: Settings = Depends(get_settings)
             for field in ent.fields:
                 if field.type in ("list", "list[str]"):
                     lines.append(f'    {field.name}: {field.type} = Field(default_factory=list, description="{field.description}")')
-                elif not field.required:
-                    lines.append(f'    {field.name}: {field.type} = Field(default=None, description="{field.description}")')
+                elif field.type == "datetime":
+                    lines.append(f'    {field.name}: datetime | None = Field(default=None, description="{field.description}")')
                 else:
-                    lines.append(f'    {field.name}: {field.type} = Field(..., description="{field.description}")')
+                    type_defaults = {"str": '""', "int": "0", "float": "0.0", "bool": "False"}
+                    default = type_defaults.get(field.type, '""')
+                    lines.append(f'    {field.name}: {field.type} = Field(default={default}, description="{field.description}")')
             lines.append('    created_at: str = Field(default="", description="Creation timestamp")' if "created_at" not in {f.name for f in ent.fields} else '')
             lines.append('')
             lines.append('')
@@ -1412,12 +1432,14 @@ async def {action}_{sn}({sn}_id: str, settings: Settings = Depends(get_settings)
                 parts = ep.path.strip("/").split("/")
                 if len(parts) >= 3 and ep.method == "POST" and parts[0] == slug:
                     action = parts[-1]
+                    # Compute correct past tense at generation time
+                    past = _past_tense(action)
                     lines.append(f'    def {action}(self, {sn}_id: str) -> dict | None:')
-                    lines.append(f'        """Transition {label.lower()} to \'{action}\' state."""')
+                    lines.append(f'        """Transition {label.lower()} to \'{past}\' state."""')
                     lines.append(f'        record = self.repo.get({sn}_id)')
                     lines.append(f'        if not record:')
                     lines.append(f'            return None')
-                    lines.append(f'        record["status"] = "{action}ed" if not "{action}".endswith("e") else "{action}d"')
+                    lines.append(f'        record["status"] = "{past}"')
                     lines.append(f'        record["updated_at"] = datetime.now(timezone.utc).isoformat()')
                     lines.append(f'        self.repo.update({sn}_id, record)')
                     lines.append(f'        return record')
@@ -4294,10 +4316,10 @@ async def upload_and_process(file: UploadFile = File(...)):
 
     category = _detect_file_category(file.content_type or "", file.filename)
     logger.info("ai_upload.processing", extra={{
-        "filename": file.filename,
+        "upload_filename": file.filename,
         "category": category,
         "size": len(file_bytes),
-        "content_type": file.content_type,
+        "upload_content_type": file.content_type,
     }})
 
     if category == "image":

@@ -188,7 +188,8 @@ class IntentParserAgent:
         ai_keywords = ["ai ", "ml ", "machine learning", "llm", "gpt", "openai",
                         "copilot", "chatbot", "chat bot", "foundry", "agent",
                         "retrieval augmented", "embedding", "semantic search",
-                        "natural language", "prompt", "completion", "inference"]
+                        "natural language", "prompt", "completion", "inference",
+                        "intelligence", "cognitive", "vision", "recognition"]
         uses_ai = any(kw in intent_lower for kw in ai_keywords) or bool(re.search(r'\brag\b', intent_lower))
 
         # Detect specific AI features
@@ -1236,6 +1237,19 @@ class IntentParserAgent:
                 "calculate": f"Calculate {label}",
                 "predict": f"Predict {label}",
                 "optimize": f"Optimize {label}",
+                "analyze": f"Analyze {label}",
+                "archive": f"Archive {label}",
+                "activate": f"Activate {label}",
+                "deactivate": f"Deactivate {label}",
+                "enable": f"Enable {label}",
+                "disable": f"Disable {label}",
+                "reassign": f"Reassign {label}",
+                "retry": f"Retry {label}",
+                "review": f"Review {label}",
+                "classify": f"Classify {label}",
+                "extract": f"Extract {label}",
+                "validate": f"Validate {label}",
+                "publish": f"Publish {label}",
             }
             for action, desc in action_candidates.items():
                 # Only add if the action + entity concept co-occur tightly
@@ -1274,28 +1288,57 @@ class IntentParserAgent:
     def _parse_explicit_endpoints(intent: str) -> list[EndpointSpec]:
         """Parse explicit REST endpoint declarations from the intent.
 
-        Matches lines like:
+        Matches standalone lines like:
             - POST /api/v1/incidents/{id}/triage — description
             - GET /api/v1/audit_logs — Query with filters ...
+
+        Also matches comma-separated endpoints within entity blocks:
+            - Endpoints: POST /documents (upload), GET /documents/{id}, POST /documents/{id}/analyze
         """
+        endpoints: list[EndpointSpec] = []
+
+        # Pattern 1: Standalone endpoint lines
         ep_re = re.compile(
             r'^\s*[-*]\s*(GET|POST|PUT|PATCH|DELETE)\s+'
             r'(/\S+)'
             r'(?:\s*[—–-]\s*(.+))?$',
             re.MULTILINE | re.IGNORECASE,
         )
-        endpoints: list[EndpointSpec] = []
         for m in ep_re.finditer(intent):
             method = m.group(1).upper()
             raw_path = m.group(2).strip()
             desc = (m.group(3) or "").strip()
-            # Normalise path: strip /api/v1 prefix, standardise {id}
             path = re.sub(r'^/api/v\d+', '', raw_path)
-            # Preserve distinct path parameters — only normalize if single param
             params = re.findall(r'\{([^}]+)\}', path)
             if len(params) <= 1:
                 path = re.sub(r'\{[^}]*\}', '{id}', path)
             endpoints.append(EndpointSpec(
                 method=method, path=path, description=desc,
             ))
+
+        # Pattern 2: Comma-separated endpoints in "- Endpoints:" lines
+        ep_line_re = re.compile(
+            r'^\s*[-*]\s*endpoints?:\s*(.+)$',
+            re.MULTILINE | re.IGNORECASE,
+        )
+        ep_item_re = re.compile(
+            r'(GET|POST|PUT|PATCH|DELETE)\s+'
+            r'(/[^\s,()]+(?:\{[^}]+\}[^\s,()]*)*)'
+            r'(?:\s*\(([^)]*)\))?',
+            re.IGNORECASE,
+        )
+        for line_match in ep_line_re.finditer(intent):
+            line_body = line_match.group(1)
+            for m in ep_item_re.finditer(line_body):
+                method = m.group(1).upper()
+                raw_path = m.group(2).strip()
+                desc = (m.group(3) or "").strip()
+                path = re.sub(r'^/api/v\d+', '', raw_path)
+                params = re.findall(r'\{([^}]+)\}', path)
+                if len(params) <= 1:
+                    path = re.sub(r'\{[^}]*\}', '{id}', path)
+                endpoints.append(EndpointSpec(
+                    method=method, path=path, description=desc,
+                ))
+
         return endpoints
