@@ -332,7 +332,7 @@ export default defineConfig({
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta http-equiv="Content-Security-Policy"
-          content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' http://localhost:* ws://localhost:*; img-src 'self' data: blob:;" />
+          content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' http://localhost:* ws://localhost:* http://127.0.0.1:* ws://127.0.0.1:*; img-src 'self' data: blob:;" />
     <title>{project}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -1853,6 +1853,10 @@ exec nginx -g 'daemon off;'
             lines.append(f"  get{name}: (id: string) => request<any>(`/{slug}/${{id}}`),")
             lines.append(f"  create{name}: (data: any) =>")
             lines.append(f"    request<any>('/{slug}', {{ method: 'POST', body: JSON.stringify(data) }}),")
+            lines.append(f"  update{name}: (id: string, data: any) =>")
+            lines.append(f"    request<any>(`/{slug}/${{id}}`, {{ method: 'PUT', body: JSON.stringify(data) }}),")
+            lines.append(f"  delete{name}: (id: string) =>")
+            lines.append(f"    request<void>(`/{slug}/${{id}}`, {{ method: 'DELETE' }}),")
 
             # Action endpoints from spec.endpoints
             for ep in (spec.endpoints or []):

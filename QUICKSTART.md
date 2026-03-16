@@ -102,14 +102,17 @@ Before deploying to Azure, run the **React frontend dashboard** and the **backen
 **Start the backend API** (provides data to the frontend):
 
 ```powershell
+# In a terminal — activate the venv first
+.venv\Scripts\Activate.ps1
 cd my-first-output/src/app
 pip install -r requirements.txt
 uvicorn main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-**Start the frontend dashboard** (in a separate terminal):
+**Start the frontend dashboard** (in a **second terminal**, run both commands in the same session):
 
 ```powershell
+# Must cd and run dev in the SAME terminal session
 cd my-first-output/frontend
 npm install
 npm run dev
@@ -330,6 +333,8 @@ az group delete --name rg-<project-name>-dev --yes --no-wait
 | Problem | Solution |
 |---------|----------|
 | `devex` not found | Activate venv: `.venv\Scripts\Activate.ps1` |
+| `uvicorn` not found | Activate venv first: `.venv\Scripts\Activate.ps1` |
+| `npm run dev` ENOENT | Run `cd my-first-output/frontend` and `npm run dev` in the same terminal |
 | "No intent provided" | Pass `--file` or quote inline: `devex scaffold "Build an API" -o ./out` |
 | LLM connection error | Expected -- falls back to template-only mode automatically |
 | pip install fails | Check Python 3.11+: `python --version` |
@@ -338,6 +343,6 @@ az group delete --name rg-<project-name>-dev --yes --no-wait
 
 ---
 
-*Enterprise DevEx Orchestrator v1.4.0*
+*Enterprise DevEx Orchestrator v1.5.0*
 
 

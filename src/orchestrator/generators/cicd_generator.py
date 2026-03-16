@@ -205,7 +205,7 @@ jobs:
       - name: Require approval for {env}
         uses: trstringer/manual-approval@v1
         with:
-          secret: ${{{{{{ github.token }}}}}}
+          secret: ${{{{ github.token }}}}
           approvers: enterprise-devex-team
           minimum-approvals: 1
           issue-title: "Deploy to {env} environment"
@@ -219,26 +219,26 @@ jobs:
     if: inputs.environment == '{env}' || '{env}' == 'dev'
     environment: {env}
     outputs:
-      containerAppFqdn: ${{{{{{ steps.deploy.outputs.containerAppFqdn }}}}}}
-      containerAppName: ${{{{{{ steps.deploy.outputs.containerAppName }}}}}}
-      containerRegistryName: ${{{{{{ steps.deploy.outputs.containerRegistryName }}}}}}
-      containerRegistryLoginServer: ${{{{{{ steps.deploy.outputs.containerRegistryLoginServer }}}}}}
+      containerAppFqdn: ${{{{ steps.deploy.outputs.containerAppFqdn }}}}
+      containerAppName: ${{{{ steps.deploy.outputs.containerAppName }}}}
+      containerRegistryName: ${{{{ steps.deploy.outputs.containerRegistryName }}}}
+      containerRegistryLoginServer: ${{{{ steps.deploy.outputs.containerRegistryLoginServer }}}}
     steps:
       - uses: actions/checkout@v4
 {approval_step}
       - name: Login to Azure (OIDC)
         uses: azure/login@v2
         with:
-          client-id: ${{{{{{ secrets.AZURE_CLIENT_ID }}}}}}
-          tenant-id: ${{{{{{ secrets.AZURE_TENANT_ID }}}}}}
-          subscription-id: ${{{{{{ secrets.AZURE_SUBSCRIPTION_ID }}}}}}
+          client-id: ${{{{ secrets.AZURE_CLIENT_ID }}}}
+          tenant-id: ${{{{ secrets.AZURE_TENANT_ID }}}}
+          subscription-id: ${{{{ secrets.AZURE_SUBSCRIPTION_ID }}}}
 
       - name: Create resource group
         run: |
           az group create \\
             --name rg-{spec.project_name}-{env} \\
-            --location ${{{{{{ env.AZURE_LOCATION }}}}}} \\
-            --tags project=${{{{{{ env.PROJECT_NAME }}}}}} environment={env} managedBy=bicep
+            --location ${{{{ env.AZURE_LOCATION }}}} \\
+            --tags project=${{{{ env.PROJECT_NAME }}}} environment={env} managedBy=bicep
 
       - name: Deploy Bicep
         id: deploy
@@ -263,8 +263,8 @@ jobs:
           echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
           echo "| Environment | {env} |" >> $GITHUB_STEP_SUMMARY
           echo "| Resource Group | rg-{spec.project_name}-{env} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Container App | ${{{{{{ steps.deploy.outputs.containerAppName }}}}}} |" >> $GITHUB_STEP_SUMMARY
-          echo "| FQDN | ${{{{{{ steps.deploy.outputs.containerAppFqdn }}}}}} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Container App | ${{{{ steps.deploy.outputs.containerAppName }}}} |" >> $GITHUB_STEP_SUMMARY
+          echo "| FQDN | ${{{{ steps.deploy.outputs.containerAppFqdn }}}} |" >> $GITHUB_STEP_SUMMARY
 """
             previous_job = job_id
 
@@ -295,7 +295,7 @@ permissions:
   issues: write
 
 env:
-  AZURE_SUBSCRIPTION_ID: ${{{{{{ secrets.AZURE_SUBSCRIPTION_ID }}}}}}
+  AZURE_SUBSCRIPTION_ID: ${{{{ secrets.AZURE_SUBSCRIPTION_ID }}}}
   AZURE_LOCATION: '{spec.azure_region}'
   PROJECT_NAME: '{spec.project_name}'
 
@@ -311,36 +311,36 @@ jobs:
       - name: Login to Azure (OIDC)
         uses: azure/login@v2
         with:
-          client-id: ${{{{{{ secrets.AZURE_CLIENT_ID }}}}}}
-          tenant-id: ${{{{{{ secrets.AZURE_TENANT_ID }}}}}}
-          subscription-id: ${{{{{{ secrets.AZURE_SUBSCRIPTION_ID }}}}}}
+          client-id: ${{{{ secrets.AZURE_CLIENT_ID }}}}
+          tenant-id: ${{{{ secrets.AZURE_TENANT_ID }}}}
+          subscription-id: ${{{{ secrets.AZURE_SUBSCRIPTION_ID }}}}
 
       - name: Get ACR login server
         id: acr
         run: |
-          ACR_NAME="${{{{{{ needs.{last_job}.outputs.containerRegistryName }}}}}}"
-          LOGIN_SERVER="${{{{{{ needs.{last_job}.outputs.containerRegistryLoginServer }}}}}}"
+          ACR_NAME="${{{{ needs.{last_job}.outputs.containerRegistryName }}}}"
+          LOGIN_SERVER="${{{{ needs.{last_job}.outputs.containerRegistryLoginServer }}}}"
           echo "loginServer=$LOGIN_SERVER" >> $GITHUB_OUTPUT
           echo "acrName=$ACR_NAME" >> $GITHUB_OUTPUT
 
       - name: Login to ACR
-        run: az acr login --name ${{{{{{ steps.acr.outputs.acrName }}}}}}
+        run: az acr login --name ${{{{ steps.acr.outputs.acrName }}}}
 
       - name: Build and push image
         run: |
-          docker build -t ${{{{{{ steps.acr.outputs.loginServer }}}}}}/${{{{{{ env.PROJECT_NAME }}}}}}:${{{{{{ github.sha }}}}}} -f src/app/Dockerfile src/app/
-          docker push ${{{{{{ steps.acr.outputs.loginServer }}}}}}/${{{{{{ env.PROJECT_NAME }}}}}}:${{{{{{ github.sha }}}}}}
+          docker build -t ${{{{ steps.acr.outputs.loginServer }}}}/${{{{ env.PROJECT_NAME }}}}:${{{{ github.sha }}}} -f src/app/Dockerfile src/app/
+          docker push ${{{{ steps.acr.outputs.loginServer }}}}/${{{{ env.PROJECT_NAME }}}}:${{{{ github.sha }}}}
 
       - name: Update Container App
         run: |
           az containerapp update \\
-            --name ${{{{{{ needs.{last_job}.outputs.containerAppName }}}}}} \\
-            --resource-group rg-{spec.project_name}-${{{{{{ inputs.environment || 'dev' }}}}}} \\
-            --image ${{{{{{ steps.acr.outputs.loginServer }}}}}}/${{{{{{ env.PROJECT_NAME }}}}}}:${{{{{{ github.sha }}}}}}
+            --name ${{{{ needs.{last_job}.outputs.containerAppName }}}} \\
+            --resource-group rg-{spec.project_name}-${{{{ inputs.environment || 'dev' }}}} \\
+            --image ${{{{ steps.acr.outputs.loginServer }}}}/${{{{ env.PROJECT_NAME }}}}:${{{{ github.sha }}}}
 
       - name: Verify application health
         run: |
-          APP_FQDN="${{{{{{ needs.{last_job}.outputs.containerAppFqdn }}}}}}"
+          APP_FQDN="${{{{ needs.{last_job}.outputs.containerAppFqdn }}}}"
           curl --fail --retry 10 --retry-delay 10 "https://$APP_FQDN/health"
 """
 

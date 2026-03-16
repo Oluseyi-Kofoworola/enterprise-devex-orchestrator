@@ -134,7 +134,10 @@ def _seed_value(field_spec, entity_name: str, row: int) -> str:
         if "time" in name or "minutes" in name or "duration" in name:
             times = [12.5, 45.0, 8.0, 120.0, 30.0, 5.5, 90.0, 15.0, 60.0, 22.0, 180.0, 3.0, 75.0, 40.0, 10.0]
             return str(times[(row - 1) % len(times)])
-        amounts = [49.99, 125.50, 29.95, 89.00, 210.75, 1500.00, 340.25, 78.50, 560.00, 15.99, 2400.00, 180.75, 95.00, 720.50, 45.00]
+        if "pct" in name or "percent" in name or "rate" in name or "ratio" in name or "progress" in name or "accuracy" in name or "completion" in name or "utilization" in name or "efficiency" in name or "coverage" in name:
+            pcts = [15.0, 42.5, 78.0, 93.2, 55.0, 87.5, 31.0, 66.8, 99.1, 48.0, 72.5, 84.3, 60.0, 25.7, 91.0]
+            return str(pcts[(row - 1) % len(pcts)])
+        amounts = [49.99, 125.50, 29.95, 89.00, 210.75, 450.00, 340.25, 78.50, 560.00, 15.99, 195.00, 180.75, 95.00, 720.50, 45.00]
         return str(amounts[(row - 1) % len(amounts)])
     if ftype == "int":
         if "population" in name or "affected" in name:
@@ -742,7 +745,7 @@ class AppGenerator:
         return files
 
     def _python_main(self, spec: IntentSpec) -> str:
-        safe_desc = spec.description.replace('\n', ' ').replace('\r', ' ').replace('"', "'")[:200].strip()
+        safe_desc = spec.description.replace('\\', '').replace('\n', ' ').replace('\r', ' ').replace('"', "'")[:200].strip()
         storage_imports = ""
         storage_client = ""
         storage_endpoint = ""
@@ -856,7 +859,7 @@ from collections import defaultdict
 import time as _time
 
 _rate_limit_store: dict[str, list[float]] = defaultdict(list)
-_RATE_LIMIT = int(os.getenv("RATE_LIMIT_PER_MINUTE", "120"))
+_RATE_LIMIT = int(os.getenv("RATE_LIMIT_PER_MINUTE", "600"))
 
 
 @app.middleware("http")
