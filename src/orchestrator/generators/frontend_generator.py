@@ -370,7 +370,6 @@ export default {
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/src/styles/design-tokens.css" />
     <script>
       // Dark mode: check localStorage then system preference
       if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {{
@@ -396,6 +395,7 @@ import { BrowserRouter } from 'react-router-dom';
 import ErrorBoundary from './components/ErrorBoundary';
 import { ToastProvider } from './components/Toast';
 import App from './App';
+import './styles/design-tokens.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
@@ -676,7 +676,7 @@ export default function UploadPage() {
   const fetchData = useCallback(() => {
     setLoading(true);
     fetch(`${API_BASE}/__SLUG__`)
-      .then(r => r.json()).then(setItems).catch(() => {})
+      .then(r => r.json()).then(d => setItems(Array.isArray(d) ? d : [])).catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
@@ -944,7 +944,7 @@ export default function ProcessingPage() {
   const fetchData = useCallback(() => {
     setLoading(true);
     fetch(`${API_BASE}/__SLUG__`)
-      .then(r => r.json()).then(setJobs).catch(() => {})
+      .then(r => r.json()).then(d => setJobs(Array.isArray(d) ? d : [])).catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
@@ -1090,7 +1090,7 @@ export default function ReviewQueuePage() {
   const fetchData = useCallback(() => {
     setLoading(true);
     fetch(`${API_BASE}/__SLUG__`)
-      .then(r => r.json()).then(setTasks).catch(() => {})
+      .then(r => r.json()).then(d => setTasks(Array.isArray(d) ? d : [])).catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
@@ -1214,7 +1214,7 @@ export default function AnalyticsPage() {
       __FETCH_ENTRIES__
     ]).then(results => {
       const data: Record<string, any[]> = {};
-      ENTITY_KEYS.forEach((key, i) => { data[key] = results[i]; });
+      ENTITY_KEYS.forEach((key, i) => { const r = results[i]; data[key] = Array.isArray(r) ? r : []; });
       setAllData(data);
     }).finally(() => setLoading(false));
   };
@@ -2258,7 +2258,7 @@ export default function Dashboard() {
       )
     ).then(results => {
       const data: Record<string, any[]> = {};
-      tabKeys.forEach((key, i) => { data[key] = results[i]; });
+      tabKeys.forEach((key, i) => { const r = results[i]; data[key] = Array.isArray(r) ? r : []; });
       setAllData(data);
     }).finally(() => setLoading(false));
   };
