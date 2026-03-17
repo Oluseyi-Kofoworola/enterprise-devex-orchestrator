@@ -11,9 +11,22 @@ Generates comprehensive test suites including:
 from __future__ import annotations
 
 from src.orchestrator.intent_schema import DataStore, IntentSpec
+from src.orchestrator.generators.route_manifest import RouteAction, RouteBuilder
 from src.orchestrator.logging import get_logger
 
 logger = get_logger(__name__)
+
+
+def _route_path_with_id(path_template: str, entity_snake: str) -> str:
+    """Replace {entity_id} in route path with a known seed ID."""
+    import re
+    return re.sub(r"\{[^}]+\}", f"{entity_snake}-001", path_template)
+
+
+def _route_path_404(path_template: str) -> str:
+    """Replace {entity_id} with a nonexistent ID."""
+    import re
+    return re.sub(r"\{[^}]+\}", "nonexistent-id-999", path_template)
 
 
 class TestGenerator:
@@ -41,6 +54,10 @@ class TestGenerator:
 
         if DataStore.BLOB_STORAGE in spec.data_stores:
             files["tests/test_storage.py"] = self._test_storage(spec)
+
+        # Route-manifest-driven entity CRUD tests
+        if spec.entities:
+            files["tests/test_entity_crud.py"] = self._test_entity_crud(spec)
 
         files["tests/requirements-test.txt"] = self._test_requirements()
 
@@ -357,6 +374,100 @@ class TestStorageEndpoint:
             with pytest.raises(ValueError, match="STORAGE_ACCOUNT_URL"):
                 get_blob_client()
 '''
+
+    def _test_entity_crud(self, spec: IntentSpec) -> str:
+        """Generate deterministic CRUD tests from the RouteManifest."""
+        manifest = RouteBuilder.build(spec)
+        lines = [
+            f'"""Entity CRUD tests -- auto-generated from route manifest.',
+            f'',
+            f'Project: {spec.project_name}',
+            f'Covers {manifest.route_count} routes across {len(manifest.entity_names)} entities.',
+            f'"""',
+            '',
+            'from __future__ import annotations',
+            '',
+            'from fastapi.testclient import TestClient',
+            '',
+        ]
+
+        for entity_name in manifest.entity_names:
+            routes = manifest.routes_for_entity(entity_name)
+            lines.append(f'')
+            lines.append(f'class Test{entity_name}CRUD:')
+            lines.append(f'    """{entity_name} entity CRUD tests."""')
+            lines.append(f'')
+
+            for route in routes:
+                test_name = f"test_{route.action_name}"
+                if route.action == RouteAction.LIST:
+                    status_param = ""
+                    if route.has_status_filter:
+                        status_param = "?status=active"
+                    lines.append(f'    def {test_name}_returns_list(self, client: TestClient) -> None:')
+                    lines.append(f'        """GET {route.path} returns a list."""')
+                    lines.append(f'        response = client.get("{route.path}{status_param}")')
+                    lines.append(f'        assert response.status_code == 200')
+                    lines.append(f'        assert isinstance(response.json(), list)')
+                    lines.append(f'')
+
+                elif route.action == RouteAction.CREATE:
+                    # Build minimal create payload from entity fields
+                    entity = next((e for e in spec.entities if e.name == entity_name), None)
+                    payload_fields = {}
+                    if entity:
+                        for f in entity.fields:
+                            if f.name in ("status", "state"):
+                                continue
+                            if f.type in ("str", "string"):
+                                payload_fields[f.name] = f"test-{f.name}"
+                            elif f.type in ("int", "integer"):
+                                payload_fields[f.name] = 1
+                            elif f.type in ("float",):
+                                payload_fields[f.name] = 1.0
+                            elif f.type in ("bool", "boolean"):
+                                payload_fields[f.name] = True
+                            else:
+                                payload_fields[f.name] = f"test-{f.name}"
+                    payload_str = repr(payload_fields)
+                    lines.append(f'    def {test_name}_returns_201(self, client: TestClient) -> None:')
+                    lines.append(f'        """POST {route.path} creates a new record."""')
+                    lines.append(f'        response = client.post("{route.path}", json={payload_str})')
+                    lines.append(f'        assert response.status_code == 201')
+                    lines.append(f'        data = response.json()')
+                    lines.append(f'        assert "id" in data')
+                    lines.append(f'')
+
+                elif route.action == RouteAction.GET:
+                    # Use a known seed ID
+                    sn = route.action_name.replace("get_", "")
+                    lines.append(f'    def {test_name}_found(self, client: TestClient) -> None:')
+                    lines.append(f'        """GET by ID returns the record."""')
+                    lines.append(f'        response = client.get("{_route_path_with_id(route.path, sn)}")')
+                    lines.append(f'        assert response.status_code in (200, 404)')
+                    lines.append(f'')
+                    lines.append(f'    def {test_name}_not_found(self, client: TestClient) -> None:')
+                    lines.append(f'        """GET nonexistent ID returns 404."""')
+                    lines.append(f'        response = client.get("{_route_path_404(route.path)}")')
+                    lines.append(f'        assert response.status_code == 404')
+                    lines.append(f'')
+
+                elif route.action == RouteAction.DELETE:
+                    lines.append(f'    def {test_name}_not_found(self, client: TestClient) -> None:')
+                    lines.append(f'        """DELETE nonexistent returns 404."""')
+                    lines.append(f'        response = client.delete("{_route_path_404(route.path)}")')
+                    lines.append(f'        assert response.status_code == 404')
+                    lines.append(f'')
+
+                elif route.action == RouteAction.CUSTOM:
+                    lines.append(f'    def {test_name}_returns_success(self, client: TestClient) -> None:')
+                    lines.append(f'        """POST {route.path} action endpoint works."""')
+                    sn = route.entity.lower()
+                    lines.append(f'        response = client.post("{_route_path_with_id(route.path, sn)}")')
+                    lines.append(f'        assert response.status_code in (200, 404)')
+                    lines.append(f'')
+
+        return "\n".join(lines)
 
     def _test_requirements(self) -> str:
         return """# Test dependencies

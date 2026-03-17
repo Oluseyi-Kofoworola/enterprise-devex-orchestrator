@@ -1,14 +1,19 @@
 """Cost Estimator -- provides Azure monthly cost estimates.
 
-Produces a rough cost breakdown for each Azure resource in the architecture plan.
-Uses published Azure pricing baselines (not live API) so estimates are directional,
-not exact. Useful for budget planning and comparing compute targets.
+Produces a cost breakdown for each Azure resource in the architecture plan.
+Delegates SKU selection to the DeploymentProfile/SKUSelector system for
+environment-aware, workload-classified resource sizing.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from src.orchestrator.generators.deployment_profile import (
+    DeploymentProfile,
+    SKUSelector,
+    profile_to_markdown,
+)
 from src.orchestrator.intent_schema import ComputeTarget, DataStore, IntentSpec, PlanOutput
 from src.orchestrator.logging import get_logger
 
@@ -16,44 +21,44 @@ logger = get_logger(__name__)
 
 
 # -- Baseline monthly pricing (USD, lowest tier, dev workload) -------
-# These are approximate starting prices; actual cost depends on usage.
+# Kept for backward compatibility; new code uses DeploymentProfile.
 _BASELINE_PRICES: dict[str, dict[str, float]] = {
     "container_apps": {
-        "compute": 30.0,  # ~0.5 vCPU, 1 GiB, always-on
-        "environment": 0.0,  # included
+        "compute": 30.0,
+        "environment": 0.0,
     },
     "app_service": {
-        "B1_plan": 13.14,  # Basic B1
-        "B2_plan": 26.28,  # Basic B2
-        "S1_plan": 69.35,  # Standard S1
+        "B1_plan": 13.14,
+        "B2_plan": 26.28,
+        "S1_plan": 69.35,
     },
     "functions": {
-        "consumption": 0.0,  # free tier: 1M executions, 400K GB-s
-        "premium_EP1": 146.00,  # Elastic Premium EP1
+        "consumption": 0.0,
+        "premium_EP1": 146.00,
     },
     "log_analytics": {
-        "workspace": 2.76,  # first 5 GB/month free; ~$2.76/GB
+        "workspace": 2.76,
     },
     "managed_identity": {
-        "identity": 0.0,  # free
+        "identity": 0.0,
     },
     "keyvault": {
-        "standard": 0.03,  # per 10K operations
+        "standard": 0.03,
     },
     "container_registry": {
-        "standard": 5.00,  # Standard SKU
+        "standard": 5.00,
     },
     "blob_storage": {
-        "hot_lrs": 2.08,  # per 100 GB hot LRS
+        "hot_lrs": 2.08,
     },
     "cosmos_db": {
-        "serverless": 0.25,  # per 1M RUs
+        "serverless": 0.25,
     },
     "sql": {
-        "basic": 4.90,  # Basic DTU
+        "basic": 4.90,
     },
     "redis": {
-        "basic_C0": 16.00,  # Basic C0 250 MB
+        "basic_C0": 16.00,
     },
 }
 
@@ -101,37 +106,31 @@ class CostEstimate:
 
 
 class CostEstimator:
-    """Estimates monthly Azure cost for a given IntentSpec and PlanOutput."""
+    """Estimates monthly Azure cost for a given IntentSpec and PlanOutput.
+
+    Uses the DeploymentProfile/SKUSelector system for environment-aware
+    SKU selection and pricing.
+    """
 
     def estimate(self, spec: IntentSpec, plan: PlanOutput) -> CostEstimate:
         logger.info("cost_estimator.start", project=spec.project_name)
+
+        profile = SKUSelector.select(spec)
         items: list[CostLineItem] = []
-
-        # Compute target
-        compute = getattr(spec, "compute_target", ComputeTarget.CONTAINER_APPS)
-        if compute == ComputeTarget.APP_SERVICE:
-            items.append(CostLineItem("App Service Plan", "B1 Linux", 13.14, "Basic tier"))
-        elif compute == ComputeTarget.FUNCTIONS:
-            items.append(CostLineItem("Function App", "Consumption", 0.00, "1M free executions/mo"))
-        else:
-            items.append(CostLineItem("Container App", "0.5 vCPU / 1 GiB", 30.00, "Always-on min replica"))
-            items.append(CostLineItem("Container Registry", "Standard", 5.00, ""))
-
-        # Core infra (always present)
-        items.append(CostLineItem("Log Analytics", "Pay-per-GB", 2.76, "~1 GB/mo ingest"))
-        items.append(CostLineItem("Managed Identity", "Free", 0.00, ""))
-        items.append(CostLineItem("Key Vault", "Standard", 0.03, "Low operation volume"))
-
-        # Data stores
-        for ds in spec.data_stores:
-            if ds == DataStore.BLOB_STORAGE:
-                items.append(CostLineItem("Blob Storage", "Hot LRS", 2.08, "~100 GB"))
-            elif ds == DataStore.COSMOS_DB:
-                items.append(CostLineItem("Cosmos DB", "Serverless", 0.25, "Low RU usage"))
-            elif ds == DataStore.SQL:
-                items.append(CostLineItem("Azure SQL", "Basic DTU", 4.90, "5 DTU"))
-            elif ds == DataStore.REDIS:
-                items.append(CostLineItem("Azure Cache for Redis", "Basic C0", 16.00, "250 MB"))
+        for sku in profile.all_items:
+            items.append(CostLineItem(sku.resource, sku.sku_name, sku.monthly_usd, sku.notes))
 
         logger.info("cost_estimator.complete", total=sum(i.monthly_usd for i in items))
         return CostEstimate(items=items)
+
+    def estimate_with_profile(self, spec: IntentSpec) -> tuple[CostEstimate, DeploymentProfile]:
+        """Return both the cost estimate and the full deployment profile."""
+        profile = SKUSelector.select(spec)
+        items = [CostLineItem(s.resource, s.sku_name, s.monthly_usd, s.notes) for s in profile.all_items]
+        return CostEstimate(items=items), profile
+
+    @staticmethod
+    def profile_markdown(spec: IntentSpec) -> str:
+        """Generate a cost markdown using the deployment profile system."""
+        profile = SKUSelector.select(spec)
+        return profile_to_markdown(profile)

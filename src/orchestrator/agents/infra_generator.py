@@ -23,6 +23,7 @@ from src.orchestrator.generators.protocol import (
     GeneratorContext,
     create_default_registry,
 )
+from src.orchestrator.generators.scaffold_validator import ScaffoldValidator
 from src.orchestrator.intent_schema import IntentSpec, PlanOutput
 from src.orchestrator.logging import get_logger
 from src.orchestrator.standards.config import EnterpriseStandardsConfig
@@ -78,6 +79,17 @@ class InfrastructureGeneratorAgent:
 
         # Run all generators in priority order via the uniform protocol
         files = registry.run_all(spec, context)
+
+        # Post-generation validation
+        validator = ScaffoldValidator()
+        validation = validator.validate(spec, files)
+        if validation.issues:
+            files["docs/validation-report.md"] = validation.to_markdown()
+            logger.info(
+                "infrastructure_generator.validation",
+                errors=validation.error_count,
+                warnings=validation.warning_count,
+            )
 
         logger.info("infrastructure_generator.complete", file_count=len(files))
         return files

@@ -158,12 +158,21 @@ All generated code must follow enterprise security baselines:
 
 **Sub-generators:**
 - `BicepGenerator` -- 7+ Bicep modules + parameters + enterprise naming/tagging (includes Azure OpenAI + AI Search modules for AI workloads)
-- `CICDGenerator` -- 4 GitHub Actions workflows
-- `AppGenerator` -- FastAPI app + Docker + requirements with dynamic entity-driven services. Includes CORS middleware for frontend dev servers (localhost:3000/5173), rate limiting middleware, OWASP security headers. AI workloads get `ai/client.py` (Managed Identity auth), `ai/chat.py` (chat router with RAG), `ai/agent.py` (Semantic Kernel agents with tool-calling), `ai/model_registry.py` (Azure AI Foundry multi-model management), `ai/content_safety.py` (Azure AI Content Safety filtering), `ai/evaluation.py` (groundedness/relevance evaluation framework). Generates **12 realistic seed records per entity** with domain-aware values (names, addresses, descriptions, statuses, priorities, dynamic timestamps relative to current date).
-- `FrontendGenerator` -- Entity-driven React + Vite + TypeScript SPA with domain-aware design system. Includes: design-token-driven theming (10 industry presets), dark mode toggle, responsive mobile nav, loading skeletons, error boundaries, toast notifications, SVG icon library (15 Lucide-style icons), mini charts (sparkline + bar), pagination, sortable columns, delete confirmation modals, CSP meta tag, HTML-rendered AI chat with suggestions. Environment-variable-driven API base URL, WCAG AA accessible.
+- `CICDGenerator` -- 4 GitHub Actions workflows with language-aware lint/test steps, CodeQL language detection, and Dependabot ecosystem mapping (Python/Node/dotnet)
+- `AppGenerator` -- FastAPI app + Docker + requirements with dynamic entity-driven services. Uses `DomainContext` for domain-specific seed data, terminology, and org details. Includes CORS middleware for frontend dev servers (localhost:3000/5173), rate limiting middleware, OWASP security headers. AI workloads get `ai/client.py` (Managed Identity auth), `ai/chat.py` (chat router with RAG), `ai/agent.py` (Semantic Kernel agents with tool-calling), `ai/model_registry.py` (Azure AI Foundry multi-model management), `ai/content_safety.py` (Azure AI Content Safety filtering), `ai/evaluation.py` (groundedness/relevance evaluation framework). Generates **12 realistic seed records per entity** with domain-aware values (names, addresses, descriptions, statuses, priorities, dynamic timestamps relative to current date).
+- `FrontendGenerator` -- Entity-driven React + Vite + TypeScript SPA with domain-aware design system. Includes: design-token-driven theming (10 industry presets), dark mode toggle, responsive mobile nav, loading skeletons, error boundaries, toast notifications, SVG icon library (15 Lucide-style icons), mini charts (sparkline + bar), pagination, sortable columns, delete confirmation modals, CSP meta tag, HTML-rendered AI chat with suggestions. Local Tailwind CSS (no CDN), tightened CSP. Environment-variable-driven API base URL, WCAG AA accessible.
 - `DocsGenerator` -- 7 documentation files + standards reference + improvement suggestions
-- `TestGenerator` -- Auto-generated pytest test suite (health, API, security, config, storage)
+- `TestGenerator` -- Auto-generated pytest test suite (health, API, security, config, storage) + RouteManifest-driven entity CRUD tests covering LIST/CREATE/GET/DELETE/CUSTOM actions
 - `AlertGenerator` -- Azure Monitor alert rules (Bicep) + action groups + alerting runbook
+
+**Post-generation Validation:**
+- `ScaffoldValidator` runs after all generators, producing a `docs/validation-report.md` with cross-generator consistency checks (required files, entity coverage, route-test alignment, Bicep completeness, Dockerfile presence)
+
+**Supporting Modules:**
+- `DomainContext` -- Semantic domain model with 12 domain definitions (healthcare, fintech, logistics, retail, etc.) providing org names, email domains, terminology, seed data pools, compliance frameworks, and UI branding per domain
+- `DeploymentProfile` / `SKUSelector` -- Environment-aware resource sizing (DEV/STAGING/PRODUCTION_LOW/PRODUCTION_HIGH workload classes) with structured SKU tables for compute, datastores, and core infra
+- `RouteManifest` / `RouteBuilder` -- Single source of truth for all API routes, consumed by TestGenerator and ScaffoldValidator for deterministic test generation and route-test alignment validation
+- `LLMEnricher` -- Optional AI enrichment layer with type-constrained targets (seed descriptions, ADR rationale, doc sections, entity descriptions, threat mitigations), guardrails against code injection and prompt manipulation, and batch processing support
 
 **AI Chat Engine (Local Data):**
 - Smart analytical engine with 11 intent handlers (greeting, help, temporal, cross-entity, recommendation, count, analytics, list, filter, action, status)
@@ -204,6 +213,11 @@ All generated code must follow enterprise security baselines:
 | `StateManager` | Persistent state in `.devex/state.json` -- drift detection, file manifests, audit trail |
 | `WAFAssessor` | Azure Well-Architected Framework assessment (5 pillars, 26 principles, per-pillar scoring) |
 | `DesignSystem` | Domain-aware UI/UX design intelligence (10 industry presets, CSS custom properties, WCAG AA, dark mode, anti-patterns) |
+| `DomainContext` | Semantic domain intelligence (12 domains) -- org names, seed data pools, terminology, compliance frameworks |
+| `DeploymentProfile` | Environment-aware workload classification (4 tiers) with SKU tables for compute, datastores, and core infra |
+| `RouteManifest` | Canonical API route registry -- single source of truth for tests, validators, and documentation |
+| `ScaffoldValidator` | Post-generation cross-generator consistency checks (5 validation rules, markdown report) |
+| `LLMEnricher` | Optional AI enrichment with guardrails (code injection detection, prompt manipulation filtering) |
 
 ---
 

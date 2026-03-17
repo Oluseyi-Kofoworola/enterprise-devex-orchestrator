@@ -28,6 +28,14 @@ class DomainType(str, Enum):
     HEALTHCARE = "healthcare"
     LEGAL = "legal"
     DOCUMENT_PROCESSING = "document_processing"
+    CYBERSECURITY = "cybersecurity"
+    IOT_SMART_CITY = "iot_smart_city"
+    LOGISTICS = "logistics"
+    RETAIL = "retail"
+    MANUFACTURING = "manufacturing"
+    AGRICULTURE = "agriculture"
+    GOVERNMENT = "government"
+    FINANCE = "finance"
     GENERIC = "generic"
 
 
