@@ -17,7 +17,7 @@ Generates a modern React application with:
     - WCAG AA accessible (4.5:1 contrast, focus rings, reduced-motion)
     - HTML rendering in chat for LLM responses
     - CSP meta tag for security hardening
-    - TailwindCSS styling via CDN + CSS custom property design tokens
+    - TailwindCSS styling via local package + CSS custom property design tokens
 """
 
 from __future__ import annotations
@@ -199,6 +199,8 @@ class FrontendGenerator:
         files["frontend/tsconfig.json"] = self._tsconfig()
         files["frontend/tsconfig.node.json"] = self._tsconfig_node()
         files["frontend/vite.config.ts"] = self._vite_config()
+        files["frontend/tailwind.config.js"] = self._tailwind_config()
+        files["frontend/postcss.config.js"] = self._postcss_config()
         files["frontend/src/vite-env.d.ts"] = '/// <reference types="vite/client" />\n'
         files["frontend/index.html"] = self._index_html(project, tokens)
 
@@ -263,6 +265,9 @@ class FrontendGenerator:
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
+    "tailwindcss": "^3.4.0",
+    "postcss": "^8.4.38",
+    "autoprefixer": "^10.4.19",
     "typescript": "^5.5.3",
     "vite": "^5.4.0"
   }}
@@ -325,6 +330,34 @@ export default defineConfig({
 });
 """
 
+    def _tailwind_config(self) -> str:
+        return """/** @type {import('tailwindcss').Config} */
+export default {
+  content: [
+    "./index.html",
+    "./src/**/*.{js,ts,jsx,tsx}",
+  ],
+  darkMode: 'class',
+  theme: {
+    extend: {
+      fontFamily: {
+        sans: ['Inter', 'system-ui', 'sans-serif'],
+      },
+    },
+  },
+  plugins: [],
+};
+"""
+
+    def _postcss_config(self) -> str:
+        return """export default {
+  plugins: {
+    tailwindcss: {},
+    autoprefixer: {},
+  },
+};
+"""
+
     def _index_html(self, project: str, tokens=None) -> str:
         return f"""<!DOCTYPE html>
 <html lang="en">
@@ -332,13 +365,11 @@ export default defineConfig({
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta http-equiv="Content-Security-Policy"
-          content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' http://localhost:* ws://localhost:* http://127.0.0.1:* ws://127.0.0.1:*; img-src 'self' data: blob:;" />
+          content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' http://localhost:* ws://localhost:* http://127.0.0.1:* ws://127.0.0.1:*; img-src 'self' data: blob:;" />
     <title>{project}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="/src/styles/design-tokens.css" />
     <script>
       // Dark mode: check localStorage then system preference
       if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {{
@@ -364,6 +395,7 @@ import { BrowserRouter } from 'react-router-dom';
 import ErrorBoundary from './components/ErrorBoundary';
 import { ToastProvider } from './components/Toast';
 import App from './App';
+import './styles/design-tokens.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
@@ -644,7 +676,7 @@ export default function UploadPage() {
   const fetchData = useCallback(() => {
     setLoading(true);
     fetch(`${API_BASE}/__SLUG__`)
-      .then(r => r.json()).then(setItems).catch(() => {})
+      .then(r => r.json()).then(d => setItems(Array.isArray(d) ? d : [])).catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
@@ -912,7 +944,7 @@ export default function ProcessingPage() {
   const fetchData = useCallback(() => {
     setLoading(true);
     fetch(`${API_BASE}/__SLUG__`)
-      .then(r => r.json()).then(setJobs).catch(() => {})
+      .then(r => r.json()).then(d => setJobs(Array.isArray(d) ? d : [])).catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
@@ -1058,7 +1090,7 @@ export default function ReviewQueuePage() {
   const fetchData = useCallback(() => {
     setLoading(true);
     fetch(`${API_BASE}/__SLUG__`)
-      .then(r => r.json()).then(setTasks).catch(() => {})
+      .then(r => r.json()).then(d => setTasks(Array.isArray(d) ? d : [])).catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
@@ -1182,7 +1214,7 @@ export default function AnalyticsPage() {
       __FETCH_ENTRIES__
     ]).then(results => {
       const data: Record<string, any[]> = {};
-      ENTITY_KEYS.forEach((key, i) => { data[key] = results[i]; });
+      ENTITY_KEYS.forEach((key, i) => { const r = results[i]; data[key] = Array.isArray(r) ? r : []; });
       setAllData(data);
     }).finally(() => setLoading(false));
   };
@@ -2226,7 +2258,7 @@ export default function Dashboard() {
       )
     ).then(results => {
       const data: Record<string, any[]> = {};
-      tabKeys.forEach((key, i) => { data[key] = results[i]; });
+      tabKeys.forEach((key, i) => { const r = results[i]; data[key] = Array.isArray(r) ? r : []; });
       setAllData(data);
     }).finally(() => setLoading(false));
   };

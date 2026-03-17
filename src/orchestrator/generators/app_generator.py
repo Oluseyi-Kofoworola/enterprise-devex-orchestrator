@@ -20,6 +20,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 from src.orchestrator.intent_schema import DataStore, EntitySpec, IntentSpec
+from src.orchestrator.generators.domain_context import DomainContext, build_domain_context
 from src.orchestrator.logging import get_logger
 
 logger = get_logger(__name__)
@@ -100,21 +101,37 @@ def _python_type_default(field_type: str) -> str:
     return defaults.get(field_type, '""')
 
 
-def _seed_value(field_spec, entity_name: str, row: int) -> str:
-    """Generate a realistic seed value for a field -- fully dynamic, no domain assumptions."""
+def _seed_value(field_spec, entity_name: str, row: int, domain_ctx: "DomainContext | None" = None) -> str:
+    """Generate a realistic seed value for a field -- domain-context-aware."""
+
     name = field_spec.name
     ftype = field_spec.type
     ename_lower = entity_name.lower()
     ename_abbr = ename_lower[:3].upper()
 
-    # --- Realistic name pools ---
-    _first_names = ["Alice", "Bob", "Carlos", "Diana", "Erik", "Fatima", "Grace", "Hassan", "Irene", "James", "Kira", "Liam", "Maya", "Noah", "Olivia"]
-    _last_names = ["Chen", "Smith", "Garcia", "Patel", "Kim", "Johnson", "Williams", "Brown", "Jones", "Davis"]
-    _streets = ["Main St", "Oak Ave", "Elm Blvd", "Park Dr", "River Rd", "Industrial Pkwy", "Harbor View", "Tech Campus", "Central Plaza", "Lakeside Way", "Market St", "5th Avenue", "Broadway", "Commercial Blvd", "University Dr"]
-    _cities = ["Downtown", "Midtown", "Uptown", "Eastside", "Westside", "Northgate", "Southpoint", "Harbor District", "Tech Quarter", "Old Town", "Financial District", "Arts District", "Riverside", "Airport Zone", "Civic Center"]
+    # --- Use DomainContext pools when available, else defaults ---
+    _first_names = domain_ctx.first_names if domain_ctx else ["Alice", "Bob", "Carlos", "Diana", "Erik", "Fatima", "Grace", "Hassan", "Irene", "James", "Kira", "Liam", "Maya", "Noah", "Olivia"]
+    _last_names = domain_ctx.last_names if domain_ctx else ["Chen", "Smith", "Garcia", "Patel", "Kim", "Johnson", "Williams", "Brown", "Jones", "Davis"]
+    _streets = domain_ctx.streets if domain_ctx else ["Main St", "Oak Ave", "Elm Blvd", "Park Dr", "River Rd", "Industrial Pkwy", "Harbor View", "Tech Campus", "Central Plaza", "Lakeside Way", "Market St", "5th Avenue", "Broadway", "Commercial Blvd", "University Dr"]
+    _cities = domain_ctx.cities if domain_ctx else ["Downtown", "Midtown", "Uptown", "Eastside", "Westside", "Northgate", "Southpoint", "Harbor District", "Tech Quarter", "Old Town", "Financial District", "Arts District", "Riverside", "Airport Zone", "Civic Center"]
+    _email_domain = domain_ctx.email_domains[0] if domain_ctx and domain_ctx.email_domains else "enterprise.com"
+    _portal_base = domain_ctx.portal_urls[0] if domain_ctx and domain_ctx.portal_urls else "https://portal.enterprise.com"
+    _vendors = domain_ctx.vendors if domain_ctx else ["Siemens", "GE Digital", "Honeywell", "Schneider Electric", "ABB", "Cisco Systems", "Itron", "Sensus", "Trimble", "Telensa", "Silver Spring", "Eaton", "Emerson", "Rockwell", "Yokogawa"]
+    _source_systems = domain_ctx.source_systems if domain_ctx else ["IoT-sensor", "citizen-report", "automated-scan", "field-inspection", "dispatch-system", "API-integration", "manual-entry", "SCADA", "mobile-app", "web-portal"]
+    _domain_statuses = domain_ctx.statuses if domain_ctx and domain_ctx.statuses else ["pending", "in_progress", "completed", "active", "critical", "resolved"]
+    _domain_categories = (domain_ctx.categories if domain_ctx and domain_ctx.categories
+                          else ["infrastructure", "safety", "environmental", "maintenance", "security", "utilities", "transportation", "public-health", "emergency", "administration", "compliance", "operations"])
+    _domain_desc_templates = domain_ctx.description_templates if domain_ctx else [
+        "Operation {} initiated. Standard procedures apply.",
+        "Scheduled maintenance for {} sector. Team assigned.",
+        "Automated detection: {} anomaly identified. Investigation in progress.",
+        "Follow-up inspection after {} activity completed. Status updated.",
+        "Resource allocation for {} project finalized. Budget confirmed.",
+    ]
+    _terminology = domain_ctx.terminology if domain_ctx else {}
     _categories_pool = {
-        "category": ["infrastructure", "safety", "environmental", "maintenance", "security", "utilities", "transportation", "public-health", "emergency", "administration", "compliance", "operations"],
-        "type": ["electrical", "mechanical", "structural", "software", "network", "hydraulic", "thermal", "chemical", "environmental", "optical"],
+        "category": _domain_categories,
+        "type": _terminology.get("type", ["electrical", "mechanical", "structural", "software", "network", "hydraulic", "thermal", "chemical", "environmental", "optical"]),
         "asset_type": ["traffic-light", "power-grid", "water-pump", "HVAC-unit", "EV-charger", "solar-panel", "security-camera", "bridge-sensor", "air-quality-monitor", "flood-gate"],
     }
 
@@ -184,7 +201,8 @@ def _seed_value(field_spec, entity_name: str, row: int) -> str:
                   "platinum", "silver", "gold", "bronze", "silver", "gold", "platinum"]
         return f'"{grades[(row - 1) % len(grades)]}"'
     if name in ("type", "category", "kind", "class") or name.endswith("_type") or name.endswith("_category"):
-        pool = _categories_pool.get(name, _categories_pool.get("category"))
+        # Use domain terminology if available for this field name
+        pool = _terminology.get(name, _categories_pool.get(name, _categories_pool.get("category")))
         return f'"{pool[(row - 1) % len(pool)]}"'
     if name in ("name", "title", "label"):
         # Generate realistic names based on entity context
@@ -197,24 +215,7 @@ def _seed_value(field_spec, entity_name: str, row: int) -> str:
                     "quality assurance", "risk assessment", "compliance check", "workflow update"]
         return f'"{_descriptors[(row - 1) % len(_descriptors)]} {_subjects[(row - 1) % len(_subjects)]}"'
     if name in ("description", "summary", "details", "notes", "comment", "remarks"):
-        _desc_templates = [
-            f"Reported at {{}} — requires immediate attention. Multiple systems affected.",
-            f"Scheduled maintenance for {{}} sector. Standard operating procedure applies.",
-            f"Environmental alert triggered by {{}} monitoring station. Readings above threshold.",
-            f"Citizen complaint regarding {{}} in residential area. Priority response needed.",
-            f"Automated detection: {{}} anomaly in grid sector. Diagnostic in progress.",
-            f"Follow-up inspection after {{}} repair completed. Verification pending.",
-            f"Capacity warning for {{}} infrastructure. Usage at 87% of rated limit.",
-            f"Emergency dispatch triggered by {{}} sensor cluster. Units en route.",
-            f"Routine calibration of {{}} equipment. Last serviced 90 days ago.",
-            f"Inter-agency coordination needed for {{}} zone upgrade project.",
-            f"Budget review requested for {{}} capital improvement program.",
-            f"Safety compliance audit for {{}} operations. Due by end of quarter.",
-            f"Performance degradation detected in {{}} subsystem. Root cause TBD.",
-            f"Public event impact assessment for {{}} district. Traffic rerouting planned.",
-            f"Vendor contract renewal for {{}} maintenance services. Evaluation in progress.",
-        ]
-        t = _desc_templates[(row - 1) % len(_desc_templates)]
+        t = _domain_desc_templates[(row - 1) % len(_domain_desc_templates)]
         return f'"{t.format(_cities[(row - 1) % len(_cities)])}"'
     if name in ("reason", "cause", "justification"):
         reasons = ["Equipment failure", "Weather damage", "Scheduled upgrade", "Safety violation",
@@ -237,7 +238,11 @@ def _seed_value(field_spec, entity_name: str, row: int) -> str:
     if name in ("email", "contact_email", "user_email"):
         fn = _first_names[(row - 1) % len(_first_names)].lower()
         ln = _last_names[(row - 1) % len(_last_names)].lower()
-        return f'"{fn}.{ln}@smartcity.gov"'
+        return f'"{fn}.{ln}@{_email_domain}"'
+    if name in ("first_name", "given_name"):
+        return f'"{_first_names[(row - 1) % len(_first_names)]}"'
+    if name in ("last_name", "family_name", "surname"):
+        return f'"{_last_names[(row - 1) % len(_last_names)]}"'
     if name.endswith("_name") or name in ("reporter_name", "assigned_to", "operator", "technician", "requester", "agent_name", "user_name"):
         fn = _first_names[(row - 1) % len(_first_names)]
         ln = _last_names[(row - 1) % len(_last_names)]
@@ -245,7 +250,7 @@ def _seed_value(field_spec, entity_name: str, row: int) -> str:
     if name in ("phone", "phone_number", "contact_phone") or name.endswith("_phone"):
         return f'"+1-555-{100 + row:03d}-{1000 + row * 111:04d}"'
     if name in ("url", "link", "website", "homepage") or name.endswith("_url"):
-        return f'"https://portal.smartcity.gov/{ename_lower}/{row:04d}"'
+        return f'"{_portal_base}/{ename_lower}/{row:04d}"'
     if name in ("ip", "ip_address"):
         return f'"10.{(row // 256) % 256}.{row % 256}.{(row * 7) % 256}"'
     if name in ("version", "revision"):
@@ -263,10 +268,7 @@ def _seed_value(field_spec, entity_name: str, row: int) -> str:
                 "auditor", "planner", "field-agent", "director", "specialist"]
         return f'"{roles[(row - 1) % len(roles)]}"'
     if name in ("source", "origin", "provider"):
-        sources = ["IoT-sensor", "citizen-report", "automated-scan", "field-inspection",
-                  "dispatch-system", "API-integration", "manual-entry", "SCADA",
-                  "mobile-app", "web-portal", "email", "hotline", "partner-feed", "satellite", "drone"]
-        return f'"{sources[(row - 1) % len(sources)]}"'
+        return f'"{_source_systems[(row - 1) % len(_source_systems)]}"'
     if name in ("target", "destination"):
         return f'"{_cities[(row - 1) % len(_cities)]}"'
     if "date" in name or name in ("created", "updated", "timestamp") or name.endswith("_date") or name.endswith("_at"):
@@ -294,10 +296,7 @@ def _seed_value(field_spec, entity_name: str, row: int) -> str:
         ]
         return f'"{_notes[(row - 1) % len(_notes)]}"'
     if "manufacturer" in name or "vendor" in name or "brand" in name:
-        _mfg = ["Siemens", "GE Digital", "Honeywell", "Schneider Electric", "ABB",
-               "Cisco Systems", "Itron", "Sensus", "Trimble", "Telensa",
-               "Silver Spring", "Eaton", "Emerson", "Rockwell", "Yokogawa"]
-        return f'"{_mfg[(row - 1) % len(_mfg)]}"'
+        return f'"{_vendors[(row - 1) % len(_vendors)]}"'
     # Generic fallback — uses field name + entity context
     return f'"{ename_lower}-{name}-{row}"'
 
@@ -656,6 +655,7 @@ class AppGenerator:
     def generate(self, spec: IntentSpec) -> dict[str, str]:
         """Generate application files based on spec.language."""
         logger.info("app_generator.start", project=spec.project_name, language=spec.language)
+        self._domain_ctx = build_domain_context(spec)
 
         language = spec.language.lower()
         if language == "node":
@@ -2989,7 +2989,7 @@ module.exports = { seedData };
                 for f in ent.fields:
                     if f.name == "created_at":
                         continue
-                    val = _seed_value(f, ent.name, rid)
+                    val = _seed_value(f, ent.name, rid, domain_ctx=getattr(self, '_domain_ctx', None))
                     parts.append(f'{f.name}: {val}')
                 hour = 8 + rid
                 parts.append(f'created_at: "2024-03-{10+rid}T{hour:02d}:00:00Z"')
@@ -3336,7 +3336,7 @@ public class SeedData
             for rid in range(1, 4):
                 parts = [f'"{_snake(ent.name)}-{rid:03d}"']
                 for f in ent.fields:
-                    val = _seed_value(f, ent.name, rid)
+                    val = _seed_value(f, ent.name, rid, domain_ctx=getattr(self, '_domain_ctx', None))
                     # Convert Python-style value to C# style
                     cval = _dotnet_seed_val(val, f.type)
                     parts.append(cval)

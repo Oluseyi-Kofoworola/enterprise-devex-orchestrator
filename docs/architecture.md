@@ -51,23 +51,28 @@ graph LR
         IG[Infrastructure Generator]
     end
 
-    subgraph "Generators (9)"
+    subgraph "Generators (9 + Plugin Protocol)"
         BG[Bicep Generator<br>7 modules]
-        CG[CI/CD Generator<br>4 workflows]
-        AG[App Generator<br>Entity-Driven Backend<br>Python + Node.js + .NET]
-        FG[Frontend Generator<br>Entity-Driven React SPA]
+        CG[CI/CD Generator<br>4 workflows<br>Language-aware]
+        AG[App Generator<br>Entity-Driven Backend<br>Domain-Aware Seed Data]
+        FG[Frontend Generator<br>React + Vite + TypeScript<br>Local Tailwind CSS]
         DG[Docs Generator<br>7 doc files]
-        TG[Test Generator<br>5 test files]
+        TG[Test Generator<br>RouteManifest-Driven<br>Entity CRUD Tests]
         ALG[Alert Generator<br>Bicep alerts + runbook]
-        CSG[Cost Estimator]
+        CSG[Cost Estimator<br>DeploymentProfile-Aware]
         DSG[Dashboard Generator]
     end
 
     subgraph "Enterprise Standards"
-        NE[Naming Engine<br>20 types, 34 regions]
+        NE[Naming Engine<br>22 types, 34 regions]
         TE[Tagging Engine<br>7 required + 5 optional]
         SC[Standards Config<br>standards.yaml]
         SM[State Manager<br>Drift Detection]
+        DC[Domain Context<br>12 Industries]
+        DP[Deployment Profile<br>4 Workload Tiers]
+        RM[Route Manifest<br>Canonical Routes]
+        SV[Scaffold Validator<br>5 Consistency Checks]
+        DS[Design System<br>10 Industry Presets]
     end
 
     subgraph "Advanced Patterns"

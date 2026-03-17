@@ -4,6 +4,45 @@ All notable changes to the Enterprise DevEx Orchestrator.
 
 ---
 
+## [1.7.0] - 2026-03-17
+
+### Added
+- **Domain Context** — 12 industry-specific intelligence models (`DomainContext`) providing org names, email domains, terminology, seed data pools, compliance frameworks, and UI branding per domain (healthcare, legal, fintech, logistics, retail, manufacturing, agriculture, government, cybersecurity, IoT/smart city, document processing, finance). New file: `src/orchestrator/generators/domain_context.py`.
+- **Deployment Profiles** — Environment-aware resource sizing (`DeploymentProfile`, `SKUSelector`) with structured SKU tables for compute, datastores, and core infra across 4 workload tiers (DEV/STAGING/PROD_LOW/PROD_HIGH). New file: `src/orchestrator/generators/deployment_profile.py`.
+- **Route Manifest** — Canonical API route registry (`RouteManifest`, `RouteBuilder`) consumed by TestGenerator and ScaffoldValidator for deterministic test generation and route-test alignment validation. New file: `src/orchestrator/generators/route_manifest.py`.
+- **Scaffold Validator** — Post-generation cross-generator consistency checks (5 validation rules: required files, entity coverage, route-test alignment, Bicep completeness, Dockerfile presence). Produces `docs/validation-report.md`. New file: `src/orchestrator/generators/scaffold_validator.py`.
+- **LLM Enricher** — Optional AI enrichment layer with type-constrained targets, guardrails against code injection and prompt manipulation, and batch processing support. New file: `src/orchestrator/generators/llm_enricher.py`.
+- **Design System** — Domain-aware design tokens and Tailwind CSS theming with 10 industry presets, dark mode toggle, WCAG AA accessible. New file: `src/orchestrator/generators/design_system.py`.
+- **84 new tests** — `test_deployment_profile.py`, `test_domain_context.py`, `test_llm_enricher.py`, `test_route_manifest.py`, `test_scaffold_validator.py`. Total: **745 tests**.
+
+### Changed
+- **App Generator** — Now uses `DomainContext` for domain-aware seed data (12 realistic records per entity), CORS middleware for frontend dev servers, rate limiting middleware, OWASP security headers. Eliminated hardcoded domain leakage.
+- **CI/CD Generator** — Language-aware lint/test steps, CodeQL language detection, Dependabot ecosystem mapping (Python/Node/dotnet).
+- **Cost Estimator** — Uses `DeploymentProfile` for accurate per-environment costing instead of flat estimates.
+- **Test Generator** — RouteManifest-driven entity CRUD test generation covering LIST/CREATE/GET/DELETE/CUSTOM actions.
+- **Infrastructure Generator Agent** — Now runs ScaffoldValidator post-generation and outputs `docs/validation-report.md`.
+- **Intent Schema** — `DomainType` expanded from 4 to 12 domain types.
+
+### Fixed
+- **Tailwind CSS pipeline** — Added `@tailwind base/components/utilities` directives to generated CSS, import via `main.tsx` instead of HTML link tag (enables Vite/PostCSS processing).
+- **API response normalization** — Added `Array.isArray()` guards at 5 fetch-to-state patterns in frontend to prevent `forEach` crash when API returns object instead of array.
+- **Frontend CSP** — Removed bypassing `<link>` tag from `index.html`; CSS now bundled via Vite/PostCSS.
+
+---
+
+## [1.6.0] - 2026-03-17
+
+### Added
+- **Generator Plugin Protocol** — Uniform `generate(spec, context)` interface for all 9 generators via `GeneratorProtocol` (Python `typing.Protocol`), `GeneratorAdapter`, `GeneratorRegistry`, and `GeneratorContext`. New file: `src/orchestrator/generators/protocol.py`.
+- **create_default_registry()** — Factory function that pre-loads all built-in generators with correct bridge functions. Adding a new generator requires one import + one `register()` call.
+- **25 new protocol tests** — `tests/test_protocol.py` covering context, protocol conformance, adapter bridges, registry operations, and integration with `InfrastructureGeneratorAgent`.
+
+### Changed
+- **InfrastructureGeneratorAgent** — Refactored from 9 hardcoded imports/instantiations/calls to a single `registry.run_all(spec, context)` call. Open-Closed Principle: no agent changes needed for new generators.
+- **generators/__init__.py** — Now exports `GeneratorProtocol`, `GeneratorContext`, `GeneratorRegistry`, `GeneratorAdapter`, `create_default_registry`.
+
+---
+
 ## [1.5.0] - 2026-03-15
 
 ### Fixed

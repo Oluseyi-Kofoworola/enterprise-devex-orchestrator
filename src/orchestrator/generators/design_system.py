@@ -537,7 +537,11 @@ class DesignSystem:
 
     def generate_css_variables(self, tokens: DesignTokens) -> str:
         """Generate CSS custom properties from design tokens."""
-        return f""":root {{
+        return f"""@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {{
   /* Design System: {tokens.domain} ({tokens.style}) */
   --color-primary: {tokens.primary};
   --color-primary-light: {tokens.primary_light};

@@ -493,6 +493,97 @@ class IntentParserAgent:
                  "id document"],
                 2,
             ),
+            (
+                DomainType.CYBERSECURITY,
+                # strong — clearly security operations
+                ["soc ", "siem", "cybersecurity", "cyber security",
+                 "threat detection", "incident response", "vulnerability",
+                 "malware", "phishing", "penetration test", "security operations",
+                 "threat intelligence", "zero trust", "endpoint detection"],
+                # weak — could appear in other contexts
+                ["firewall", "intrusion", "forensic", "remediation",
+                 "attack surface", "exploit", "cve"],
+                2,
+            ),
+            (
+                DomainType.IOT_SMART_CITY,
+                # strong — IoT and smart city specific
+                ["iot ", "smart city", "smart building", "scada",
+                 "telemetry", "sensor network", "smart grid",
+                 "connected device", "digital twin", "edge computing"],
+                # weak — could appear elsewhere
+                ["sensor", "meter", "device", "gateway", "thermostat",
+                 "traffic light", "air quality"],
+                2,
+            ),
+            (
+                DomainType.LOGISTICS,
+                # strong — logistics and supply chain
+                ["logistics", "supply chain", "freight", "warehouse management",
+                 "fleet management", "last mile", "shipping route",
+                 "load balancing", "carrier", "3pl", "cold chain"],
+                # weak
+                ["shipment", "delivery", "tracking", "dispatch",
+                 "inventory", "warehouse", "pallet", "route optimization"],
+                2,
+            ),
+            (
+                DomainType.RETAIL,
+                # strong — retail specific
+                ["retail", "e-commerce", "ecommerce", "point of sale",
+                 "pos system", "shopping cart", "storefront",
+                 "omnichannel", "merchandising", "retail analytics"],
+                # weak
+                ["product catalog", "checkout", "promotion", "coupon",
+                 "loyalty program", "customer segment", "wishlist"],
+                3,
+            ),
+            (
+                DomainType.MANUFACTURING,
+                # strong — manufacturing specific
+                ["manufacturing", "production line", "assembly line",
+                 "quality control", "factory", "shop floor",
+                 "bill of materials", "bom ", "mes ", "plc ",
+                 "oee ", "overall equipment effectiveness"],
+                # weak
+                ["batch", "defect", "yield", "downtime",
+                 "work order", "tooling", "calibration"],
+                2,
+            ),
+            (
+                DomainType.AGRICULTURE,
+                # strong — agriculture specific
+                ["agriculture", "farming", "precision agriculture",
+                 "crop", "livestock", "irrigation", "agritech",
+                 "soil", "harvest", "greenhouse"],
+                # weak
+                ["field", "yield", "pest", "fertilizer",
+                 "weather station", "moisture", "drone survey"],
+                2,
+            ),
+            (
+                DomainType.GOVERNMENT,
+                # strong — government and public sector
+                ["government", "public sector", "municipal", "city council",
+                 "citizen", "civic", "public safety", "permitting",
+                 "code enforcement", "311 ", "e-government"],
+                # weak
+                ["permit", "inspection", "zoning", "public works",
+                 "emergency management", "constituent"],
+                2,
+            ),
+            (
+                DomainType.FINANCE,
+                # strong — financial services
+                ["fintech", "banking", "financial services",
+                 "trading platform", "portfolio management",
+                 "anti-money laundering", "aml ", "kyc ",
+                 "credit scoring", "underwriting", "loan origination"],
+                # weak
+                ["transaction", "ledger", "reconciliation", "payment processing",
+                 "investment", "insurance claim", "risk assessment"],
+                3,
+            ),
         ]
 
         best_domain = DomainType.GENERIC

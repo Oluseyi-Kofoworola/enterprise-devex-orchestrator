@@ -36,10 +36,9 @@ devex scaffold --file intent.md -o ./smart-city-output
 |-------|-------------------|-----------------|
 | **Infrastructure** | 10 Azure Bicep modules, parameterized per environment | Azure CAF naming, 12 enterprise tags |
 | **Backend API** | FastAPI with CRUD endpoints, Pydantic schemas, repository pattern, Swagger docs at `/docs` | Managed Identity, Key Vault, non-root containers |
-| **Frontend Dashboard** | React + Vite + TypeScript SPA with donut charts, type-aware rendering, column intelligence, status filters, CSV export | Served from the same Container App in production |
-| **React Frontend** | TypeScript SPA with smart column selection, donut charts, progress bars, grouped detail pages | Azure-compatible Dockerfile, configurable backend URL |
+| **Frontend Dashboard** | React + Vite + TypeScript SPA with local Tailwind CSS, donut charts, type-aware rendering, column intelligence, status filters, CSV export, dark mode, design-token theming (10 industry presets) | Served from the same Container App in production |
 | **CI/CD** | 4 GitHub Actions workflows (validate, deploy, CodeQL, Dependabot) | OIDC auth -- zero stored credentials |
-| **Tests** | 5 auto-generated pytest files per scaffold | Health, API, security, config, storage tests |
+| **Tests** | 5 auto-generated pytest files per scaffold with RouteManifest-driven entity CRUD tests | Health, API, security, config, storage + entity LIST/CREATE/GET/DELETE tests |
 | **Governance** | 25-policy validation + STRIDE threat model | Automated compliance evidence |
 | **WAF Assessment** | 26 Azure Well-Architected Framework principles scored | 5-pillar coverage with actionable recommendations |
 | **Monitoring** | Azure Monitor alert rules + action groups + runbook | Cost estimation included |
@@ -123,7 +122,7 @@ pip install -e ".[dev]"
 ```powershell
 devex --help
 devex version         # Shows: GitHub Copilot SDK (default provider)
-pytest tests/ -v      # 636 tests
+pytest tests/ -v      # 745 tests
 ```
 
 ---
@@ -299,10 +298,15 @@ Each agent has a distinct role, instruction set, and tool access. See [`AGENTS.m
 
 | Component | What It Does | Why It Matters |
 |-----------|-------------|----------------|
-| **NamingEngine** | Azure CAF naming (20 resource types, 34 regions) | Pass naming audits on first review |
+| **NamingEngine** | Azure CAF naming (22 resource types, 34 regions) | Pass naming audits on first review |
 | **TaggingEngine** | 7 required + 5 optional tags with regex validation | Cost tracking, ownership, compliance from day one |
 | **WAFAssessor** | 26 principles across 5 pillars with per-pillar scores | Azure Well-Architected alignment with evidence |
 | **StateManager** | SHA-256 file manifests, drift detection, audit trail | Know exactly what changed between generations |
+| **DomainContext** | 12 industry-specific intelligence models with org names, seed data, terminology | Domain-aware scaffolds, not generic boilerplate |
+| **DeploymentProfile** | Environment-aware SKU selection (DEV/STAGING/PROD_LOW/PROD_HIGH) | Right-sized resources per environment |
+| **RouteManifest** | Canonical API route registry consumed by tests and validators | Route-test alignment, zero drift between generators |
+| **ScaffoldValidator** | Post-generation cross-generator consistency checks (5 rules) | Catch entity coverage gaps, missing files, Bicep mismatches |
+| **DesignSystem** | Domain-aware UI theming (10 industry presets, dark mode, WCAG AA) | Professional, branded frontends per industry |
 
 ### Time Savings (Benchmarked)
 
@@ -336,6 +340,11 @@ Each agent has a distinct role, instruction set, and tool access. See [`AGENTS.m
 | Persistent planner | `src/orchestrator/planning/` -- 13-task DAG with checkpoints |
 | Deploy orchestrator | `src/orchestrator/agents/deploy_orchestrator.py` -- staged deployment |
 | Semantic entity extraction | `src/orchestrator/agents/intent_parser.py` -- 5-phase NLP pipeline, dynamic entity/endpoint discovery |
+| Generator Plugin Protocol | `src/orchestrator/generators/protocol.py` -- Uniform `generate(spec, context)` interface, registry, adapters |
+| Domain context | `src/orchestrator/generators/domain_context.py` -- 12-domain semantic intelligence with seed data pools |
+| Deployment profiles | `src/orchestrator/generators/deployment_profile.py` -- Environment-aware SKU selection (4 tiers) |
+| Route manifest | `src/orchestrator/generators/route_manifest.py` -- Canonical API route registry for test/validator alignment |
+| Scaffold validator | `src/orchestrator/generators/scaffold_validator.py` -- Post-generation cross-generator consistency checks |
 | Frontend generator | `src/orchestrator/generators/frontend_generator.py` -- Entity-driven React + Vite + TypeScript SPA |
 
 ---
@@ -362,19 +371,26 @@ src/orchestrator/
     alert_generator.py    # Azure Monitor alert rules and runbook
     app_generator.py      # Entity-driven backend (Python, Node.js, .NET) with dynamic services, repositories, seed data
     bicep_generator.py    # Bicep IaC (7 modules)
-    cicd_generator.py     # GitHub Actions workflows (4 files)
-    cost_estimator.py     # Cost estimation
+    cicd_generator.py     # GitHub Actions workflows (4 files) with language-aware lint/test steps
+    cost_estimator.py     # Cost estimation with environment-aware SKU pricing
     dashboard_generator.py # Azure Monitor dashboard queries
+    deployment_profile.py # Environment-aware SKU selection (DEV/STAGING/PROD_LOW/PROD_HIGH)
+    design_system.py      # Domain-aware design tokens and Tailwind CSS theming (10 industry presets)
     docs_generator.py     # Documentation (7+ files)
-    frontend_generator.py # Entity-driven React + Vite + TypeScript SPA with dynamic dashboards
-    test_generator.py     # Pytest test suite (5 files)
+    domain_context.py     # Semantic domain intelligence (12 domains) with org names, seed data, terminology
+    frontend_generator.py # Entity-driven React + Vite + TypeScript SPA with local Tailwind CSS
+    llm_enricher.py       # Optional AI enrichment with guardrails (code injection + prompt manipulation filtering)
+    protocol.py           # Generator Plugin Protocol (GeneratorProtocol, GeneratorRegistry, GeneratorAdapter)
+    route_manifest.py     # Canonical API route registry -- single source of truth for tests and validators
+    scaffold_validator.py # Post-generation cross-generator consistency checks (5 validation rules)
+    test_generator.py     # Pytest test suite (5 files) with RouteManifest-driven entity CRUD tests
   planning/               # Persistent planner (13-task DAG)
   prompts/                # Repo-aware prompt generation
   skills/                 # Pluggable skills registry
   standards/              # NamingEngine, TaggingEngine, WAFAssessor
   tools/                  # Azure validation, governance policies, template rendering
 
-tests/                    # Framework test suite (16 files, 636 tests)
+tests/                    # Framework test suite (22 files, 745 tests)
 examples/                 # Example intent files
 docs/                     # Framework documentation
 standards.yaml            # Enterprise standards configuration

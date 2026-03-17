@@ -8,6 +8,7 @@ Generates:
 from __future__ import annotations
 
 from src.orchestrator.intent_schema import IntentSpec
+from src.orchestrator.generators.domain_context import build_domain_context
 from src.orchestrator.logging import get_logger
 
 logger = get_logger(__name__)
@@ -31,8 +32,8 @@ class CICDGenerator:
         files[".github/workflows/deploy.yml"] = self._deploy_workflow(spec)
 
         # Supply chain security
-        files[".github/dependabot.yml"] = self._dependabot_config()
-        files[".github/workflows/codeql.yml"] = self._codeql_workflow()
+        files[".github/dependabot.yml"] = self._dependabot_config(spec)
+        files[".github/workflows/codeql.yml"] = self._codeql_workflow(spec)
 
         # Version promotion workflow (for v2+ upgrades)
         if version > 1:
@@ -49,6 +50,8 @@ class CICDGenerator:
 
     def _env_parameters(self, spec: IntentSpec, env: str) -> str:
         """Generate environment-specific Bicep parameter file."""
+        ctx = build_domain_context(spec)
+        owner_email = ctx.support_email if ctx else "platform-team@enterprise.com"
         return f"""{{
   "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
   "contentVersion": "1.0.0.0",
@@ -63,7 +66,7 @@ class CICDGenerator:
       "value": 8000
     }},
     "ownerEmail": {{
-      "value": "platform-team@enterprise.com"
+      "value": "{owner_email}"
     }},
     "costCenter": {{
       "value": "CC-{env.upper()}-001"
@@ -73,9 +76,11 @@ class CICDGenerator:
 """
 
     def _validate_workflow(self, spec: IntentSpec) -> str:
+        lang = spec.language.lower()
+        lint_steps = self._language_lint_steps(lang, spec)
         return f"""# ===================================================================
 # Validate Workflow -- runs on every pull request
-# Lints Python, runs tests, builds Bicep, validates Azure deployment
+# Lints, tests, builds Bicep, validates Azure deployment
 # ===================================================================
 name: Validate
 
@@ -90,7 +95,6 @@ permissions:
   contents: read
 
 env:
-  PYTHON_VERSION: '3.12'
   AZURE_SUBSCRIPTION_ID: ${{{{ secrets.AZURE_SUBSCRIPTION_ID }}}}
   AZURE_RESOURCE_GROUP: '{spec.resource_group_name}'
 
@@ -100,33 +104,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{{{ env.PYTHON_VERSION }}}}
-          cache: pip
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r src/app/requirements.txt -r tests/requirements-test.txt ruff mypy
-
-      - name: Lint with Ruff
-        run: ruff check src/app tests/
-
-      - name: Type check with mypy
-        run: mypy src/app --ignore-missing-imports
-        continue-on-error: true
-
-      - name: Run tests
-        run: pytest tests/ -v --tb=short --cov=src/app --cov-report=xml
-
-      - name: Upload coverage
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report
-          path: coverage.xml
+{lint_steps}
 
   validate-bicep:
     name: Validate Bicep
@@ -184,6 +162,77 @@ jobs:
           path: artifact/
           retention-days: 30
 """
+
+    def _language_lint_steps(self, lang: str, spec: IntentSpec) -> str:
+        """Return language-specific setup, lint and test CI steps."""
+        if lang == "node":
+            return """
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: src/app/package-lock.json
+
+      - name: Install dependencies
+        run: cd src/app && npm ci
+
+      - name: Lint
+        run: cd src/app && npx eslint . || true
+
+      - name: Run tests
+        run: cd src/app && npm test || true
+"""
+        if lang == "dotnet":
+            return """
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore & Build
+        run: cd src/app && dotnet restore && dotnet build --no-restore
+
+      - name: Run tests
+        run: cd src/app && dotnet test --no-build --verbosity normal || true
+"""
+        # Default: Python
+        return f"""
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r src/app/requirements.txt -r tests/requirements-test.txt ruff mypy
+
+      - name: Lint with Ruff
+        run: ruff check src/app tests/
+
+      - name: Type check with mypy
+        run: mypy src/app --ignore-missing-imports
+        continue-on-error: true
+
+      - name: Run tests
+        run: pytest tests/ -v --tb=short --cov=src/app --cov-report=xml
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml
+"""
+
+    def _codeql_language(self, lang: str) -> str:
+        """Map spec language to CodeQL language identifier."""
+        return {"node": "javascript", "dotnet": "csharp"}.get(lang, "python")
+
+    def _dependabot_ecosystem(self, lang: str) -> str:
+        """Map spec language to Dependabot package ecosystem."""
+        return {"node": "npm", "dotnet": "nuget"}.get(lang, "pip")
 
     def _deploy_workflow(self, spec: IntentSpec) -> str:
         envs = spec.cicd.environments if spec.cicd.environments else ["dev"]
@@ -344,11 +393,12 @@ jobs:
           curl --fail --retry 10 --retry-delay 10 "https://$APP_FQDN/health"
 """
 
-    def _dependabot_config(self) -> str:
-        return """# Dependabot configuration for supply chain security
+    def _dependabot_config(self, spec: IntentSpec | None = None) -> str:
+        ecosystem = self._dependabot_ecosystem(spec.language.lower()) if spec else "pip"
+        return f"""# Dependabot configuration for supply chain security
 version: 2
 updates:
-  - package-ecosystem: "pip"
+  - package-ecosystem: "{ecosystem}"
     directory: "/"
     schedule:
       interval: "weekly"
@@ -375,8 +425,9 @@ updates:
       - "container"
 """
 
-    def _codeql_workflow(self) -> str:
-        return """# ===================================================================
+    def _codeql_workflow(self, spec: IntentSpec | None = None) -> str:
+        cql_lang = self._codeql_language(spec.language.lower()) if spec else "python"
+        return f"""# ===================================================================
 # CodeQL Analysis -- supply chain and code security scanning
 # ===================================================================
 name: CodeQL Analysis
@@ -399,7 +450,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        language: ['python']
+        language: ['{cql_lang}']
     steps:
       - uses: actions/checkout@v4
 

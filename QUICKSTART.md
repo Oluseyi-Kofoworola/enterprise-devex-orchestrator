@@ -84,14 +84,15 @@ my-first-output/
   .devex/                     # State and metadata
   .github/workflows/          # CI/CD pipelines (validate, deploy, codeql, dependabot)
   infra/bicep/                # Azure Bicep templates (main + modules + parameters)
-  src/app/                    # Multi-language application (Python/Node.js/.NET) + Enterprise Dashboard UI + Dockerfile
-  tests/                      # Auto-generated test suite
-  docs/                       # Plan, security, WAF, governance, deployment docs
+  src/app/                    # Multi-language application (Python/Node.js/.NET) + Dockerfile
+  frontend/                   # React + Vite + TypeScript SPA with local Tailwind CSS + design tokens
+  tests/                      # Auto-generated test suite (5 files with RouteManifest-driven entity CRUD tests)
+  docs/                       # Plan, security, WAF, governance, deployment docs + validation report
 ```
 
 > **Enterprise Dashboard UI** -- Every generated scaffold includes a production-grade
-> enterprise dashboard with live health monitoring, compliance badges, architecture
-> overview, and quick-action links -- out of the box.
+> React SPA dashboard with domain-aware design tokens (10 industry presets), dark mode,
+> live health monitoring, donut charts, and type-aware data rendering -- out of the box.
 
 ---
 
@@ -166,6 +167,7 @@ After scaffolding, you'll see 89+ files. Here's where to start:
 | `src/app/main.py` | Adjust middleware settings, add custom routes |
 | `frontend/src/pages/` | Customize dashboard pages and layout |
 | `frontend/src/lib/design-tokens.ts` | Change theme colors, fonts, spacing |
+| `frontend/src/styles/design-tokens.css` | Override CSS custom properties and Tailwind config |
 | `infra/bicep/parameters/dev.parameters.json` | Set your Azure subscription, region, SKU |
 | `infra/bicep/main.bicep` | Add or remove Azure resources |
 | `.github/workflows/deploy.yml` | Configure deployment environments and approvals |
