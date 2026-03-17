@@ -33,7 +33,7 @@
 | Criterion | Points | Evidence |
 |-----------|--------|---------|
 | CI/CD generation | 5/5 | 4 GitHub Actions workflows (validate, deploy, dependabot, codeql) |
-| Testing | 5/5 | 636 tests across 16 test files, auto-generated test suites |
+| Testing | 5/5 | 745 tests across 22 test files, auto-generated test suites with RouteManifest-driven entity CRUD |
 | Observability | 5/5 | Log Analytics, diagnostic settings, alert rules + runbook |
 
 ### Security (15/15)
@@ -70,7 +70,7 @@
 
 | Standard | Points | Evidence |
 |----------|--------|---------|
-| Azure CAF Naming | 4/4 | NamingEngine: 20 resource types, 34 region abbreviations |
+| Azure CAF Naming | 4/4 | NamingEngine: 22 resource types, 34 region abbreviations |
 | Enterprise Tagging | 3/3 | TaggingEngine: 7 required + 5 optional tags, regex validation |
 | Standards Config | 3/3 | YAML-driven (`standards.yaml`), 67 standards tests |
 
@@ -100,7 +100,7 @@
 | 9 | STRIDE threat model | Done | Generated in every scaffold |
 | 10 | Governance report | Done | 25 policies, automated validation |
 | 11 | WAF assessment | Done | 26/26 principles, 5 pillars |
-| 12 | 636 tests | Done | `tests/` (16 files) |
+| 12 | 745 tests | Done | `tests/` (22 files) |
 | 13 | Enterprise standards | Done | `standards.yaml` + engine |
 | 14 | State management | Done | `.devex/state.json` |
 | 15 | Version management | Done | `.devex/versions.json` |
@@ -109,10 +109,16 @@
 | 18 | Persistent planning | Done | 13-task DAG |
 | 19 | Live deployment | Done | Azure Container Apps (eastus2) |
 | 20 | Semantic entity extraction | Done | 5-phase NLP pipeline: any business domain dynamically extracted |
-| 21 | Frontend SPA generator | Done | React 18 + Vite 5 + TypeScript with production dashboards (donut charts, type-aware rendering, column intelligence, CSV export, grouped detail pages) |
+| 21 | Frontend SPA generator | Done | React 18 + Vite 5 + TypeScript with local Tailwind CSS, design-token theming (10 industry presets), dark mode, production dashboards (donut charts, type-aware rendering, column intelligence, CSV export, grouped detail pages) |
 | 22 | Multi-provider LLM | Done | GitHub Copilot SDK (default), Azure OpenAI, OpenAI, Anthropic (Claude) |
 | 23 | Interactive CRUD Dashboard | Done | Production-grade UI: donut charts, type-aware rendering (badges, dates, progress bars, currency, URLs), smart column selection (5-7 cols), status filter pills, CSV export, grouped detail pages with breadcrumb navigation; domain-aware seed data; local preview with `uvicorn` |
 | 24 | Local Dashboard Preview | Done | `uvicorn main:app --reload` in `src/app/` -- no Azure or DB required |
+| 25 | Generator Plugin Protocol | Done | Uniform `generate(spec, context)` interface, `GeneratorRegistry`, `GeneratorAdapter` (Open-Closed Principle) |
+| 26 | Domain Context | Done | 12 industry-specific intelligence models with org names, seed data pools, terminology |
+| 27 | Deployment Profiles | Done | Environment-aware SKU selection (DEV/STAGING/PROD_LOW/PROD_HIGH) |
+| 28 | Route Manifest | Done | Canonical API route registry for deterministic test generation |
+| 29 | Scaffold Validator | Done | Post-generation cross-generator consistency checks (5 validation rules) |
+| 30 | LLM Enricher | Done | Optional AI enrichment with guardrails (code injection + prompt manipulation filtering) |
 
 ---
 
