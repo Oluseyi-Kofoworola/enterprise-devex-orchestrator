@@ -151,6 +151,11 @@ All generated code must follow enterprise security baselines:
 - `preview_output` -- Preview file manifest before writing
 - `validate_bicep` -- Validate generated Bicep syntax
 
+**Architecture:** Uses the Generator Plugin Protocol (`GeneratorRegistry` +
+`GeneratorAdapter`) to dispatch work to all 9 sub-generators via a uniform
+`generate(spec, context)` interface. New generators are added with a single
+`register()` call -- no changes to the agent itself (Open-Closed Principle).
+
 **Sub-generators:**
 - `BicepGenerator` -- 7+ Bicep modules + parameters + enterprise naming/tagging (includes Azure OpenAI + AI Search modules for AI workloads)
 - `CICDGenerator` -- 4 GitHub Actions workflows
@@ -199,6 +204,50 @@ All generated code must follow enterprise security baselines:
 | `StateManager` | Persistent state in `.devex/state.json` -- drift detection, file manifests, audit trail |
 | `WAFAssessor` | Azure Well-Architected Framework assessment (5 pillars, 26 principles, per-pillar scoring) |
 | `DesignSystem` | Domain-aware UI/UX design intelligence (10 industry presets, CSS custom properties, WCAG AA, dark mode, anti-patterns) |
+
+---
+
+## Generator Plugin Protocol
+
+**Module:** `src/orchestrator/generators/protocol.py`
+
+Uniform interface for all generators via Python's structural subtyping
+(`typing.Protocol`). Replaces the previous ad-hoc signatures (some took
+`plan`, some didn't, `CostEstimator` used `estimate()`) with a single
+`generate(spec, context) -> dict[str, str]` contract.
+
+**Key Components:**
+
+| Component | Description |
+|-----------|-------------|
+| `GeneratorProtocol` | `@runtime_checkable` Protocol requiring `generate(spec, context)` |
+| `GeneratorContext` | Frozen dataclass bundling `plan`, `governance`, `waf_report`, `version`, `standards` |
+| `GeneratorAdapter` | Wraps any legacy generator to the protocol via a bridge function |
+| `GeneratorRegistry` | Priority-ordered collection; `run_all(spec, ctx)` executes all generators |
+| `create_default_registry()` | Factory pre-loading all 9 built-in generators with correct bridges |
+
+**Bridge Functions:**
+
+| Bridge | Target Generators | Mapping |
+|--------|-------------------|---------|
+| `_bridge_spec_only` | Alert, App, Dashboard, Frontend, Test | `gen.generate(spec)` |
+| `_bridge_spec_plan` | Bicep | `gen.generate(spec, ctx.plan)` |
+| `_bridge_cicd` | CICD | `gen.generate(spec, version=ctx.version)` |
+| `_bridge_docs` | Docs | `gen.generate(spec, ctx.plan, governance=ctx.governance, waf_report=ctx.waf_report)` |
+| `_bridge_cost` | CostEstimator | `gen.estimate(spec, ctx.plan)` -> markdown file |
+
+**Adding a New Generator:**
+```python
+# 1. Write your generator (any signature)
+class MyGenerator:
+    def generate(self, spec: IntentSpec) -> dict[str, str]:
+        return {"my-file.txt": "content"}
+
+# 2. Add one line to create_default_registry() in protocol.py
+registry.register("my-gen", GeneratorAdapter(MyGenerator(), _bridge_spec_only), priority=85)
+```
+
+No changes to `InfrastructureGeneratorAgent` required -- Open-Closed Principle.
 
 ---
 

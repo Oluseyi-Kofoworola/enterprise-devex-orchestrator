@@ -8,6 +8,10 @@ infrastructure scaffold including:
     - Documentation (including naming & tagging standards)
 
 This is the final production agent in the chain after governance approval.
+
+Uses the GeneratorRegistry / GeneratorProtocol to iterate over all
+registered generators with a uniform interface, rather than hard-coding
+each generator's bespoke signature.
 """
 
 from __future__ import annotations
@@ -15,6 +19,10 @@ from __future__ import annotations
 from pathlib import Path
 
 from src.orchestrator.config import AppConfig
+from src.orchestrator.generators.protocol import (
+    GeneratorContext,
+    create_default_registry,
+)
 from src.orchestrator.intent_schema import IntentSpec, PlanOutput
 from src.orchestrator.logging import get_logger
 from src.orchestrator.standards.config import EnterpriseStandardsConfig
@@ -25,9 +33,10 @@ logger = get_logger(__name__)
 class InfrastructureGeneratorAgent:
     """Generates complete infrastructure scaffold from plan.
 
-    This agent coordinates all sub-generators (Bicep, CI/CD, app, docs)
-    to produce a coherent, deployable output. Enterprise standards
-    (naming, tagging, governance) are applied via EnterpriseStandardsConfig.
+    This agent uses a ``GeneratorRegistry`` to dispatch work to all
+    registered generators via the ``GeneratorProtocol`` interface.
+    Enterprise standards (naming, tagging, governance) are applied via
+    ``EnterpriseStandardsConfig``.
     """
 
     def __init__(self, config: AppConfig) -> None:
@@ -56,42 +65,19 @@ class InfrastructureGeneratorAgent:
         """
         logger.info("infrastructure_generator.start", project=spec.project_name)
 
-        files: dict[str, str] = {}
+        # Build the context that every generator receives
+        context = GeneratorContext(
+            plan=plan,
+            governance=gov_report,
+            waf_report=waf_report,
+            standards=self.standards,
+        )
 
-        # Import generators
-        from src.orchestrator.generators.alert_generator import AlertGenerator
-        from src.orchestrator.generators.app_generator import AppGenerator
-        from src.orchestrator.generators.bicep_generator import BicepGenerator
-        from src.orchestrator.generators.cicd_generator import CICDGenerator
-        from src.orchestrator.generators.cost_estimator import CostEstimator
-        from src.orchestrator.generators.dashboard_generator import DashboardGenerator
-        from src.orchestrator.generators.docs_generator import DocsGenerator
-        from src.orchestrator.generators.frontend_generator import FrontendGenerator
-        from src.orchestrator.generators.test_generator import TestGenerator
+        # Create the registry pre-loaded with all built-in generators
+        registry = create_default_registry(standards=self.standards)
 
-        # Generate all artifacts with enterprise standards
-        bicep_gen = BicepGenerator(standards=self.standards)
-        cicd_gen = CICDGenerator()
-        app_gen = AppGenerator()
-        docs_gen = DocsGenerator()
-        test_gen = TestGenerator()
-        alert_gen = AlertGenerator()
-        cost_est = CostEstimator()
-        dashboard_gen = DashboardGenerator()
-        frontend_gen = FrontendGenerator()
-
-        files.update(bicep_gen.generate(spec, plan))
-        files.update(cicd_gen.generate(spec))
-        files.update(app_gen.generate(spec))
-        files.update(frontend_gen.generate(spec))
-        files.update(docs_gen.generate(spec, plan, governance=gov_report, waf_report=waf_report))
-        files.update(test_gen.generate(spec))
-        files.update(alert_gen.generate(spec))
-        files.update(dashboard_gen.generate(spec))
-
-        # Cost estimate report
-        estimate = cost_est.estimate(spec, plan)
-        files["docs/cost-estimate.md"] = estimate.to_markdown()
+        # Run all generators in priority order via the uniform protocol
+        files = registry.run_all(spec, context)
 
         logger.info("infrastructure_generator.complete", file_count=len(files))
         return files

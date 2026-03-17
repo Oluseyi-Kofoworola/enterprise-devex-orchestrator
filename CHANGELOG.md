@@ -4,6 +4,19 @@ All notable changes to the Enterprise DevEx Orchestrator.
 
 ---
 
+## [1.6.0] - 2026-03-17
+
+### Added
+- **Generator Plugin Protocol** — Uniform `generate(spec, context)` interface for all 9 generators via `GeneratorProtocol` (Python `typing.Protocol`), `GeneratorAdapter`, `GeneratorRegistry`, and `GeneratorContext`. New file: `src/orchestrator/generators/protocol.py`.
+- **create_default_registry()** — Factory function that pre-loads all built-in generators with correct bridge functions. Adding a new generator requires one import + one `register()` call.
+- **25 new protocol tests** — `tests/test_protocol.py` covering context, protocol conformance, adapter bridges, registry operations, and integration with `InfrastructureGeneratorAgent`.
+
+### Changed
+- **InfrastructureGeneratorAgent** — Refactored from 9 hardcoded imports/instantiations/calls to a single `registry.run_all(spec, context)` call. Open-Closed Principle: no agent changes needed for new generators.
+- **generators/__init__.py** — Now exports `GeneratorProtocol`, `GeneratorContext`, `GeneratorRegistry`, `GeneratorAdapter`, `create_default_registry`.
+
+---
+
 ## [1.5.0] - 2026-03-15
 
 ### Fixed
