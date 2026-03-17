@@ -10,10 +10,18 @@ The orchestrator uses a **4-agent chain** architecture where each agent has a
 distinct role, instruction set, and tool access. The chain executes sequentially
 with a governance feedback loop between the reviewer and planner.
 
-```
-Intent -> [Intent Parser] -> [Architecture Planner] -> [Governance Reviewer] -> [Infrastructure Generator]
-                                      ^                       |
-                                      \-- feedback loop ------/
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#0078D4', 'primaryTextColor': '#fff', 'primaryBorderColor': '#005A9E', 'lineColor': '#555', 'fontFamily': 'Segoe UI'}}}%%
+flowchart LR
+    A["👤 Intent"]:::user --> B["🤖 Intent Parser"]:::agent
+    B --> C["🏗️ Architecture\nPlanner"]:::agent
+    C --> D["🔍 Governance\nReviewer"]:::reviewer
+    D -->|"Pass"| E["⚙️ Infrastructure\nGenerator"]:::agent
+    D -->|"Fail"| C
+
+    classDef user fill:#fff,stroke:#0078D4,color:#333,stroke-width:2px
+    classDef agent fill:#0078D4,stroke:#005A9E,color:#fff,stroke-width:2px
+    classDef reviewer fill:#FFB900,stroke:#D48C00,color:#333,stroke-width:2px
 ```
 
 ---

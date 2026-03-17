@@ -271,21 +271,60 @@ output-dir/
 
 The orchestrator doesn't just generate files -- it **reasons about your intent** through a 4-agent chain, each with distinct responsibilities, tools, and guardrails:
 
-```
-Business Intent
-    |
-    v
-[1. Intent Parser] ---- Semantic NLP: extracts entities, fields, endpoints from any domain
-    |
-    v
-[2. Architecture Planner] ---- Selects Azure services, writes ADRs, builds STRIDE threat model
-    |
-    v
-[3. Governance Reviewer] ---- Validates against 25 policies + 26 WAF principles
-    |                               |
-    |   <-- feedback loop --------- | (if FAIL: remediates and re-validates, max 2 iterations)
-    v
-[4. Infrastructure Generator] ---- 9 generators produce 60+ files: Bicep, CI/CD, app, frontend, tests, docs
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#0078D4', 'primaryTextColor': '#fff', 'primaryBorderColor': '#005A9E', 'lineColor': '#555', 'fontFamily': 'Segoe UI', 'fontSize': '13px'}}}%%
+flowchart TD
+    UI["👤 User Intent"]:::user
+    CLI["📋 CLI / DevEx Command"]:::cli
+    IP["🤖 Intent Parser Agent"]:::agent
+    AP["🏗️ Architecture Planner Agent"]:::agent
+    PO["Plan Output +\nADRs + Threat Model"]:::plan
+    GR["🔍 Governance Reviewer\n+ WAF Assessor"]:::reviewer
+    IG["⚙️ Infrastructure\nGenerator Agent"]:::generator
+    IS["📄 IntentSpec Schema"]:::schema
+    GS1["📦 Generated Scaffold"]:::scaffold
+    GS2["📦 Generated Scaffold"]:::scaffold
+
+    UI --> CLI --> IP --> AP
+    IP --> IS --> GS1
+    AP -.- PO
+    PO -->|"Pass"| IG
+    PO -->|"Fail"| GR
+    GR -->|"Feedback\nLoop"| AP
+    IG --> GS2
+
+    subgraph MCP["MCP Tool Servers"]
+        direction LR
+        AV["✅ Azure\nValidator"]:::tool
+        PE["⚖️ Policy\nEngine"]:::tool
+        TR["📝 Template\nRenderer"]:::tool
+    end
+
+    GS1 -..-> MCP
+    GS2 -..-> MCP
+
+    MCP --> IB["infra / bicep"]:::artifact
+    MCP --> GW[".github / workflows"]:::artifact
+    MCP --> SA["src / app"]:::artifact
+    MCP --> FE["frontend"]:::artifact
+    MCP --> DC["docs"]:::artifact
+    MCP --> TS["tests"]:::artifact
+
+    classDef user fill:#fff,stroke:#0078D4,color:#333,stroke-width:2px
+    classDef cli fill:#0078D4,stroke:#005A9E,color:#fff,stroke-width:2px
+    classDef agent fill:#0078D4,stroke:#005A9E,color:#fff,stroke-width:2px
+    classDef plan fill:#263238,stroke:#37474F,color:#fff,stroke-width:2px
+    classDef reviewer fill:#0078D4,stroke:#005A9E,color:#fff,stroke-width:2px
+    classDef generator fill:#0078D4,stroke:#005A9E,color:#fff,stroke-width:2px
+    classDef schema fill:#E8F4FD,stroke:#0078D4,color:#333,stroke-width:2px
+    classDef scaffold fill:#546E7A,stroke:#37474F,color:#fff,stroke-width:2px
+    classDef tool fill:#FFB900,stroke:#D48C00,color:#333,stroke-width:2px
+    classDef artifact fill:#fff,stroke:#0078D4,color:#333,stroke-width:1px
+
+    style MCP fill:none,stroke:#999,stroke-width:2px,stroke-dasharray: 5 5,color:#333
+
+    linkStyle 4 stroke:#107C10,stroke-width:2px
+    linkStyle 5 stroke:#D13438,stroke-width:2px
 ```
 
 **No scaffold ships without passing governance.** If the reviewer finds violations, the planner automatically remediates -- up to 2 iterations -- before code is generated.

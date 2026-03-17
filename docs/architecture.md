@@ -8,116 +8,152 @@
 ## High-Level Flow
 
 ```mermaid
-graph TD
-    A[User Intent] --> B[CLI / devex command]
-    B --> C[Intent Parser Agent]
-    C --> D[IntentSpec Schema]
-    D --> E[Architecture Planner Agent]
-    E --> F[PlanOutput + ADRs + Threat Model]
-    F --> G[Governance Reviewer Agent]
-    G -->|PASS| H[Infrastructure Generator Agent]
-    G -->|FAIL| E
-    H --> I[Generated Scaffold]
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#0078D4', 'primaryTextColor': '#fff', 'primaryBorderColor': '#005A9E', 'lineColor': '#555', 'fontFamily': 'Segoe UI', 'fontSize': '13px'}}}%%
+flowchart TD
+    UI["👤 User Intent"]:::user
+    CLI["📋 CLI / DevEx Command"]:::cli
+    IP["🤖 Intent Parser Agent"]:::agent
+    AP["🏗️ Architecture Planner Agent"]:::agent
+    PO["Plan Output +\nADRs + Threat Model"]:::plan
+    GR["🔍 Governance Reviewer\n+ WAF Assessor"]:::reviewer
+    IG["⚙️ Infrastructure\nGenerator Agent"]:::generator
+    IS["📄 IntentSpec Schema"]:::schema
+    GS1["📦 Generated Scaffold"]:::scaffold
+    GS2["📦 Generated Scaffold"]:::scaffold
 
-    I --> J[infra/bicep/]
-    I --> K[.github/workflows/]
-    I --> L[src/app/]
-    I --> L2[frontend/]
-    I --> M[docs/]
-    I --> N[tests/]
+    UI --> CLI --> IP --> AP
+    IP --> IS --> GS1
+    AP -.- PO
+    PO -->|"Pass"| IG
+    PO -->|"Fail"| GR
+    GR -->|"Feedback\nLoop"| AP
+    IG --> GS2
 
-    subgraph "MCP Tool Servers"
-        T1[azure-validator]
-        T2[policy-engine]
-        T3[template-renderer]
+    subgraph MCP["MCP Tool Servers"]
+        direction LR
+        AV["✅ Azure\nValidator"]:::tool
+        PE["⚖️ Policy\nEngine"]:::tool
+        TR["📝 Template\nRenderer"]:::tool
     end
 
-    E -.-> T1
-    E -.-> T2
-    G -.-> T2
-    H -.-> T3
+    GS1 -..-> MCP
+    GS2 -..-> MCP
+
+    MCP --> IB["infra / bicep"]:::artifact
+    MCP --> GW[".github / workflows"]:::artifact
+    MCP --> SA["src / app"]:::artifact
+    MCP --> FE["frontend"]:::artifact
+    MCP --> DC["docs"]:::artifact
+    MCP --> TS["tests"]:::artifact
+
+    classDef user fill:#fff,stroke:#0078D4,color:#333,stroke-width:2px
+    classDef cli fill:#0078D4,stroke:#005A9E,color:#fff,stroke-width:2px
+    classDef agent fill:#0078D4,stroke:#005A9E,color:#fff,stroke-width:2px
+    classDef plan fill:#263238,stroke:#37474F,color:#fff,stroke-width:2px
+    classDef reviewer fill:#0078D4,stroke:#005A9E,color:#fff,stroke-width:2px
+    classDef generator fill:#0078D4,stroke:#005A9E,color:#fff,stroke-width:2px
+    classDef schema fill:#E8F4FD,stroke:#0078D4,color:#333,stroke-width:2px
+    classDef scaffold fill:#546E7A,stroke:#37474F,color:#fff,stroke-width:2px
+    classDef tool fill:#FFB900,stroke:#D48C00,color:#333,stroke-width:2px
+    classDef artifact fill:#fff,stroke:#0078D4,color:#333,stroke-width:1px
+
+    style MCP fill:none,stroke:#999,stroke-width:2px,stroke-dasharray: 5 5,color:#333
+
+    linkStyle 4 stroke:#107C10,stroke-width:2px
+    linkStyle 5 stroke:#D13438,stroke-width:2px
 ```
 
 ## Component Architecture
 
 ```mermaid
-graph LR
-    subgraph "Orchestrator Agent"
-        CLI[CLI Entrypoint<br>8 commands]
-        RT[Agent Runtime]
-        IP[Intent Parser]
-        AP[Architecture Planner]
-        GR[Governance Reviewer<br>+ WAF Assessor]
-        IG[Infrastructure Generator]
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#0078D4', 'primaryTextColor': '#fff', 'primaryBorderColor': '#005A9E', 'lineColor': '#555', 'fontFamily': 'Segoe UI', 'fontSize': '12px'}}}%%
+flowchart TD
+    subgraph ORCH["Orchestrator Agent"]
+        direction TB
+        O1["📋 CLI Entrypoint\n10 commands"]:::agent
+        O2["🔄 Agent Runtime"]:::agent
+        O3["🤖 Intent Parser"]:::agent
+        O4["🏗️ Architecture Planner"]:::agent
+        O5["🔍 Governance Reviewer\n+ WAF Assessor"]:::agent
+        O6["⚙️ Infrastructure Generator"]:::agent
     end
 
-    subgraph "Generators (9 + Plugin Protocol)"
-        BG[Bicep Generator<br>7 modules]
-        CG[CI/CD Generator<br>4 workflows<br>Language-aware]
-        AG[App Generator<br>Entity-Driven Backend<br>Domain-Aware Seed Data]
-        FG[Frontend Generator<br>React + Vite + TypeScript<br>Local Tailwind CSS]
-        DG[Docs Generator<br>7 doc files]
-        TG[Test Generator<br>RouteManifest-Driven<br>Entity CRUD Tests]
-        ALG[Alert Generator<br>Bicep alerts + runbook]
-        CSG[Cost Estimator<br>DeploymentProfile-Aware]
-        DSG[Dashboard Generator]
+    subgraph GENS["Generators · 9 + Plugin Protocol"]
+        direction TB
+        G1["🔧 Bicep Generator\n7 modules"]:::gen
+        G2["🔄 CI/CD Generator\n4 workflows, Language-aware"]:::gen
+        G3["📦 App Generator\nEntity-Driven Backend\nDomain-Aware Seed Data"]:::gen
+        G4["🖥️ Frontend Generator\nReact + Vite + TypeScript\nLocal Tailwind CSS"]:::gen
+        G5["📄 Docs Generator\n7 doc files"]:::gen
+        G6["🧪 Test Generator\nRouteManifest-Driven\nEntity CRUD Tests"]:::gen
+        G7["🔔 Alert Generator\nBicep alerts + runbook"]:::gen
+        G8["💰 Cost Estimator\nDeploymentProfile-Aware"]:::gen
+        G9["📊 Dashboard Generator"]:::gen
     end
 
-    subgraph "Enterprise Standards"
-        NE[Naming Engine<br>22 types, 34 regions]
-        TE[Tagging Engine<br>7 required + 5 optional]
-        SC[Standards Config<br>standards.yaml]
-        SM[State Manager<br>Drift Detection]
-        DC[Domain Context<br>12 Industries]
-        DP[Deployment Profile<br>4 Workload Tiers]
-        RM[Route Manifest<br>Canonical Routes]
-        SV[Scaffold Validator<br>5 Consistency Checks]
-        DS[Design System<br>10 Industry Presets]
+    subgraph STD["Enterprise Standards"]
+        direction TB
+        S1["📛 Naming Engine\n22 types, 34 regions"]:::std
+        S2["🏷️ Tagging Engine\n7 required + 5 optional"]:::std
+        S3["📋 Standards Config\nstandards.yaml"]:::std
+        S4["🔍 State Manager\nDrift Detection"]:::std
+        S5["🌐 Domain Context\n12 Industries"]:::std
+        S6["📏 Deployment Profile\n4 Workload Tiers"]:::std
+        S7["🗺️ Route Manifest\nCanonical Routes"]:::std
+        S8["✅ Scaffold Validator\n5 Consistency Checks"]:::std
+        S9["🎨 Design System\n10 Industry Presets"]:::std
     end
 
-    subgraph "Advanced Patterns"
-        SK[Skills Registry<br>9 skills, 12 categories]
-        SD[Subagent Dispatcher<br>6 subagents, parallel fan-out]
-        PP[Persistent Planner<br>13-task DAG]
-        PG[Prompt Generator<br>Repo-aware prompts]
-        DO[Deploy Orchestrator<br>4-stage deployment]
+    subgraph ADV["Advanced Patterns"]
+        direction TB
+        A1["🧩 Skills Registry\n9 skills, 12 categories"]:::adv
+        A2["🔀 Subagent Dispatcher\n6 subagents, parallel fan-out"]:::adv
+        A3["📋 Persistent Planner\n13-task DAG"]:::adv
+        A4["💡 Prompt Generator\nRepo-aware prompts"]:::adv
+        A5["🚀 Deploy Orchestrator\n4-Stage Deployment"]:::adv
     end
 
-    subgraph "MCP Tools (9)"
-        AV[validate_bicep]
-        VD[validate_deployment]
-        RA[check_region_availability]
-        CP[check_policy]
-        LP[list_policies]
-        EP[explain_policy]
-        RT2[render_template]
-        LT[list_templates]
-        PO[preview_output]
+    subgraph TOOLS["MCP Tools · 9"]
+        direction TB
+        T1["✓ validate_bicep"]:::tool
+        T2["✓ validate_deployment"]:::tool
+        T3["✓ check_region_availability"]:::tool
+        T4["✓ check_policy"]:::tool
+        T5["✓ list_policies"]:::tool
+        T6["✓ explain_policy"]:::tool
+        T7["✓ render_template"]:::tool
+        T8["✓ list_templates"]:::tool
+        T9["✓ preview_output"]:::tool
     end
 
-    subgraph "Azure Resources"
-        CA[Container Apps]
-        KV[Key Vault]
-        LA[Log Analytics]
-        MI[Managed Identity]
-        ACR[Container Registry]
+    subgraph AZ["Azure Resources"]
+        direction TB
+        R1["📦 Container Apps"]:::azure
+        R2["🔐 Key Vault"]:::azure
+        R3["📊 Log Analytics"]:::azure
+        R4["🔑 Managed Identity"]:::azure
+        R5["🗄️ Container Registry"]:::azure
     end
 
-    CLI --> RT
-    RT --> IP --> AP --> GR --> IG
+    ORCH --> GENS
+    GENS --> STD
+    ORCH --> ADV
+    ADV --> TOOLS
+    GENS --> AZ
 
-    IG --> BG & CG & AG & FG & DG & TG & ALG & CSG & DSG
+    classDef agent fill:#0078D4,stroke:#005A9E,color:#fff,stroke-width:1px
+    classDef gen fill:#E8F5E9,stroke:#107C10,color:#333,stroke-width:1px
+    classDef std fill:#FFF3E0,stroke:#D48C00,color:#333,stroke-width:1px
+    classDef adv fill:#F3E5F5,stroke:#7B1FA2,color:#333,stroke-width:1px
+    classDef tool fill:#F5F5F5,stroke:#616161,color:#333,stroke-width:1px
+    classDef azure fill:#0078D4,stroke:#005A9E,color:#fff,stroke-width:1px
 
-    SC --> NE & TE
-    BG --> NE & TE
-    BG --> CA & KV & LA & MI & ACR
-
-    AP --> AV & CP
-    GR --> CP & LP
-    IG --> RT2
-
-    RT --> SK & SD & PP
-    RT --> PG & DO
+    style ORCH fill:#E8F4FD,stroke:#0078D4,stroke-width:3px,color:#0078D4
+    style GENS fill:#E8F5E9,stroke:#107C10,stroke-width:3px,color:#107C10
+    style STD fill:#FFF3E0,stroke:#D48C00,stroke-width:3px,color:#D48C00
+    style ADV fill:#F3E5F5,stroke:#7B1FA2,stroke-width:3px,color:#7B1FA2
+    style TOOLS fill:#F5F5F5,stroke:#616161,stroke-width:3px,color:#333
+    style AZ fill:#E8F4FD,stroke:#0078D4,stroke-width:3px,color:#0078D4
 ```
 
 ## Data Flow
@@ -134,39 +170,52 @@ graph LR
 ## Security Architecture
 
 ```mermaid
-graph TD
-    subgraph "Identity & Access"
-        MI[Managed Identity<br>project-env-id]
-        RBAC[RBAC Assignments]
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#0078D4', 'primaryTextColor': '#fff', 'primaryBorderColor': '#005A9E', 'lineColor': '#555', 'fontFamily': 'Segoe UI', 'fontSize': '13px'}}}%%
+flowchart TD
+    subgraph IAM["🔑 Identity & Access"]
+        MI["Managed Identity\nproject-env-id"]:::azure
+        RBAC["RBAC Assignments"]:::azure
     end
 
-    subgraph "Secrets Management"
-        KV[Key Vault<br>projectenvkv]
+    subgraph SEC["🔐 Secrets Management"]
+        KV["Key Vault\nprojectenvkv\nSoft-delete · Purge Protection"]:::keyvault
     end
 
-    subgraph "Compute"
-        CA[Container App<br>project-env]
-        ACR[Container Registry<br>projectenvacr]
+    subgraph COMP["📦 Compute"]
+        CA["Container App\nproject-env\nNon-root · Read-only FS"]:::azure
+        ACR["Container Registry\nprojectenvacr\nPremium · No Admin"]:::azure
     end
 
-    subgraph "Observability"
-        LA[Log Analytics<br>project-env-law]
+    subgraph OBS["📊 Observability"]
+        LA["Log Analytics\nproject-env-law"]:::azure
     end
 
-    subgraph "CI/CD"
-        GH[GitHub Actions]
-        OIDC[OIDC Federation]
+    subgraph CICD["🔄 CI/CD Security"]
+        GH["GitHub Actions"]:::cicd
+        OIDC["OIDC Federation\nZero Stored Credentials"]:::cicd
+        ENTRA["Microsoft Entra ID"]:::entra
     end
 
-    MI -->|Key Vault Secrets User| KV
-    MI -->|AcrPull| ACR
-    CA -->|Uses| MI
-    CA -->|Reads secrets via| KV
-    CA -->|Sends logs to| LA
-    KV -->|Diagnostics to| LA
-    ACR -->|Diagnostics to| LA
-    GH -->|OIDC token| OIDC
-    OIDC -->|Federated auth| Entra[Microsoft Entra ID]
+    MI -->|"Key Vault\nSecrets User"| KV
+    MI -->|"AcrPull"| ACR
+    CA -->|"Uses"| MI
+    CA -->|"Reads secrets"| KV
+    CA -->|"Sends logs"| LA
+    KV -->|"Diagnostics"| LA
+    ACR -->|"Diagnostics"| LA
+    GH -->|"OIDC token"| OIDC
+    OIDC -->|"Federated auth"| ENTRA
+
+    classDef azure fill:#0078D4,stroke:#005A9E,color:#fff,stroke-width:2px
+    classDef keyvault fill:#FFB900,stroke:#D48C00,color:#333,stroke-width:2px
+    classDef cicd fill:#50E6FF,stroke:#0078D4,color:#333,stroke-width:2px
+    classDef entra fill:#0078D4,stroke:#005A9E,color:#fff,stroke-width:2px
+
+    style IAM fill:#E8F4FD,stroke:#0078D4,stroke-width:3px,color:#0078D4
+    style SEC fill:#FFF3E0,stroke:#FFB900,stroke-width:3px,color:#D48C00
+    style COMP fill:#E8F4FD,stroke:#0078D4,stroke-width:3px,color:#0078D4
+    style OBS fill:#E8F4FD,stroke:#0078D4,stroke-width:3px,color:#0078D4
+    style CICD fill:#E0F7FA,stroke:#50E6FF,stroke-width:3px,color:#0078D4
 ```
 
 ## Design Principles
@@ -196,24 +245,41 @@ graph TD
 The orchestrator supports multiple LLM backends with **GitHub Copilot SDK as the default**:
 
 ```mermaid
-graph TD
-    subgraph "LLM Provider Layer"
-        CFG[LLMConfig<br>Auto-detect + Copilot SDK default]
-        CL[LLM Client Factory]
-        
-        CS[GitHub Copilot SDK<br>DEFAULT]
-        AO[Azure OpenAI]
-        OA[OpenAI]
-        AN[Anthropic / Claude]
-        TO[Template-Only<br>No LLM]
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#0078D4', 'primaryTextColor': '#fff', 'primaryBorderColor': '#005A9E', 'lineColor': '#6BA4D9', 'fontFamily': 'Segoe UI', 'fontSize': '13px'}}}%%
+flowchart TD
+    subgraph LAYER["LLM Provider Layer"]
+        direction TB
+        subgraph CFG_BOX[" "]
+            CFG["⚙️ LLMConfig\nAuto-detect  +  Copilot SDK default"]:::config
+        end
+
+        CLIENT["🏭 LLM Client Factory"]:::factory
+
+        CFG_BOX --> CLIENT
+
+        CLIENT --> CS
+        CLIENT --> AO
+        CLIENT --> OA
+        CLIENT --> AN
+        CLIENT --> TO
     end
 
-    CFG --> CL
-    CL --> CS
-    CL --> AO
-    CL --> OA
-    CL --> AN
-    CL --> TO
+    CS["🐙 GitHub Copilot SDK\n— DEFAULT —"]:::copilot
+    AO["Ⓐ Azure OpenAI\ngpt-4o"]:::azure_provider
+    OA["◎ OpenAI\ngpt-4o"]:::openai_provider
+    AN["Ⓐ Anthropic / Claude\nclaude-opus-4-20250514"]:::anthropic_provider
+    TO["⊘ Template-Only\nNo LLM"]:::template_provider
+
+    classDef config fill:#E8F4FD,stroke:#B3D4ED,color:#333,stroke-width:2px
+    classDef factory fill:#D6E4F0,stroke:#0078D4,color:#333,stroke-width:2px
+    classDef copilot fill:#E8F4FD,stroke:#0078D4,color:#333,stroke-width:2px
+    classDef azure_provider fill:#E8F4FD,stroke:#0078D4,color:#333,stroke-width:2px
+    classDef openai_provider fill:#E8F4FD,stroke:#0078D4,color:#333,stroke-width:2px
+    classDef anthropic_provider fill:#E8F4FD,stroke:#0078D4,color:#333,stroke-width:2px
+    classDef template_provider fill:#F5F5F5,stroke:#999,color:#333,stroke-width:2px
+
+    style LAYER fill:#F0F6FC,stroke:#0078D4,stroke-width:3px,color:#0078D4
+    style CFG_BOX fill:#E8F4FD,stroke:#B3D4ED,stroke-width:2px,color:#333
 ```
 
 | Provider | Default Model | Auto-Detect Env Var | Priority |
