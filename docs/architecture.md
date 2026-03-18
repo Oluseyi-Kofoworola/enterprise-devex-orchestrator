@@ -65,98 +65,88 @@ flowchart TD
 
 ## Component Architecture
 
-### Orchestrator Agent & Generators
+### Core Pipeline
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#0078D4', 'primaryTextColor': '#fff', 'primaryBorderColor': '#005A9E', 'lineColor': '#555', 'fontFamily': 'Segoe UI', 'fontSize': '14px'}}}%%
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#0078D4', 'primaryTextColor': '#fff', 'primaryBorderColor': '#005A9E', 'lineColor': '#555', 'fontFamily': 'Segoe UI', 'fontSize': '18px'}}}%%
 flowchart LR
     subgraph ORCH["🔷 Orchestrator Agent"]
-        direction TB
-        O1["📋 CLI Entrypoint · 10 commands"]:::agent
-        O2["🔄 Agent Runtime"]:::agent
-        O3["🤖 Intent Parser"]:::agent
-        O4["🏗️ Architecture Planner"]:::agent
-        O5["🔍 Governance Reviewer + WAF"]:::agent
-        O6["⚙️ Infrastructure Generator"]:::agent
-        O1 --- O2 --- O3 --- O4 --- O5 --- O6
+        O1["📋 CLI · 10 commands"]:::agent
+        O2["🤖 Intent Parser"]:::agent
+        O3["🏗️ Architecture Planner"]:::agent
+        O4["🔍 Governance Reviewer + WAF"]:::agent
+        O5["⚙️ Infrastructure Generator"]:::agent
     end
 
-    subgraph GENS["🟩 Generators · 9 + Plugin Protocol"]
-        direction TB
-        G1["🔧 Bicep · 7 modules"]:::gen
-        G2["🔄 CI/CD · 4 workflows"]:::gen
-        G3["📦 App · Entity-Driven"]:::gen
-        G4["🖥️ Frontend · React+Vite+TS"]:::gen
-        G5["📄 Docs · 7 files"]:::gen
-        G6["🧪 Tests · RouteManifest"]:::gen
-        G7["🔔 Alerts · Bicep+Runbook"]:::gen
-        G8["💰 Cost Estimator"]:::gen
+    subgraph GENS["🟩 9 Generators"]
+        G1["🔧 Bicep"]:::gen
+        G2["🔄 CI/CD"]:::gen
+        G3["📦 App"]:::gen
+        G4["🖥️ Frontend"]:::gen
+        G5["📄 Docs"]:::gen
+        G6["🧪 Tests"]:::gen
+        G7["🔔 Alerts"]:::gen
+        G8["💰 Cost"]:::gen
         G9["📊 Dashboard"]:::gen
     end
 
-    O6 ==> GENS
+    ORCH ==>|"Plugin Protocol"| GENS
 
     classDef agent fill:#0078D4,stroke:#005A9E,color:#fff,stroke-width:2px
     classDef gen fill:#E8F5E9,stroke:#107C10,color:#333,stroke-width:2px
-
     style ORCH fill:#E8F4FD,stroke:#0078D4,stroke-width:3px,color:#0078D4
     style GENS fill:#E8F5E9,stroke:#107C10,stroke-width:3px,color:#107C10
 ```
 
-### Enterprise Standards & Advanced Patterns
+### Standards, Patterns & Tools
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#0078D4', 'primaryTextColor': '#fff', 'primaryBorderColor': '#005A9E', 'lineColor': '#555', 'fontFamily': 'Segoe UI', 'fontSize': '14px'}}}%%
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#0078D4', 'primaryTextColor': '#fff', 'primaryBorderColor': '#005A9E', 'lineColor': '#555', 'fontFamily': 'Segoe UI', 'fontSize': '18px'}}}%%
 flowchart LR
     subgraph STD["🟧 Enterprise Standards"]
-        direction TB
-        S1["📛 Naming Engine · 22 types, 34 regions"]:::std
-        S2["🏷️ Tagging Engine · 7 required + 5 optional"]:::std
-        S3["📋 Standards Config · standards.yaml"]:::std
-        S4["🔍 State Manager · Drift Detection"]:::std
-        S5["🌐 Domain Context · 12 Industries"]:::std
-        S6["📏 Deployment Profile · 4 Tiers"]:::std
-        S7["🗺️ Route Manifest · Canonical Routes"]:::std
-        S8["✅ Scaffold Validator · 5 Checks"]:::std
-        S9["🎨 Design System · 10 Presets"]:::std
+        S1["📛 Naming"]:::std
+        S2["🏷️ Tagging"]:::std
+        S3["🌐 Domain Context"]:::std
+        S4["📏 Deploy Profile"]:::std
+        S5["🗺️ Route Manifest"]:::std
+        S6["🎨 Design System"]:::std
+        S7["✅ Scaffold Validator"]:::std
     end
 
     subgraph ADV["🟪 Advanced Patterns"]
-        direction TB
-        A1["🧩 Skills Registry · 9 skills, 12 categories"]:::adv
-        A2["🔀 Subagent Dispatcher · parallel fan-out"]:::adv
-        A3["📋 Persistent Planner · 13-task DAG"]:::adv
-        A4["💡 Prompt Generator · repo-aware"]:::adv
-        A5["🚀 Deploy Orchestrator · 4 stages"]:::adv
+        A1["🧩 Skills Registry"]:::adv
+        A2["🔀 Subagent Dispatcher"]:::adv
+        A3["📋 Persistent Planner"]:::adv
+        A4["💡 Prompt Generator"]:::adv
+        A5["🚀 Deploy Orchestrator"]:::adv
     end
+
+    subgraph TOOLS["⬛ 9 MCP Tools"]
+        T1["validate_bicep"]:::tool
+        T2["check_policy"]:::tool
+        T3["check_region"]:::tool
+        T4["render_template"]:::tool
+        T5["preview_output"]:::tool
+    end
+
+    ADV ==> TOOLS
 
     classDef std fill:#FFF3E0,stroke:#D48C00,color:#333,stroke-width:2px
     classDef adv fill:#F3E5F5,stroke:#7B1FA2,color:#333,stroke-width:2px
-
+    classDef tool fill:#F5F5F5,stroke:#616161,color:#333,stroke-width:2px
     style STD fill:#FFF3E0,stroke:#D48C00,stroke-width:3px,color:#D48C00
     style ADV fill:#F3E5F5,stroke:#7B1FA2,stroke-width:3px,color:#7B1FA2
+    style TOOLS fill:#F5F5F5,stroke:#616161,stroke-width:3px,color:#333
 ```
 
-### MCP Tools & Azure Resources
+### Azure Target Resources
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#0078D4', 'primaryTextColor': '#fff', 'primaryBorderColor': '#005A9E', 'lineColor': '#555', 'fontFamily': 'Segoe UI', 'fontSize': '14px'}}}%%
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#0078D4', 'primaryTextColor': '#fff', 'primaryBorderColor': '#005A9E', 'lineColor': '#555', 'fontFamily': 'Segoe UI', 'fontSize': '18px'}}}%%
 flowchart LR
-    subgraph TOOLS["⬛ MCP Tools · 9"]
-        direction TB
-        T1["✓ validate_bicep"]:::tool
-        T2["✓ validate_deployment"]:::tool
-        T3["✓ check_region_availability"]:::tool
-        T4["✓ check_policy"]:::tool
-        T5["✓ list_policies"]:::tool
-        T6["✓ explain_policy"]:::tool
-        T7["✓ render_template"]:::tool
-        T8["✓ list_templates"]:::tool
-        T9["✓ preview_output"]:::tool
-    end
+    GEN["⚙️ Generators"]:::gen ==> AZ
 
     subgraph AZ["🔷 Azure Resources"]
-        direction TB
         R1["📦 Container Apps"]:::azure
         R2["🔐 Key Vault"]:::azure
         R3["📊 Log Analytics"]:::azure
@@ -164,12 +154,8 @@ flowchart LR
         R5["🗄️ Container Registry"]:::azure
     end
 
-    TOOLS ==> AZ
-
-    classDef tool fill:#F5F5F5,stroke:#616161,color:#333,stroke-width:2px
+    classDef gen fill:#E8F5E9,stroke:#107C10,color:#333,stroke-width:2px
     classDef azure fill:#0078D4,stroke:#005A9E,color:#fff,stroke-width:2px
-
-    style TOOLS fill:#F5F5F5,stroke:#616161,stroke-width:3px,color:#333
     style AZ fill:#E8F4FD,stroke:#0078D4,stroke-width:3px,color:#0078D4
 ```
 
