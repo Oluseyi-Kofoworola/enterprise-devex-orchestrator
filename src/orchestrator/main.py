@@ -1,0 +1,1896 @@
+"""Enterprise DevEx Orchestrator -- CLI Entrypoint.
+
+Usage:
+    devex init                          # Create intent.md template
+    devex scaffold --file intent.md     # Generate from intent file
+    devex scaffold "Build a secure ..." # Generate from inline intent
+    devex upgrade --file intent.v2.md   # Safe versioned upgrade
+    devex validate --path ./out
+    devex history ./out                 # Show version history
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import sys
+import time
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+# Ensure UTF-8 output on Windows to prevent UnicodeEncodeError with Rich
+# spinner characters (Braille patterns) on legacy cp1252 consoles.
+if sys.platform == "win32" and hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
+import click
+from rich.console import Console
+from rich.panel import Panel
+from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.table import Table
+
+from src.orchestrator.agents.architecture_planner import ArchitecturePlannerAgent
+from src.orchestrator.agents.governance_reviewer import GovernanceReviewerAgent
+from src.orchestrator.agents.infra_generator import InfrastructureGeneratorAgent
+from src.orchestrator.agents.intent_parser import IntentParserAgent
+from src.orchestrator.config import AppConfig, get_config, __version__, SUPPORTED_PROVIDERS, SUPPORTED_MODELS, PROVIDER_DISPLAY_NAMES
+from src.orchestrator.intent_file import IntentFileParser, generate_intent_template, generate_upgrade_template
+from src.orchestrator.intent_schema import GovernanceReport, IntentSpec, PlanOutput
+from src.orchestrator.logging import get_logger, setup_logging
+from src.orchestrator.planning import PersistentPlanner
+from src.orchestrator.prompts.generator import PromptGenerator
+from src.orchestrator.skills.registry import create_default_registry
+from src.orchestrator.standards.waf import WAFAlignmentReport
+from src.orchestrator.state import StateManager
+from src.orchestrator.versioning import VersionManager
+
+if TYPE_CHECKING:
+    from src.orchestrator.intent_file import IntentFileResult
+
+console = Console()
+logger = get_logger(__name__)
+
+
+def _banner() -> None:
+    """Print startup banner."""
+    console.print(
+        Panel.fit(
+            "[bold cyan]Enterprise DevEx Orchestrator Agent[/]\n[dim]Powered by GitHub Copilot SDK[/]",
+            border_style="cyan",
+        )
+    )
+
+
+def _load_config() -> AppConfig:
+    """Load configuration from environment."""
+    try:
+        return get_config()
+    except Exception as exc:
+        console.print(f"[red]Configuration error:[/] {exc}")
+        console.print("[dim]Ensure .env is configured. See .env.example[/]")
+        sys.exit(1)
+
+
+def _run_pipeline(
+    intent: str,
+    config: AppConfig,
+    output_dir: Path | None = None,
+    plan_only: bool = False,
+    parsed_file: "IntentFileResult | None" = None,
+    tier: str = "standard",
+    standards_path: Path | None = None,
+    fast: bool = False,
+    seed_record_count: int | None = None,
+) -> tuple[IntentSpec, PlanOutput, GovernanceReport, WAFAlignmentReport]:
+    """Execute the full agent pipeline."""
+    # Fast mode: force template-only to skip LLM calls (~4s vs ~30s)
+    if fast:
+        from dataclasses import fields as _fields
+        from src.orchestrator.config import LLMConfig
+        fast_llm = LLMConfig(provider="template-only", model="none")
+        config = AppConfig(
+            azure=config.azure, copilot=config.copilot, llm=fast_llm,
+            log_level=config.log_level, log_format=config.log_format,
+            output_base=config.output_base,
+        )
+    setup_logging(level=config.log_level)
+
+    # -- Initialize advanced subsystems ------------------------------
+    # Prompt Generator: scan codebase for context-aware prompts
+    prompt_gen = PromptGenerator()
+    if output_dir and output_dir.exists():
+        try:
+            prompt_gen.scan(output_dir)
+            logger.info(
+                "pipeline.codebase_scanned", files=prompt_gen.scan_result.total_files if prompt_gen.scan_result else 0
+            )
+        except Exception:
+            logger.debug("pipeline.codebase_scan_skipped")
+
+    # Skills Registry: pluggable capability routing
+    skill_registry = create_default_registry()
+    logger.info("pipeline.skills_loaded", count=len(skill_registry.list_skills()))
+
+    # Persistent Planner: resumable checkpointed execution
+    planner_mgr: PersistentPlanner | None = None
+    if output_dir:
+        planner_mgr = PersistentPlanner(output_dir)
+        plan_state = planner_mgr.create_pipeline_plan(intent, project_name="")
+        logger.info("pipeline.plan_created", tasks=len(plan_state.tasks), progress=f"{plan_state.progress_pct:.0f}%")
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console,
+    ) as progress:
+        # Phase 1: Parse Intent
+        task = progress.add_task("[cyan]Parsing business intent...", total=None)
+        parser = IntentParserAgent(config)
+        spec = parser.parse(intent)
+
+        # Apply structured overrides from intent file (if parsed from .md)
+        if parsed_file:
+            spec = _apply_file_overrides(spec, parsed_file)
+
+        # Apply pipeline tier from CLI
+        from src.orchestrator.intent_schema import PipelineTier
+        tier_map = {"micro": PipelineTier.MICRO, "standard": PipelineTier.STANDARD, "enterprise": PipelineTier.ENTERPRISE}
+        if tier in tier_map and spec.pipeline_tier != tier_map[tier]:
+            data = spec.model_dump()
+            data["pipeline_tier"] = tier_map[tier]
+            data["resource_group_name"] = ""
+            spec = IntentSpec(**data)
+
+        # Apply seed record count override from CLI (highest priority)
+        if seed_record_count is not None and spec.seed_record_count != seed_record_count:
+            data = spec.model_dump()
+            data["seed_record_count"] = seed_record_count
+            data["resource_group_name"] = ""
+            spec = IntentSpec(**data)
+
+        if planner_mgr:
+            planner_mgr.execute_task("parse-intent", handler=lambda: {"summary": f"Parsed: {spec.project_name}"})
+        progress.update(task, completed=True, description="[green][ok] Intent parsed")
+
+        _show_intent_summary(spec)
+
+        # Phase 2: Architecture Planning
+        task = progress.add_task("[cyan]Planning architecture...", total=None)
+        planner = ArchitecturePlannerAgent(config)
+        plan = planner.plan(spec)
+        if planner_mgr:
+            planner_mgr.execute_task(
+                "plan-architecture", handler=lambda: {"summary": f"{len(plan.components)} components"}
+            )
+        progress.update(task, completed=True, description="[green][ok] Architecture planned")
+
+        _show_plan_summary(plan)
+
+        # Phase 3: Governance Review
+        task = progress.add_task("[cyan]Validating governance...", total=None)
+        reviewer = GovernanceReviewerAgent(config)
+        gov_report = reviewer.validate_plan(spec, plan)
+        if planner_mgr:
+            planner_mgr.execute_task("validate-governance", handler=lambda: {"summary": gov_report.status})
+        progress.update(task, completed=True, description="[green][ok] Governance validated")
+
+        _show_governance_summary(gov_report)
+
+        # Phase 3b: WAF Assessment
+        task = progress.add_task("[cyan]Assessing WAF alignment...", total=None)
+        waf_report = reviewer.assess_waf(spec, plan, gov_report)
+        if planner_mgr:
+            planner_mgr.execute_task(
+                "assess-waf", handler=lambda: {"summary": f"{waf_report.coverage_pct:.0f}% coverage"}
+            )
+        progress.update(
+            task,
+            completed=True,
+            description=f"[green][ok] WAF assessed ({waf_report.coverage_pct:.0f}% coverage)",
+        )
+
+        _show_waf_summary(waf_report)
+
+        # Phase 4: Generate Infrastructure (if not plan-only)
+        if not plan_only and output_dir:
+            task = progress.add_task("[cyan]Generating infrastructure...", total=None)
+            generator = InfrastructureGeneratorAgent(config, standards_path=standards_path)
+            files = generator.generate(spec, plan, gov_report, waf_report)
+
+            # Checkpoint generation tasks
+            if planner_mgr:
+                for task_id in (
+                    "generate-bicep",
+                    "generate-cicd",
+                    "generate-app",
+                    "generate-tests",
+                    "generate-alerts",
+                    "generate-docs",
+                ):
+                    planner_mgr.execute_task(task_id, handler=lambda: {"summary": "generated"})
+
+            # Write .devex metadata so `validate` can re-load later
+            meta_dir = output_dir / ".devex"
+            meta_dir.mkdir(parents=True, exist_ok=True)
+            (meta_dir / "spec.json").write_text(spec.model_dump_json(indent=2), encoding="utf-8")
+            (meta_dir / "plan.json").write_text(plan.model_dump_json(indent=2), encoding="utf-8")
+            (meta_dir / "governance.json").write_text(gov_report.model_dump_json(indent=2), encoding="utf-8")
+
+            # Write files to disk
+            written = _write_files(files, output_dir)
+
+            # Record generation state for drift detection
+            state_mgr = StateManager(output_dir)
+            state_mgr.record_generation(
+                intent=intent,
+                project_name=spec.project_name,
+                environment=spec.environment or "dev",
+                region=spec.azure_region or config.azure.location,
+                governance_status=gov_report.status,
+                files=files,
+            )
+
+            progress.update(
+                task,
+                completed=True,
+                description=f"[green][ok] Generated {written} files",
+            )
+
+            _show_file_tree(output_dir)
+
+    return spec, plan, gov_report, waf_report
+
+
+def _show_intent_summary(spec: IntentSpec) -> None:
+    """Display parsed intent summary."""
+    table = Table(title="Parsed Intent", border_style="cyan")
+    table.add_column("Field", style="bold")
+    table.add_column("Value")
+
+    table.add_row("Project", spec.project_name)
+    table.add_row("App Type", spec.app_type.value)
+    table.add_row("Data Stores", ", ".join(d.value for d in spec.data_stores))
+    table.add_row("Auth", spec.security.auth_model.value)
+    table.add_row("Compliance", spec.security.compliance_framework.value)
+    table.add_row("Region", spec.azure_region)
+    table.add_row("Environment", spec.environment)
+    table.add_row("Confidence", f"{spec.confidence:.0%}")
+
+    console.print()
+    console.print(table)
+
+
+def _show_plan_summary(plan: PlanOutput) -> None:
+    """Display architecture plan summary."""
+    table = Table(title="Architecture Plan", border_style="green")
+    table.add_column("Component", style="bold")
+    table.add_column("Azure Service")
+    table.add_column("Purpose")
+
+    for c in plan.components:
+        table.add_row(c.name, c.azure_service, c.purpose)
+
+    console.print()
+    console.print(table)
+    console.print(f"  [dim]{len(plan.decisions)} ADRs | {len(plan.threat_model)} threats modeled[/]")
+
+
+def _show_governance_summary(report: GovernanceReport) -> None:
+    """Display governance validation summary."""
+    status_color = {
+        "PASS": "green",
+        "FAIL": "red",
+        "PASS_WITH_WARNINGS": "yellow",
+    }
+    color = status_color.get(report.status, "white")
+
+    console.print()
+    console.print(
+        Panel(
+            f"[bold {color}]{report.status}[/]\n\n"
+            f"{report.summary}\n\n"
+            f"Checks: [green]{len([c for c in report.checks if c.passed])} passed[/] | "
+            f"[red]{len([c for c in report.checks if not c.passed])} failed[/]",
+            title="Governance Report",
+            border_style=color,
+        )
+    )
+
+    if report.recommendations:
+        for r in report.recommendations:
+            console.print(f"  [yellow]->[/] {r}")
+
+
+def _show_waf_summary(waf_report: WAFAlignmentReport) -> None:
+    """Display WAF alignment summary with pillar scores."""
+    table = Table(title="WAF Alignment", border_style="blue")
+    table.add_column("Pillar", style="bold")
+    table.add_column("Covered", justify="right")
+    table.add_column("Total", justify="right")
+    table.add_column("Score", justify="right")
+
+    for pillar, scores in waf_report.pillar_scores().items():
+        pct = scores["pct"]
+        if pct >= 80:
+            color = "green"
+        elif pct >= 50:
+            color = "yellow"
+        else:
+            color = "red"
+        table.add_row(
+            pillar.value,
+            str(scores["covered"]),
+            str(scores["total"]),
+            f"[{color}]{pct:.0f}%[/]",
+        )
+
+    console.print()
+    console.print(table)
+    console.print(
+        f"  [bold]Overall:[/] {waf_report.covered_count}/{waf_report.total_principles} "
+        f"principles ({waf_report.coverage_pct:.0f}%)"
+    )
+
+    gaps = waf_report.gaps()
+    if gaps:
+        console.print(f"  [dim]{len(gaps)} gap(s) -- see docs/waf-report.md for details[/]")
+
+
+def _write_files(files: dict[str, str], output_dir: Path) -> int:
+    """Write generated files to disk."""
+    written = 0
+    for rel_path, content in files.items():
+        full_path = output_dir / rel_path
+        full_path.parent.mkdir(parents=True, exist_ok=True)
+        full_path.write_text(content, encoding="utf-8")
+        written += 1
+        logger.info("file.written", path=str(full_path))
+    return written
+
+
+def _show_file_tree(output_dir: Path) -> None:
+    """Display generated file tree."""
+    console.print()
+    console.print(f"[bold]Generated files in [cyan]{output_dir}[/cyan]:[/]")
+
+    for root, _dirs, filenames in os.walk(output_dir):
+        root_path = Path(root)
+        level = len(root_path.relative_to(output_dir).parts)
+        indent = "  " * level
+        console.print(f"  {indent}[bold]{root_path.name}/[/]")
+        sub_indent = "  " * (level + 1)
+        for f in sorted(filenames):
+            console.print(f"  {sub_indent}[dim]{f}[/]")
+
+
+def _show_improvement_suggestions(
+    spec: IntentSpec,
+    plan: PlanOutput,
+    gov_report: GovernanceReport,
+    waf_report: WAFAlignmentReport,
+) -> None:
+    """Display a summary of improvement suggestions after generation."""
+    from src.orchestrator.generators.docs_generator import DocsGenerator
+
+    docs_gen = DocsGenerator()
+    suggestions = docs_gen.generate_improvement_suggestions(spec, plan, gov_report, waf_report)
+
+    if not suggestions:
+        console.print("\n  [green]No improvements identified -- architecture is well-defined.[/]")
+        return
+
+    console.print(
+        Panel.fit(
+            f"[bold yellow]Improvement Suggestions ({len(suggestions)})[/]\n\n"
+            + "\n".join(f"  {i + 1}. {s}" for i, s in enumerate(suggestions[:8]))
+            + (
+                f"\n  [dim]... and {len(suggestions) - 8} more (see docs/improvement-suggestions.md)[/]"
+                if len(suggestions) > 8
+                else ""
+            )
+            + "\n\n[dim]Review docs/improvement-suggestions.md, update intent.md, and re-run.[/]",
+            border_style="yellow",
+            title="Next Iteration",
+        )
+    )
+
+
+def _apply_file_overrides(spec: IntentSpec, parsed_file: "IntentFileResult") -> IntentSpec:
+    """Apply structured overrides from an intent file onto a parsed IntentSpec.
+
+    The rule-based parser extracts what it can from flattened text, but the
+    intent file parser has structured data (project name from H1, explicit
+    config fields) that should take precedence.
+    """
+    from src.orchestrator.intent_schema import (
+        AppType,
+        AuthModel,
+        ComplianceFramework,
+        DataStore,
+    )
+
+    overrides: dict[str, object] = {}
+
+    cfg = parsed_file.config
+
+    # App type from config
+    app_type_map = {
+        "api": AppType.API,
+        "web": AppType.WEB,
+        "worker": AppType.WORKER,
+        "function": AppType.FUNCTION,
+        "ai_agent": AppType.AI_AGENT,
+        "ai-agent": AppType.AI_AGENT,
+        "ai_app": AppType.AI_APP,
+        "ai-app": AppType.AI_APP,
+        "event-driven": AppType.WORKER,
+    }
+    if cfg.get("app_type") and cfg["app_type"].strip().lower() in app_type_map:
+        overrides["app_type"] = app_type_map[cfg["app_type"].strip().lower()]
+
+    # Project name from H1 heading
+    if parsed_file.project_name:
+        import re
+        name = parsed_file.project_name.strip().lower()
+        name = re.sub(r"[^a-z0-9\s-]", "", name)
+        name = re.sub(r"\s+", "-", name)[:39]
+        if re.match(r"^[a-z][a-z0-9-]{2,38}$", name):
+            overrides["project_name"] = name
+
+    # Region from config
+    if cfg.get("region"):
+        overrides["azure_region"] = cfg["region"].strip()
+
+    # Environment from config
+    if cfg.get("environment"):
+        overrides["environment"] = cfg["environment"].strip().lower()
+
+    # Auth model from config
+    auth_map = {
+        "managed-identity": AuthModel.MANAGED_IDENTITY,
+        "managed_identity": AuthModel.MANAGED_IDENTITY,
+        "entra-id": AuthModel.ENTRA_ID,
+        "entra_id": AuthModel.ENTRA_ID,
+        "azure-ad": AuthModel.ENTRA_ID,
+        "api-key": AuthModel.API_KEY,
+        "api_key": AuthModel.API_KEY,
+    }
+    if cfg.get("auth") and cfg["auth"].strip().lower() in auth_map:
+        sec_dict = spec.security.model_dump()
+        sec_dict["auth_model"] = auth_map[cfg["auth"].strip().lower()]
+        from src.orchestrator.intent_schema import SecurityRequirements
+        overrides["security"] = SecurityRequirements(**sec_dict)
+
+    # Compliance from config
+    compliance_map = {
+        "hipaa": ComplianceFramework.HIPAA_GUIDANCE,
+        "soc2": ComplianceFramework.SOC2_GUIDANCE,
+        "soc 2": ComplianceFramework.SOC2_GUIDANCE,
+        "fedramp": ComplianceFramework.FEDRAMP_GUIDANCE,
+    }
+    if cfg.get("compliance"):
+        # Support comma-separated compliance values; use the first recognized one
+        raw_comps = [c.strip().lower() for c in cfg["compliance"].split(",")]
+        matched_comp = next((compliance_map[c] for c in raw_comps if c in compliance_map), None)
+        if matched_comp:
+            sec_obj = overrides.get("security", spec.security)
+            sec_dict = sec_obj.model_dump() if hasattr(sec_obj, "model_dump") else spec.security.model_dump()
+            sec_dict["compliance_framework"] = matched_comp
+            from src.orchestrator.intent_schema import SecurityRequirements
+            overrides["security"] = SecurityRequirements(**sec_dict)
+
+    # Seed record count from config
+    raw_seed_count = cfg.get("seed_count") or cfg.get("seed_record_count")
+    if raw_seed_count:
+        try:
+            count = int(str(raw_seed_count).strip())
+            if 1 <= count <= 200:
+                overrides["seed_record_count"] = count
+        except ValueError:
+            logger.warning("intent_file.invalid_seed_count", value=raw_seed_count)
+
+    # Data stores from config
+    if cfg.get("data_stores"):
+        store_map = {
+            "blob": DataStore.BLOB_STORAGE,
+            "blob_storage": DataStore.BLOB_STORAGE,
+            "cosmos": DataStore.COSMOS_DB,
+            "cosmos_db": DataStore.COSMOS_DB,
+            "cosmosdb": DataStore.COSMOS_DB,
+            "sql": DataStore.SQL,
+            "redis": DataStore.REDIS,
+            "table": DataStore.TABLE_STORAGE,
+            "table_storage": DataStore.TABLE_STORAGE,
+            "ai_search": DataStore.AI_SEARCH,
+            "ai-search": DataStore.AI_SEARCH,
+        }
+        raw_stores = [s.strip().lower() for s in cfg["data_stores"].split(",")]
+        detected_stores = [store_map[s] for s in raw_stores if s in store_map]
+        if detected_stores:
+            overrides["data_stores"] = detected_stores
+
+    # Entities from explicit declarations in raw markdown
+    if parsed_file.raw_content:
+        from src.orchestrator.agents.intent_parser import IntentParserAgent
+        explicit_entities = IntentParserAgent._parse_explicit_entities(parsed_file.raw_content)
+        if explicit_entities:
+            overrides["entities"] = explicit_entities
+            # Also regenerate endpoints from the explicit entities
+            explicit_endpoints = IntentParserAgent._parse_explicit_endpoints(parsed_file.raw_content)
+            if explicit_endpoints:
+                overrides["endpoints"] = explicit_endpoints
+
+    # Apply overrides by creating a new IntentSpec
+    if overrides:
+        data = spec.model_dump()
+        for key, value in overrides.items():
+            if key == "security":
+                data["security"] = value.model_dump()
+            elif key in ("entities", "endpoints"):
+                data[key] = [v.model_dump() if hasattr(v, "model_dump") else v for v in value]
+            else:
+                data[key] = value
+        # Clear resource_group_name so model_post_init regenerates it
+        data["resource_group_name"] = ""
+        spec = IntentSpec(**data)
+
+    return spec
+
+
+def _resolve_intent(intent: str | None, intent_file: str | None) -> str:
+    """Resolve intent string from CLI arg or --file flag."""
+    if intent_file:
+        parser = IntentFileParser()
+        result = parser.parse(intent_file)
+        console.print(f"  [dim]Read intent from {intent_file}[/]")
+        if result.project_name:
+            console.print(f"  [dim]Project: {result.project_name}[/]")
+        if result.version_info.version > 1:
+            console.print(
+                f"  [dim]Version: {result.version_info.version} (based on v{result.version_info.based_on})[/]"
+            )
+        return result.full_intent
+    if intent:
+        # Auto-detect: if intent argument is a path to an existing .md file, treat it as a file
+        intent_path = Path(intent)
+        if intent_path.suffix.lower() == ".md" and intent_path.exists():
+            return _resolve_intent(None, intent_file=intent)
+        return intent
+    console.print("[red]Error:[/] Provide INTENT as an argument or use --file intent.md")
+    sys.exit(1)
+
+
+def _resolve_intent_with_meta(intent: str | None, intent_file: str | None) -> tuple[str, IntentFileResult | None]:
+    """Resolve intent and also return parsed file metadata (if from file)."""
+    if intent_file:
+        parser = IntentFileParser()
+        result = parser.parse(intent_file)
+        console.print(f"  [dim]Read intent from {intent_file}[/]")
+        if result.project_name:
+            console.print(f"  [dim]Project: {result.project_name}[/]")
+        if result.version_info.version > 1:
+            console.print(
+                f"  [dim]Version: v{result.version_info.version} (upgrade from v{result.version_info.based_on})[/]"
+            )
+
+        # Show enterprise requirements completeness
+        completeness = result.completeness_pct
+        filled = result.enterprise_sections_filled
+        filled_count = sum(1 for v in filled.values() if v)
+        total_count = len(filled)
+        colour = "green" if completeness >= 80 else "yellow" if completeness >= 50 else "red"
+        console.print(
+            f"  [{colour}]Requirements completeness: {completeness:.0f}% "
+            f"({filled_count}/{total_count} sections)[/{colour}]"
+        )
+        if completeness < 100:
+            missing = [k.replace("_", " ").title() for k, v in filled.items() if not v]
+            console.print(f"  [dim]Missing: {', '.join(missing)}[/]")
+
+        return result.full_intent, result
+    # Auto-detect: if intent argument is a path to an existing .md file, treat it as a file
+    if intent and not intent_file:
+        intent_path = Path(intent)
+        if intent_path.suffix.lower() == ".md" and intent_path.exists():
+            return _resolve_intent_with_meta(None, intent_file=intent)
+    if intent:
+        return intent, None
+    console.print("[red]Error:[/] Provide INTENT as an argument or use --file intent.md")
+    sys.exit(1)
+
+
+# ----------------- CLI Commands -----------------
+
+
+@click.group()
+@click.version_option(version=__version__, prog_name="Enterprise DevEx Orchestrator")
+@click.option("--verbose", "-v", is_flag=True, default=False, help="Enable verbose (INFO-level) logging output.")
+def cli(verbose: bool) -> None:
+    """Enterprise DevEx Orchestrator Agent.
+
+    Transform business intent into production-ready, secure, deployable
+    Azure workloads -- powered by GitHub Copilot SDK.
+    """
+    if verbose:
+        os.environ["LOG_LEVEL"] = "INFO"
+
+
+@cli.command()
+@click.argument("intent", required=False, default=None)
+@click.option(
+    "--file",
+    "-f",
+    "intent_file",
+    type=click.Path(),
+    default=None,
+    help="Path to an intent .md file (e.g., intent.md). Overrides INTENT argument.",
+)
+@click.option(
+    "--output",
+    "-o",
+    type=click.Path(),
+    default=None,
+    help="Output directory for docs only. Defaults to ./out",
+)
+@click.option(
+    "--format",
+    "-F",
+    "output_format",
+    type=click.Choice(["text", "json"]),
+    default="text",
+    help="Output format.",
+)
+def plan(intent: str | None, intent_file: str | None, output: str | None, output_format: str) -> None:
+    """Parse intent and generate architecture plan (no infrastructure).
+
+    INTENT is the business requirement in plain English (quoted string).
+    Alternatively, use --file to read from an intent.md file.
+
+    Example:
+        devex plan "Build a secure REST API with blob storage"
+        devex plan --file intent.md
+    """
+    _banner()
+    config = _load_config()
+    out_dir = Path(output) if output else Path("out")
+
+    # Resolve intent from file or argument
+    intent_str, parsed_intent = _resolve_intent_with_meta(intent, intent_file)
+
+    spec, architecture_plan, gov_report, waf_report = _run_pipeline(
+        intent=intent_str,
+        config=config,
+        output_dir=out_dir,
+        plan_only=True,
+        parsed_file=parsed_intent,
+    )
+
+    if output_format == "json":
+        result = {
+            "spec": spec.model_dump(mode="json"),
+            "plan": architecture_plan.model_dump(mode="json"),
+            "governance": gov_report.model_dump(mode="json"),
+            "waf": {
+                "coverage_pct": waf_report.coverage_pct,
+                "covered": waf_report.covered_count,
+                "total": waf_report.total_principles,
+                "pillar_scores": {p.value: s for p, s in waf_report.pillar_scores().items()},
+            },
+        }
+        console.print_json(json.dumps(result, indent=2))
+
+    console.print("\n[green bold][ok] Plan complete.[/] Run `devex scaffold` to generate full infrastructure.\n")
+
+
+@cli.command()
+@click.argument("intent", required=False, default=None)
+@click.option(
+    "--file",
+    "-f",
+    "intent_file",
+    type=click.Path(),
+    default=None,
+    help="Path to an intent .md file. Overrides INTENT argument.",
+)
+@click.option(
+    "--output",
+    "-o",
+    type=click.Path(),
+    default="out",
+    help="Output directory for all generated artifacts. Default: ./out",
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    help="Show what would be generated without writing files.",
+)
+@click.option(
+    "--tier",
+    "-t",
+    type=click.Choice(["micro", "standard", "enterprise"]),
+    default="standard",
+    help="Pipeline tier: micro (minimal), standard (full), enterprise (full+extras).",
+)
+@click.option(
+    "--standards",
+    "-s",
+    "standards_file",
+    type=click.Path(),
+    default=None,
+    help="Path to custom standards.yaml for enterprise naming/tagging/governance rules.",
+)
+@click.option(
+    "--fast",
+    is_flag=True,
+    default=False,
+    help="Skip LLM enrichment for fast generation (~4s). Uses deterministic templates only.",
+)
+@click.option(
+    "--seed-count",
+    "seed_count",
+    type=click.IntRange(1, 200),
+    default=None,
+    help="Number of seed records to generate per entity (1-200). Overrides intent file value.",
+)
+def scaffold(intent: str | None, intent_file: str | None, output: str, dry_run: bool, tier: str, standards_file: str | None, fast: bool, seed_count: int | None) -> None:
+    """Generate full production scaffold from business intent.
+
+    INTENT is the business requirement in plain English (quoted string).
+    Alternatively, use --file to read from an intent.md file.
+
+    Runs the complete pipeline: parse -> plan -> govern -> generate.
+
+    Tiers:
+      micro      - Minimal: API + Bicep + Docker + Tests + CI/CD
+      standard   - Full: All generators (default)
+      enterprise - Full + alerts + dashboards + cost estimates
+
+    Example:
+        devex scaffold "Build a secure REST API with blob storage" -o ./my-project
+        devex scaffold --file intent.md -o ./my-project --tier micro
+    """
+    _banner()
+    config = _load_config()
+    out_dir = Path(output)
+
+    if dry_run:
+        console.print("[yellow]Dry run mode -- no files will be written.[/]\n")
+
+    if fast:
+        console.print("  [dim]Fast mode: skipping LLM enrichment[/]")
+    console.print(f"  [dim]Pipeline tier: {tier}[/]")
+    start = time.time()
+
+    # Resolve intent from file or argument
+    intent_str, parsed_intent = _resolve_intent_with_meta(intent, intent_file)
+
+    custom_standards = Path(standards_file) if standards_file else None
+    if custom_standards and not custom_standards.exists():
+        console.print(f"[red]Error:[/] Standards file not found: {custom_standards}")
+        sys.exit(1)
+
+    spec, architecture_plan, gov_report, waf_report = _run_pipeline(
+        intent=intent_str,
+        config=config,
+        output_dir=None if dry_run else out_dir,
+        plan_only=dry_run,
+        parsed_file=parsed_intent,
+        tier=tier,
+        standards_path=custom_standards,
+        fast=fast,
+        seed_record_count=seed_count,
+    )
+
+    elapsed = time.time() - start
+
+    if not dry_run:
+        # Also write the plan data as JSON for programmatic use
+        meta_dir = out_dir / ".devex"
+        meta_dir.mkdir(parents=True, exist_ok=True)
+        (meta_dir / "spec.json").write_text(spec.model_dump_json(indent=2), encoding="utf-8")
+        (meta_dir / "plan.json").write_text(architecture_plan.model_dump_json(indent=2), encoding="utf-8")
+        (meta_dir / "governance.json").write_text(gov_report.model_dump_json(indent=2), encoding="utf-8")
+
+        # Record version if using file-based intent
+        if parsed_intent:
+            vm = VersionManager(out_dir)
+            file_count = len(list(out_dir.rglob("*")))
+            vm.record_version(parsed_intent, file_count, gov_report.status)
+            console.print(f"  [cyan]Version {parsed_intent.version_info.version} recorded[/]")
+
+    console.print(f"\n[green bold][ok] Scaffold complete[/] in {elapsed:.1f}s")
+    if not dry_run:
+        console.print(f"  Output: [cyan]{out_dir.resolve()}[/]")
+
+        # Show persistent planner summary
+        planner_mgr = PersistentPlanner(out_dir)
+        summary = planner_mgr.get_plan_summary()
+        if summary.get("status") != "no_plan":
+            console.print(
+                f"  Plan progress: {summary.get('progress_pct', 0):.0f}% | "
+                f"Tasks: {json.dumps(summary.get('task_counts', {}))}"
+            )
+
+        console.print(
+            "\n  Next steps:\n"
+            f"    cd {out_dir}\n"
+            "    az deployment group validate \\\n"
+            "      --resource-group <rg> \\\n"
+            "      --template-file infra/bicep/main.bicep \\\n"
+            "      --parameters infra/bicep/parameters/dev.parameters.json\n"
+        )
+
+        # Show improvement suggestions summary
+        _show_improvement_suggestions(spec, architecture_plan, gov_report, waf_report)
+
+
+@cli.command()
+@click.argument("path", type=click.Path(exists=True))
+def validate(path: str) -> None:
+    """Validate a previously generated scaffold against governance policies.
+
+    PATH is the directory of a generated scaffold.
+
+    Example:
+        devex validate ./out
+    """
+    _banner()
+    config = _load_config()
+    out_dir = Path(path)
+
+    # Load spec and plan from metadata
+    meta_dir = out_dir / ".devex"
+    if not meta_dir.exists():
+        console.print("[red]Error:[/] No .devex metadata found. Was this scaffold generated by devex?")
+        sys.exit(1)
+
+    spec = IntentSpec.model_validate_json((meta_dir / "spec.json").read_text(encoding="utf-8"))
+    plan = PlanOutput.model_validate_json((meta_dir / "plan.json").read_text(encoding="utf-8"))
+
+    # Read Bicep files for validation
+    bicep_dir = out_dir / "infra" / "bicep"
+    bicep_files: dict[str, str] = {}
+    if bicep_dir.exists():
+        for f in bicep_dir.rglob("*.bicep"):
+            bicep_files[str(f.relative_to(out_dir))] = f.read_text(encoding="utf-8")
+
+    reviewer = GovernanceReviewerAgent(config)
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console,
+    ) as progress:
+        task = progress.add_task("[cyan]Running governance validation...", total=None)
+
+        plan_report = reviewer.validate_plan(spec, plan)
+        bicep_report = reviewer.validate_bicep(bicep_files)
+
+        progress.update(task, completed=True, description="[green][ok] Validation complete")
+
+    _show_governance_summary(plan_report)
+
+    if bicep_report.checks:
+        console.print()
+        console.print("[bold]Bicep Security Scan:[/]")
+        for c in bicep_report.checks:
+            icon = "[PASS]" if c.passed else "[FAIL]"
+            console.print(f"  {icon} [{c.severity}] {c.name}: {c.details}")
+
+    # Drift detection
+    state_mgr = StateManager(out_dir)
+    if state_mgr.get_generation_count() > 0:
+        drift = state_mgr.detect_drift(
+            intent="",  # no new intent during validate
+            environment=spec.environment or "dev",
+            region=spec.azure_region or config.azure.location,
+        )
+        if drift.has_drift:
+            console.print()
+            console.print("[bold yellow]Drift Detection:[/]")
+            console.print(f"  {drift.summary}")
+            if drift.modified_files:
+                for f in drift.modified_files:
+                    console.print(f"  [yellow]~ {f}[/]")
+            if drift.added_files:
+                for f in drift.added_files:
+                    console.print(f"  [green]+ {f}[/]")
+            if drift.removed_files:
+                for f in drift.removed_files:
+                    console.print(f"  [red]- {f}[/]")
+        else:
+            console.print("\n[green][ok] No file drift detected.[/]")
+
+        last = state_mgr.get_last_event()
+        if last:
+            console.print(f"  Last generated: {last.timestamp}")
+            console.print(f"  Generation count: {state_mgr.get_generation_count()}")
+
+    # Combined status
+    all_passed = plan_report.status != "FAIL" and bicep_report.status != "FAIL"
+    if all_passed:
+        console.print("\n[green bold][ok] All governance checks passed.[/]\n")
+    else:
+        console.print("\n[red bold][x] Governance validation failed. Fix issues above.[/]\n")
+        sys.exit(1)
+
+
+@cli.command()
+@click.argument("path", type=click.Path(exists=True))
+@click.option("--fix", is_flag=True, default=False, help="Auto-fix common issues where possible.")
+@click.option(
+    "--format",
+    "-F",
+    "output_format",
+    type=click.Choice(["text", "json"]),
+    default="text",
+    help="Output format: text (default) or json.",
+)
+def lint(path: str, fix: bool, output_format: str) -> None:
+    """Lint a generated scaffold for drift and convention violations.
+
+    Checks for common issues that accumulate after manual edits:
+    naming convention violations, missing required files, stale
+    references, and structural drift from the original scaffold.
+
+    PATH is the directory of a generated scaffold.
+
+    Example:
+        devex lint ./my-project
+        devex lint ./my-project --fix
+    """
+    _banner()
+    out_dir = Path(path)
+
+    # Verify scaffold exists
+    meta_dir = out_dir / ".devex"
+    if not meta_dir.exists():
+        console.print("[red]Error:[/] No .devex metadata found. Was this scaffold generated by devex?")
+        sys.exit(1)
+
+    spec = IntentSpec.model_validate_json((meta_dir / "spec.json").read_text(encoding="utf-8"))
+
+    console.print(f"[cyan]Linting scaffold:[/] {out_dir.resolve()}\n")
+
+    import re as _re
+
+    issues: list[tuple[str, str, str, str]] = []  # (severity, category, file, message)
+
+    # -- 1. Required files check ---------------------------------
+    required = [
+        "AGENTS.md", "CONTRIBUTING.md",
+        "infra/bicep/main.bicep",
+        ".github/workflows/validate.yml",
+        ".github/workflows/deploy.yml",
+        "docs/plan.md", "docs/security.md", "docs/deployment.md",
+    ]
+    lang = spec.language.lower()
+    if lang == "python":
+        required.extend(["src/app/main.py", "src/app/requirements.txt", "src/app/Dockerfile"])
+    elif lang == "node":
+        required.extend(["src/app/index.js", "src/app/package.json", "src/app/Dockerfile"])
+
+    for req_file in required:
+        if not (out_dir / req_file).exists():
+            issues.append(("error", "missing_file", req_file, "Required file missing"))
+
+    # -- 2. Naming convention checks -----------------------------
+
+    # Check Bicep files follow CAF naming
+    bicep_dir = out_dir / "infra" / "bicep"
+    if bicep_dir.exists():
+        for bicep_file in bicep_dir.rglob("*.bicep"):
+            content = bicep_file.read_text(encoding="utf-8")
+            # Flag hardcoded resource names (not using variables)
+            hardcoded = _re.findall(r"name:\s*'[a-zA-Z]+-[a-zA-Z]+'", content)
+            for match in hardcoded:
+                issues.append((
+                    "warning", "naming",
+                    str(bicep_file.relative_to(out_dir)),
+                    f"Hardcoded resource name found: {match}. Use naming variables.",
+                ))
+
+    # -- 3. Frontend API endpoint consistency --------------------
+    frontend_dir = out_dir / "frontend" / "src" / "pages"
+    if frontend_dir.exists():
+        for tsx_file in frontend_dir.glob("*.tsx"):
+            content = tsx_file.read_text(encoding="utf-8")
+            # Check for singular API endpoints (common drift pattern)
+            singular_fetches = _re.findall(r'fetch\([^)]*`[^`]*/([a-z_]+)`', content)
+            for endpoint in singular_fetches:
+                if not endpoint.endswith("s") and endpoint not in ("health", "status", "chat"):
+                    issues.append((
+                        "warning", "api_drift",
+                        str(tsx_file.relative_to(out_dir)),
+                        f"Possible singular API endpoint '/{endpoint}' -- should be plural",
+                    ))
+
+    # -- 4. Security checks in generated code --------------------
+    app_dir = out_dir / "src" / "app"
+    if app_dir.exists():
+        main_py = app_dir / "main.py"
+        if main_py.exists():
+            content = main_py.read_text(encoding="utf-8")
+            if "DEBUG" in content and "True" in content:
+                issues.append(("warning", "security", "src/app/main.py", "DEBUG mode may be enabled"))
+            if "allow_origins=[\"*\"]" in content:
+                issues.append(("warning", "security", "src/app/main.py", "CORS allows all origins -- tighten for production"))
+
+    # -- 5. Docker security checks -------------------------------
+    dockerfile = out_dir / "src" / "app" / "Dockerfile"
+    if dockerfile.exists():
+        content = dockerfile.read_text(encoding="utf-8")
+        if "USER root" in content:
+            issues.append(("error", "security", "src/app/Dockerfile", "Container runs as root -- use a non-root user"))
+        if "latest" in content and "FROM" in content:
+            lines = content.split("\n")
+            for line in lines:
+                if line.strip().startswith("FROM") and ":latest" in line:
+                    issues.append(("warning", "security", "src/app/Dockerfile", "Using :latest tag -- pin to specific version"))
+
+    # -- 6. Test coverage check ----------------------------------
+    tests_dir = out_dir / "tests"
+    if tests_dir.exists():
+        test_files = list(tests_dir.glob("test_*.py"))
+        if len(test_files) < 3:
+            issues.append(("warning", "testing", "tests/", f"Only {len(test_files)} test files found -- expected at least 5"))
+    else:
+        issues.append(("error", "missing_file", "tests/", "No tests directory found"))
+
+    # -- 7. Stale AGENTS.md check --------------------------------
+    agents_md = out_dir / "AGENTS.md"
+    if agents_md.exists():
+        content = agents_md.read_text(encoding="utf-8")
+        for ent in spec.entities:
+            if ent.name not in content:
+                issues.append(("info", "stale_doc", "AGENTS.md", f"Entity '{ent.name}' not documented in AGENTS.md"))
+
+    # -- Display results -----------------------------------------
+    if not issues:
+        if output_format == "json":
+            console.print_json(json.dumps({"issues": [], "summary": {"errors": 0, "warnings": 0, "info": 0}}, indent=2))
+        else:
+            console.print("[green bold][ok] No issues found. Scaffold is clean.[/]\n")
+        return
+
+    if output_format == "json":
+        issue_list = [
+            {"severity": sev, "category": cat, "file": fp, "message": msg}
+            for sev, cat, fp, msg in issues
+        ]
+        error_count = sum(1 for sev, *_ in issues if sev == "error")
+        warning_count = sum(1 for sev, *_ in issues if sev == "warning")
+        info_count = len(issues) - error_count - warning_count
+        result = {
+            "issues": issue_list,
+            "summary": {"errors": error_count, "warnings": warning_count, "info": info_count},
+        }
+        console.print_json(json.dumps(result, indent=2))
+        if error_count > 0:
+            sys.exit(1)
+        return
+
+    table = Table(title=f"Lint Results ({len(issues)} issues)", border_style="yellow")
+    table.add_column("Severity", style="bold")
+    table.add_column("Category")
+    table.add_column("File")
+    table.add_column("Message")
+
+    error_count = 0
+    warning_count = 0
+    for severity, category, filepath, message in issues:
+        if severity == "error":
+            sev_display = f"[red]{severity}[/]"
+            error_count += 1
+        elif severity == "warning":
+            sev_display = f"[yellow]{severity}[/]"
+            warning_count += 1
+        else:
+            sev_display = f"[dim]{severity}[/]"
+        table.add_row(sev_display, category, filepath, message)
+
+    console.print(table)
+    console.print(
+        f"\n  [red]{error_count} error(s)[/] | [yellow]{warning_count} warning(s)[/] | "
+        f"{len(issues) - error_count - warning_count} info"
+    )
+
+    if fix:
+        console.print("\n[cyan]Auto-fix is not yet implemented. Fix issues manually.[/]")
+
+    if error_count > 0:
+        console.print("\n[red bold][x] Lint failed with errors.[/]\n")
+        sys.exit(1)
+    else:
+        console.print("\n[yellow][!] Lint passed with warnings.[/]\n")
+
+
+@cli.command()
+def version() -> None:
+    """Show version and environment info."""
+    console.print("[bold]Enterprise DevEx Orchestrator Agent[/]")
+    console.print(f"  Version:  {__version__}")
+    console.print(f"  Python:   {sys.version.split()[0]}")
+    console.print(f"  Platform: {sys.platform}")
+
+    try:
+        config = get_config()
+        provider = config.llm.provider
+        console.print(f"  Provider: {config.llm.provider_display_name}")
+        console.print(f"  Model:    {config.llm.model}")
+        console.print(f"  Region:   {config.azure.location}")
+
+        if config.llm.is_template_only:
+            console.print(
+                "\n  [dim]Tip: Set LLM_PROVIDER and credentials to enable real LLM.[/]"
+            )
+            console.print("  [dim]Supported providers: azure_openai, openai, anthropic, copilot_sdk[/]")
+            console.print("  [dim]Example: LLM_PROVIDER=anthropic ANTHROPIC_API_KEY=sk-... LLM_MODEL=claude-opus-4-20250514[/]")
+    except Exception:
+        console.print("  [dim]Config not loaded (.env missing)[/]")
+
+
+@cli.command()
+def providers() -> None:
+    """List supported LLM providers and models."""
+    console.print("[bold]Supported LLM Providers & Models[/]\n")
+
+    for provider_id, display_name in PROVIDER_DISPLAY_NAMES.items():
+        if provider_id == "template-only":
+            continue
+        models = SUPPORTED_MODELS.get(provider_id, [])
+        console.print(f"  [bold cyan]{display_name}[/] ({provider_id})")
+        for model in models:
+            console.print(f"    - {model}")
+        console.print()
+
+    console.print("[dim]Set via environment variables or .env file:[/]")
+    console.print("  LLM_PROVIDER=anthropic")
+    console.print("  LLM_MODEL=claude-opus-4-20250514")
+    console.print("  ANTHROPIC_API_KEY=sk-ant-...")
+    console.print()
+    console.print("[dim]Or for OpenAI:[/]")
+    console.print("  LLM_PROVIDER=openai")
+    console.print("  LLM_MODEL=gpt-4o")
+    console.print("  OPENAI_API_KEY=sk-...")
+    console.print()
+
+
+@cli.command()
+@click.argument("path", type=click.Path(exists=True))
+@click.option("--resource-group", "-g", required=True, help="Azure resource group name.")
+@click.option("--region", "-r", default="eastus2", help="Azure region. Default: eastus2")
+@click.option("--subscription", "-s", default="", help="Azure subscription ID.")
+@click.option("--dry-run", is_flag=True, default=False, help="Validate and what-if only (no deploy).")
+def deploy(path: str, resource_group: str, region: str, subscription: str, dry_run: bool) -> None:
+    """Deploy generated infrastructure to Azure.
+
+    PATH is the directory of a generated scaffold.
+
+    Runs staged deployment: validate -> what-if -> deploy -> verify.
+    Uses automatic error classification and retry for transient failures.
+
+    Example:
+        devex deploy ./out -g my-resource-group -r eastus2
+    """
+    from src.orchestrator.agents.deploy_orchestrator import (
+        DeployOrchestrator,
+        DeployStatus,
+    )
+
+    _banner()
+    out_dir = Path(path)
+
+    # Verify scaffold exists
+    meta_dir = out_dir / ".devex"
+    if not meta_dir.exists():
+        console.print("[red]Error:[/] No .devex metadata found. Run `devex scaffold` first.")
+        sys.exit(1)
+
+    deployer = DeployOrchestrator(
+        output_dir=out_dir,
+        resource_group=resource_group,
+        region=region,
+        subscription=subscription,
+    )
+
+    mode = "dry-run" if dry_run else "full"
+    console.print(f"[cyan]Deploying infrastructure ({mode})...[/]\n")
+    console.print(f"  Resource Group: {resource_group}")
+    console.print(f"  Region:         {region}")
+    if subscription:
+        console.print(f"  Subscription:   {subscription}")
+    console.print()
+
+    result = deployer.deploy(dry_run=dry_run)
+
+    # Show stage results
+    table = Table(title="Deployment Stages", border_style="cyan")
+    table.add_column("Stage", style="bold")
+    table.add_column("Status")
+    table.add_column("Duration")
+    table.add_column("Details")
+
+    for stage in result.stages:
+        status_color = "green" if stage.status == DeployStatus.SUCCEEDED else "red"
+        details = stage.remediation if stage.error else "OK"
+        table.add_row(
+            stage.stage.value,
+            f"[{status_color}]{stage.status.value}[/]",
+            f"{stage.duration_ms:.0f}ms",
+            details[:60],
+        )
+
+    console.print(table)
+
+    if result.is_success:
+        console.print(f"\n[green bold][ok] Deployment succeeded[/] in {result.total_duration_ms:.0f}ms")
+    else:
+        failed = [s for s in result.stages if s.status == DeployStatus.FAILED]
+        for s in failed:
+            console.print(f"\n[red]Error ({s.error_category}):[/] {s.error[:200]}")
+            if s.remediation:
+                console.print(f"  [yellow]Remediation:[/] {s.remediation}")
+        console.print("\n[red bold][x] Deployment failed.[/]")
+        sys.exit(1)
+
+
+@cli.command()
+@click.option(
+    "--output",
+    "-o",
+    type=click.Path(),
+    default=".",
+    help="Directory to create intent.md in. Default: current directory.",
+)
+@click.option(
+    "--project",
+    "-p",
+    default="my-secure-api",
+    help="Default project name.",
+)
+def init(output: str, project: str) -> None:
+    """Create an intent.md template to describe your project.
+
+    Generates a starter intent.md file that you can fill in.
+    Then run `devex scaffold --file <dir>/intent.md -o ./<project>` to generate.
+
+    Example:
+        devex init
+        devex init -o ./my-api -p my-api
+    """
+    _banner()
+    out_dir = Path(output)
+    intent_path = out_dir / "intent.md"
+
+    if intent_path.exists():
+        console.print(f"[yellow]Warning:[/] {intent_path} already exists.")
+        if not click.confirm("Overwrite?"):
+            console.print("[dim]Cancelled.[/]")
+            return
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    content = generate_intent_template(project_name=project)
+    intent_path.write_text(content, encoding="utf-8")
+
+    console.print(f"\n[green bold][ok] Created {intent_path}[/]\n")
+    console.print("  Next steps:")
+    console.print(f"  1. Edit [cyan]{intent_path}[/] -- describe what you want to build")
+    console.print(f"  2. Run: [bold]devex scaffold --file {intent_path} -o ./{project}[/]")
+    console.print("  3. Your entire infrastructure is generated and ready!\n")
+
+
+@cli.command()
+@click.option(
+    "--file",
+    "-f",
+    "intent_file",
+    type=click.Path(exists=True),
+    required=True,
+    help="Path to the upgrade intent .md file (e.g., intent.v2.md).",
+)
+@click.option(
+    "--output",
+    "-o",
+    type=click.Path(),
+    default="out",
+    help="Output directory of the existing scaffold. Default: ./out",
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    help="Show upgrade plan without executing.",
+)
+def upgrade(intent_file: str, output: str, dry_run: bool) -> None:
+    """Safely upgrade an existing scaffold with a new version.
+
+    Reads the upgrade intent file, diff's against the existing version,
+    and regenerates only what changed. Adds a CI/CD promotion workflow
+    for safe, revision-based deployment.
+
+    Example:
+        devex upgrade --file intent.v2.md -o ./<project>
+    """
+    _banner()
+    config = _load_config()
+    out_dir = Path(output)
+
+    # Verify existing scaffold
+    meta_dir = out_dir / ".devex"
+    if not meta_dir.exists():
+        console.print("[red]Error:[/] No existing scaffold found. Run `devex scaffold` first.")
+        sys.exit(1)
+
+    # Parse the upgrade intent file
+    parser = IntentFileParser()
+    parsed = parser.parse(intent_file)
+
+    if not parsed.version_info.is_upgrade:
+        console.print(
+            "[yellow]Warning:[/] No 'Based On' version specified in the intent file. "
+            "This will be treated as a full regeneration, not an incremental upgrade."
+        )
+
+    # Load version manager and create upgrade plan
+    vm = VersionManager(out_dir)
+
+    if vm.has_versions:
+        plan = vm.plan_upgrade(parsed)
+
+        console.print()
+        console.print(
+            Panel(
+                f"[bold]{plan.summary}[/]\n\n" + "\n".join(f"  * {n}" for n in plan.notes),
+                title="Upgrade Plan",
+                border_style="cyan",
+            )
+        )
+    else:
+        console.print("[dim]No previous version found -- full scaffold will be generated.[/]")
+
+    if dry_run:
+        console.print("\n[yellow]Dry run -- no changes applied.[/]")
+        return
+
+    # Execute the pipeline with the upgrade intent
+    start = time.time()
+    intent_str = parsed.full_intent
+
+    spec, architecture_plan, gov_report, waf_report = _run_pipeline(
+        intent=intent_str,
+        config=config,
+        output_dir=out_dir,
+        plan_only=False,
+        parsed_file=parsed,
+    )
+
+    elapsed = time.time() - start
+
+    # Record the new version
+    file_count = len(list(out_dir.rglob("*")))
+    vm.record_version(parsed, file_count, gov_report.status)
+
+    console.print(f"\n[green bold][ok] Upgrade to v{parsed.version_info.version} complete[/] in {elapsed:.1f}s")
+    console.print(f"  Version {parsed.version_info.version} recorded and active")
+
+    # Show version history
+    _show_version_history(vm)
+
+    console.print(
+        "\n  Next steps:\n"
+        "    1. Review the changes in your scaffold\n"
+        "    2. Commit and push to trigger CI/CD\n"
+        "    3. The promotion workflow deploys as a new Container Apps revision\n"
+        "    4. Traffic stays on the previous version until you promote\n"
+    )
+
+
+@cli.command()
+@click.argument("path", type=click.Path(exists=True))
+def history(path: str) -> None:
+    """Show version history for a scaffold.
+
+    PATH is the directory of a generated scaffold.
+
+    Example:
+        devex history ./my-project
+    """
+    _banner()
+    out_dir = Path(path)
+    vm = VersionManager(out_dir)
+
+    if not vm.has_versions:
+        console.print("[dim]No version history found.[/]")
+        return
+
+    _show_version_history(vm)
+
+
+@cli.command(name="new-version")
+@click.argument("path", type=click.Path(exists=True))
+@click.option(
+    "--output",
+    "-o",
+    type=click.Path(),
+    default=None,
+    help="Where to write the new intent file. Default: <path>/intent.v<N>.md",
+)
+def new_version(path: str, output: str | None) -> None:
+    """Generate a new version intent file based on the current scaffold.
+
+    Pre-fills the upgrade template from the current version's data,
+    so you only need to describe what's changing.
+
+    Example:
+        devex new-version ./my-project
+    """
+    _banner()
+    out_dir = Path(path)
+    vm = VersionManager(out_dir)
+
+    if not vm.has_versions:
+        console.print("[red]Error:[/] No version history. Run `devex scaffold` first.")
+        sys.exit(1)
+
+    current = vm.get_current()
+    if not current:
+        console.print("[red]Error:[/] No active version found.")
+        sys.exit(1)
+
+    new_v = current.version + 1
+    template = generate_upgrade_template(
+        project_name=vm.state.project_name or "my-project",
+        current_version=current.version,
+        current_intent=current.intent,
+    )
+
+    if output:
+        out_path = Path(output)
+    else:
+        out_path = out_dir / f"intent.v{new_v}.md"
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(template, encoding="utf-8")
+
+    console.print(f"\n[green bold][ok] Created {out_path}[/]\n")
+    console.print(f"  Current version: v{current.version}")
+    console.print(f"  New version:     v{new_v}\n")
+    console.print("  Next steps:")
+    console.print(f"  1. Edit [cyan]{out_path}[/] -- describe your changes")
+    console.print(f"  2. Run: [bold]devex upgrade --file {out_path} -o {out_dir}[/]")
+    console.print("  3. CI/CD promotion workflow keeps v1 safe while v2 deploys\n")
+
+
+def _show_version_history(vm: VersionManager) -> None:
+    """Display version history table."""
+    table = Table(title="Version History", border_style="cyan")
+    table.add_column("Version", style="bold", justify="right")
+    table.add_column("Status")
+    table.add_column("Changes")
+    table.add_column("Files", justify="right")
+    table.add_column("Governance")
+    table.add_column("Created")
+
+    for entry in vm.get_history():
+        status_color = {
+            "active": "green",
+            "superseded": "dim",
+            "rolled-back": "red",
+        }.get(entry["status"], "white")
+
+        table.add_row(
+            f"v{entry['version']}",
+            f"[{status_color}]{entry['status']}[/]",
+            (entry["changes"] or "-")[:40],
+            str(entry["files"]),
+            entry["governance"] or "-",
+            (entry["created_at"] or "-")[:19],
+        )
+
+    console.print()
+    console.print(table)
+
+
+@cli.command()
+@click.option(
+    "--output",
+    "-o",
+    type=click.Path(),
+    default="out",
+    help="Output directory. Default: ./out",
+)
+def interactive(output: str) -> None:
+    """Interactively build a project intent through guided questions.
+
+    Walks you through each decision (project name, language, compute target,
+    data stores, security, etc.) and generates the scaffold at the end.
+
+    Example:
+        devex interactive
+        devex interactive -o ./my-project
+    """
+    _banner()
+    console.print(
+        "[bold]Interactive mode[/] -- answer a few questions and we'll generate your full production scaffold.\n"
+    )
+
+    # -- Project basics ----------------------------------------------
+    project_name = click.prompt(
+        "Project name (kebab-case, e.g. my-secure-api)",
+        default="my-secure-api",
+    )
+    description = click.prompt(
+        "One-sentence description of what you're building",
+        default="A secure REST API for enterprise data processing",
+    )
+
+    # -- Language ----------------------------------------------------
+    language = click.prompt(
+        "Programming language",
+        type=click.Choice(["python", "node", "dotnet"], case_sensitive=False),
+        default="python",
+    )
+
+    # -- App Type ----------------------------------------------------
+    app_type = click.prompt(
+        "Application type",
+        type=click.Choice(["api", "web", "worker", "function"], case_sensitive=False),
+        default="api",
+    )
+
+    # -- Compute Target ----------------------------------------------
+    compute = click.prompt(
+        "Azure compute target",
+        type=click.Choice(["container_apps", "app_service", "functions"], case_sensitive=False),
+        default="container_apps",
+    )
+
+    # -- Data Stores -------------------------------------------------
+    ds_choices = click.prompt(
+        "Data stores (comma-separated: blob, cosmos, sql, redis, none)",
+        default="blob",
+    )
+    data_stores_raw = [s.strip().lower() for s in ds_choices.split(",")]
+    # -- Security ----------------------------------------------------
+    auth = click.prompt(
+        "Authentication model",
+        type=click.Choice(["managed-identity", "entra-id", "api-key"], case_sensitive=False),
+        default="managed-identity",
+    )
+    compliance = click.prompt(
+        "Compliance guidance",
+        type=click.Choice(["general", "hipaa", "soc2", "fedramp"], case_sensitive=False),
+        default="general",
+    )
+
+    # -- Region ------------------------------------------------------
+    region = click.prompt("Azure region", default="eastus2")
+    environment = click.prompt(
+        "Environment",
+        type=click.Choice(["dev", "staging", "prod"], case_sensitive=False),
+        default="dev",
+    )
+
+    # -- Confirmation ------------------------------------------------
+    console.print()
+    summary = Table(title="Your Configuration", border_style="cyan")
+    summary.add_column("Setting", style="bold")
+    summary.add_column("Value")
+    summary.add_row("Project", project_name)
+    summary.add_row("Language", language)
+    summary.add_row("App Type", app_type)
+    summary.add_row("Compute", compute)
+    summary.add_row("Data Stores", ", ".join(data_stores_raw))
+    summary.add_row("Auth", auth)
+    summary.add_row("Compliance", compliance)
+    summary.add_row("Region", region)
+    summary.add_row("Environment", environment)
+    console.print(summary)
+    console.print()
+
+    if not click.confirm("Generate scaffold with these settings?", default=True):
+        console.print("[dim]Cancelled.[/]")
+        return
+
+    # -- Build intent string -----------------------------------------
+    auth_clean = auth.replace("-", " ")
+    intent = (
+        f"Build a {app_type} called {project_name}: {description}. "
+        f"Use {language} with {compute.replace('_', ' ')} compute. "
+        f"Data stores: {', '.join(data_stores_raw)}. "
+        f"Auth: {auth_clean}. Compliance: {compliance}. "
+        f"Region: {region}, environment: {environment}."
+    )
+
+    config = _load_config()
+    out_dir = Path(output)
+    start = time.time()
+
+    spec, plan, gov_report, waf_report = _run_pipeline(
+        intent=intent,
+        config=config,
+        output_dir=out_dir,
+    )
+
+    elapsed = time.time() - start
+    console.print(f"\n[green bold][ok] Scaffold complete[/] in {elapsed:.1f}s")
+    console.print(f"  Output: [cyan]{out_dir.resolve()}[/]\n")
+    _show_improvement_suggestions(spec, plan, gov_report, waf_report)
+
+
+@cli.command()
+@click.argument("path", type=click.Path(exists=True))
+def explain(path: str) -> None:
+    """Explain what a generated scaffold contains and why.
+
+    Reads the .devex metadata from a scaffold directory and produces
+    a human-readable explanation of every component, ADR, security
+    control, and design decision.
+
+    Example:
+        devex explain ./my-project
+    """
+    _banner()
+    out_dir = Path(path)
+    meta_dir = out_dir / ".devex"
+
+    if not meta_dir.exists():
+        console.print(f"[red]Error:[/] No .devex metadata found in {out_dir}")
+        console.print("[dim]Run `devex scaffold` first to generate a project.[/]")
+        return
+
+    # Load metadata
+    spec_path = meta_dir / "spec.json"
+    plan_path = meta_dir / "plan.json"
+    gov_path = meta_dir / "governance.json"
+
+    if not spec_path.exists():
+        console.print("[red]Error:[/] spec.json not found in .devex/")
+        return
+
+    spec_data = json.loads(spec_path.read_text(encoding="utf-8"))
+    spec = IntentSpec(**spec_data)
+
+    console.print(Panel.fit(
+        f"[bold cyan]Project: {spec.project_name}[/]\n"
+        f"[dim]{spec.description}[/]",
+        border_style="cyan",
+    ))
+
+    # Tier info
+    tier = getattr(spec, "pipeline_tier", "standard")
+    tier_val = tier.value if hasattr(tier, "value") else str(tier)
+    console.print(f"\n  [bold]Pipeline Tier:[/] {tier_val}")
+    console.print(f"  [bold]App Type:[/] {spec.app_type.value}")
+    console.print(f"  [bold]Language:[/] {spec.language}")
+    console.print(f"  [bold]Region:[/] {spec.azure_region}")
+    console.print(f"  [bold]Auth:[/] {spec.security.auth_model.value}")
+    console.print(f"  [bold]Data Stores:[/] {', '.join(d.value for d in spec.data_stores)}")
+
+    # Entities
+    if spec.entities:
+        console.print(f"\n  [bold]Entities ({len(spec.entities)}):[/]")
+        for ent in spec.entities:
+            fields_str = ", ".join(f.name for f in ent.fields[:5])
+            console.print(f"    - {ent.name}: {fields_str}")
+
+    # Plan details
+    if plan_path.exists():
+        from src.orchestrator.intent_schema import PlanOutput as PO
+        plan_data = json.loads(plan_path.read_text(encoding="utf-8"))
+        plan = PO(**plan_data)
+        console.print(f"\n  [bold]Architecture ({len(plan.components)} components):[/]")
+        for c in plan.components:
+            console.print(f"    - {c.name} ({c.azure_service}): {c.purpose}")
+        console.print(f"\n  [bold]ADRs ({len(plan.decisions)}):[/]")
+        for d in plan.decisions:
+            console.print(f"    - {d.id}: {d.title}")
+
+    # Governance
+    if gov_path.exists():
+        gov_data = json.loads(gov_path.read_text(encoding="utf-8"))
+        gov = GovernanceReport(**gov_data)
+        color = "green" if gov.status == "PASS" else "red"
+        console.print(f"\n  [bold]Governance:[/] [{color}]{gov.status}[/{color}]")
+        passed = sum(1 for c in gov.checks if c.passed)
+        console.print(f"    {passed}/{len(gov.checks)} checks passed")
+
+    # File count
+    file_count = sum(1 for _ in out_dir.rglob("*") if _.is_file() and ".devex" not in str(_))
+    console.print(f"\n  [bold]Generated Files:[/] {file_count}")
+
+    console.print()
+
+
+@cli.command()
+@click.argument("path", type=click.Path(exists=True))
+@click.argument("intent_file", type=click.Path(exists=True))
+def diff(path: str, intent_file: str) -> None:
+    """Show what would change if you re-scaffold with a new intent.
+
+    Compares the current scaffold's spec against a new intent file
+    and reports which generators would produce different output.
+
+    Example:
+        devex diff ./my-project intent.v2.md
+    """
+    _banner()
+    out_dir = Path(path)
+    meta_dir = out_dir / ".devex"
+
+    if not (meta_dir / "spec.json").exists():
+        console.print(f"[red]Error:[/] No spec.json in {meta_dir}")
+        return
+
+    # Load current spec
+    current_spec = IntentSpec(**json.loads(
+        (meta_dir / "spec.json").read_text(encoding="utf-8")
+    ))
+
+    # Parse new intent
+    parser = IntentFileParser()
+    new_result = parser.parse(intent_file)
+    intent_parser = IntentParserAgent(_load_config())
+    new_spec = intent_parser.parse(new_result.full_intent)
+    if new_result:
+        new_spec = _apply_file_overrides(new_spec, new_result)
+
+    # Compare key fields
+    changes: list[tuple[str, str, str]] = []
+    for field_name in [
+        "project_name", "app_type", "language", "framework", "compute_target",
+        "data_stores", "domain_type", "azure_region", "environment", "pipeline_tier",
+        "uses_ai", "uses_fabric",
+    ]:
+        old_val = getattr(current_spec, field_name, None)
+        new_val = getattr(new_spec, field_name, None)
+        if old_val != new_val:
+            changes.append((field_name, str(old_val), str(new_val)))
+
+    # Entity diff
+    old_entities = {e.name for e in current_spec.entities}
+    new_entities = {e.name for e in new_spec.entities}
+    added = new_entities - old_entities
+    removed = old_entities - new_entities
+
+    if not changes and not added and not removed:
+        console.print("[green]No differences detected.[/] The new intent matches the current scaffold.")
+        return
+
+    table = Table(title="Intent Diff", border_style="yellow")
+    table.add_column("Field", style="bold")
+    table.add_column("Current", style="red")
+    table.add_column("New", style="green")
+
+    for field_name, old_val, new_val in changes:
+        table.add_row(field_name, old_val, new_val)
+
+    if added:
+        table.add_row("entities (added)", "", ", ".join(added))
+    if removed:
+        table.add_row("entities (removed)", ", ".join(removed), "")
+
+    console.print()
+    console.print(table)
+    console.print(f"\n  [yellow]{len(changes) + len(added) + len(removed)} change(s) detected.[/]")
+    console.print("  Run `devex upgrade` to apply these changes.\n")
+
+
+@cli.command()
+@click.argument("path", type=click.Path(exists=True))
+@click.option(
+    "--records", "-n",
+    type=int,
+    default=12,
+    help="Number of demo records per entity (default: 12).",
+)
+@click.option(
+    "--scenario",
+    type=click.Choice(["normal", "incident-surge", "seasonal", "trending"]),
+    default="normal",
+    help="Demo data scenario / temporal pattern.",
+)
+@click.option(
+    "--reset/--no-reset",
+    default=True,
+    help="Replace existing seed data (default: yes).",
+)
+def demo(path: str, records: int, scenario: str, reset: bool) -> None:
+    """Regenerate realistic demo data for an existing scaffold.
+
+    PATH is the scaffold output directory.
+
+    This command reads the saved IntentSpec from .devex/spec.json
+    and regenerates seed_data.py with the MockDataEngine, giving you
+    statistically realistic, domain-aware demo records.
+
+    Scenarios control temporal distribution:
+      normal         - Clustered (burst patterns, realistic)
+      incident-surge - Linear (steady stream, simulates surge)
+      seasonal       - Seasonal (periodic peaks and troughs)
+      trending       - Trending (increasing activity over time)
+
+    Example:
+        devex demo ./my-project
+        devex demo ./my-project --records 50 --scenario incident-surge
+    """
+    _banner()
+    out_dir = Path(path)
+    spec_file = out_dir / ".devex" / "spec.json"
+
+    if not spec_file.exists():
+        console.print("[red]Error: No .devex/spec.json found.[/]")
+        console.print("  Run 'devex scaffold' first to create a project.\n")
+        raise SystemExit(1)
+
+    console.print(f"  [dim]Scaffold: {out_dir.resolve()}[/]")
+    console.print(f"  [dim]Records per entity: {records}[/]")
+    console.print(f"  [dim]Scenario: {scenario}[/]\n")
+
+    # Load spec
+    spec = IntentSpec.model_validate_json(spec_file.read_text(encoding="utf-8"))
+
+    if not spec.entities:
+        console.print("[yellow]No entities found in spec — nothing to generate.[/]")
+        raise SystemExit(0)
+
+    # Map scenario to temporal pattern
+    _scenario_map = {
+        "normal": "clustered",
+        "incident-surge": "linear",
+        "seasonal": "seasonal",
+        "trending": "trending",
+    }
+    temporal = _scenario_map.get(scenario, "clustered")
+
+    # Generate
+    from src.orchestrator.generators.mock_data_engine import MockDataEngine, MockDataConfig
+    from src.orchestrator.generators.domain_context import build_domain_context
+
+    config = MockDataConfig(record_count=records, temporal_pattern=temporal)
+    domain_ctx = build_domain_context(spec)
+    engine = MockDataEngine(config=config, domain_ctx=domain_ctx)
+
+    seed_content = engine.generate_seed_python(spec)
+    stats = engine.get_statistics(spec)
+
+    # Write seed_data.py
+    seed_path = out_dir / "src" / "app" / "domain" / "seed_data.py"
+    if not seed_path.parent.exists():
+        console.print(f"[red]Error: {seed_path.parent} does not exist.[/]")
+        raise SystemExit(1)
+
+    if seed_path.exists() and not reset:
+        console.print("[yellow]Seed data exists and --no-reset specified. Skipping.[/]")
+        raise SystemExit(0)
+
+    seed_path.write_text(seed_content, encoding="utf-8")
+
+    # Summary table
+    table = Table(title="Demo Data Summary", show_edge=False, pad_edge=False)
+    table.add_column("Metric", style="cyan")
+    table.add_column("Value", style="white")
+    table.add_row("Total records", str(stats["total_records"]))
+    table.add_row("Entities", str(stats["entities"]))
+    table.add_row("Records/entity", str(stats["records_per_entity"]))
+    table.add_row("Temporal pattern", stats["temporal_pattern"])
+    table.add_row("Referential integrity", "Yes" if stats["referential_integrity"] else "No")
+    table.add_row("Unique emails", str(stats["unique_emails"]))
+    table.add_row("Unique phones", str(stats["unique_phones"]))
+    console.print(table)
+    console.print(f"\n[green bold][ok] Demo data written[/] to {seed_path}")
+    console.print(
+        "\n  Next steps:\n"
+        f"    cd {out_dir}\n"
+        "    python -m uvicorn src.app.main:app --reload\n"
+    )
+
+
+if __name__ == "__main__":
+    cli()

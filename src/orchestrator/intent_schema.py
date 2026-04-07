@@ -1,0 +1,324 @@
+"""Strict intent schema for Enterprise DevEx Orchestrator.
+
+Every business intent is normalized into an IntentSpec before any planning
+or generation occurs. This ensures deterministic, reproducible output.
+"""
+
+from __future__ import annotations
+
+from enum import Enum
+
+from pydantic import BaseModel, Field
+
+
+class PipelineTier(str, Enum):
+    """Pipeline complexity tiers.
+
+    Controls which generators run and how much output is produced:
+    - MICRO: Minimal viable scaffold (API + Bicep + Dockerfile only)
+    - STANDARD: Full scaffold (current default -- all generators)
+    - ENTERPRISE: Full + multi-env + advanced observability + cost estimates
+    """
+
+    MICRO = "micro"
+    STANDARD = "standard"
+    ENTERPRISE = "enterprise"
+
+
+class AppType(str, Enum):
+    """Supported application types."""
+
+    API = "api"
+    WEB = "web"
+    WORKER = "worker"
+    FUNCTION = "function"
+    AI_AGENT = "ai_agent"
+    AI_APP = "ai_app"
+
+
+class DomainType(str, Enum):
+    """Detected business domain for generating domain-specific logic."""
+
+    HEALTHCARE = "healthcare"
+    LEGAL = "legal"
+    DOCUMENT_PROCESSING = "document_processing"
+    CYBERSECURITY = "cybersecurity"
+    IOT_SMART_CITY = "iot_smart_city"
+    LOGISTICS = "logistics"
+    RETAIL = "retail"
+    MANUFACTURING = "manufacturing"
+    AGRICULTURE = "agriculture"
+    GOVERNMENT = "government"
+    FINANCE = "finance"
+    GENERIC = "generic"
+
+
+class ComputeTarget(str, Enum):
+    """Supported Azure compute targets."""
+
+    CONTAINER_APPS = "container_apps"
+    APP_SERVICE = "app_service"
+    FUNCTIONS = "functions"
+
+
+class Language(str, Enum):
+    """Supported programming languages."""
+
+    PYTHON = "python"
+    NODE = "node"
+    DOTNET = "dotnet"
+
+
+# Language -> default framework mapping
+LANGUAGE_FRAMEWORKS: dict[str, str] = {
+    "python": "fastapi",
+    "node": "express",
+    "dotnet": "aspnet",
+}
+
+
+class DataStore(str, Enum):
+    """Supported data stores."""
+
+    BLOB_STORAGE = "blob_storage"
+    COSMOS_DB = "cosmos_db"
+    SQL = "sql"
+    TABLE_STORAGE = "table_storage"
+    REDIS = "redis"
+    AI_SEARCH = "ai_search"
+    FABRIC_LAKEHOUSE = "fabric_lakehouse"
+    NONE = "none"
+
+
+class AuthModel(str, Enum):
+    """Authentication model."""
+
+    MANAGED_IDENTITY = "managed_identity"
+    ENTRA_ID = "entra_id"
+    API_KEY = "api_key"
+
+
+class ComplianceFramework(str, Enum):
+    """Compliance guidance framework (guidance only, not certification)."""
+
+    GENERAL = "general"
+    HIPAA_GUIDANCE = "hipaa_guidance"
+    SOC2_GUIDANCE = "soc2_guidance"
+    FEDRAMP_GUIDANCE = "fedramp_guidance"
+
+
+class NetworkingModel(str, Enum):
+    """Networking model."""
+
+    PRIVATE = "private"
+    INTERNAL = "internal"
+    PUBLIC_RESTRICTED = "public_restricted"
+
+
+class SecurityRequirements(BaseModel):
+    """Security requirements extracted from intent."""
+
+    auth_model: AuthModel = Field(default=AuthModel.MANAGED_IDENTITY, description="Authentication model")
+    compliance_framework: ComplianceFramework = Field(
+        default=ComplianceFramework.GENERAL, description="Compliance guidance to follow"
+    )
+    networking: NetworkingModel = Field(default=NetworkingModel.PRIVATE, description="Network exposure model")
+    data_classification: str = Field(default="confidential", description="Data sensitivity level")
+    encryption_at_rest: bool = Field(default=True, description="Require encryption at rest")
+    encryption_in_transit: bool = Field(default=True, description="Require encryption in transit (HTTPS)")
+    secret_management: bool = Field(default=True, description="Store secrets in Key Vault")
+    enable_waf: bool = Field(default=False, description="Enable Web Application Firewall")
+
+
+class ObservabilityRequirements(BaseModel):
+    """Observability requirements."""
+
+    log_analytics: bool = Field(default=True, description="Enable Log Analytics workspace")
+    diagnostic_settings: bool = Field(default=True, description="Enable diagnostic settings on all resources")
+    health_endpoint: bool = Field(default=True, description="Include health check endpoint")
+    alerts: bool = Field(default=False, description="Configure alert rules")
+    dashboard: bool = Field(default=False, description="Generate Azure Monitor dashboard")
+
+
+class CICDRequirements(BaseModel):
+    """CI/CD pipeline requirements."""
+
+    validate_on_pr: bool = Field(default=True, description="Run validation on pull requests")
+    deploy_on_merge: bool = Field(default=False, description="Auto-deploy on merge to main")
+    manual_deploy: bool = Field(default=True, description="Support manual deployment trigger")
+    oidc_auth: bool = Field(default=True, description="Use OIDC for Azure authentication in CI")
+    artifact_upload: bool = Field(default=True, description="Upload scaffold as CI artifact")
+    environments: list[str] = Field(
+        default_factory=lambda: ["dev"],
+        description="Deployment environments (e.g. dev, staging, prod)",
+    )
+    approval_gates: bool = Field(
+        default=False,
+        description="Require manual approval for staging/prod deployments",
+    )
+
+
+class FieldSpec(BaseModel):
+    """Specification for a single field on a domain entity."""
+
+    name: str = Field(..., description="Field name (snake_case)")
+    type: str = Field(default="str", description="Python type hint (str, int, float, bool, datetime, list[str])")
+    required: bool = Field(default=True, description="Whether the field is required")
+    description: str = Field(default="", description="Human-readable description")
+
+
+class EntitySpec(BaseModel):
+    """Specification for a domain entity / aggregate root."""
+
+    name: str = Field(..., description="Entity name (PascalCase, e.g. Session, Contract)")
+    fields: list[FieldSpec] = Field(default_factory=list, description="Entity fields")
+    description: str = Field(default="", description="What this entity represents")
+
+
+class EndpointSpec(BaseModel):
+    """Specification for an API endpoint to generate."""
+
+    method: str = Field(default="GET", description="HTTP method (GET, POST, PUT, DELETE)")
+    path: str = Field(..., description="URL path (e.g. /sessions, /contracts/{id})")
+    description: str = Field(default="", description="What this endpoint does")
+    request_schema: str = Field(default="", description="Name of request Pydantic model")
+    response_schema: str = Field(default="", description="Name of response Pydantic model")
+
+
+class IntentSpec(BaseModel):
+    """Strict schema representing a parsed business intent.
+
+    Every field has a secure, enterprise-grade default. The intent parser
+    fills in values from the user's natural language description, and the
+    user can override any field.
+    """
+
+    # -- Core Identity ---------------------------------------------
+    project_name: str = Field(..., description="Short kebab-case project name", pattern=r"^[a-z][a-z0-9-]{2,38}$")
+    description: str = Field(..., description="One-sentence project description", max_length=200)
+    raw_intent: str = Field(..., description="Original user intent text as provided")
+
+    # -- Application -----------------------------------------------
+    app_type: AppType = Field(default=AppType.API, description="Type of application to scaffold")
+    language: str = Field(default="python", description="Primary programming language")
+    framework: str = Field(default="fastapi", description="Application framework")
+    compute_target: ComputeTarget = Field(
+        default=ComputeTarget.CONTAINER_APPS,
+        description="Azure compute target (container_apps, app_service, functions)",
+    )
+    data_stores: list[DataStore] = Field(
+        default_factory=lambda: [DataStore.BLOB_STORAGE], description="Required data stores"
+    )
+    uses_ai: bool = Field(default=False, description="Whether the workload uses AI/ML services")
+    uses_fabric: bool = Field(default=False, description="Whether the workload uses Microsoft Fabric")
+    ai_model: str = Field(default="gpt-4o", description="AI model to deploy (gpt-4o, gpt-4o-mini, gpt-35-turbo)")
+    ai_features: list[str] = Field(
+        default_factory=list,
+        description="AI capabilities: chat, embeddings, rag, agents, content-safety",
+    )
+
+    # -- Security --------------------------------------------------
+    security: SecurityRequirements = Field(default_factory=SecurityRequirements)
+
+    # -- Observability ---------------------------------------------
+    observability: ObservabilityRequirements = Field(default_factory=ObservabilityRequirements)
+
+    # -- CI/CD -----------------------------------------------------
+    cicd: CICDRequirements = Field(default_factory=CICDRequirements)
+
+    # -- Domain Detection -------------------------------------------
+    domain_type: DomainType = Field(default=DomainType.GENERIC, description="Detected business domain")
+    entities: list[EntitySpec] = Field(default_factory=list, description="Domain entities to generate")
+    endpoints: list[EndpointSpec] = Field(default_factory=list, description="Domain API endpoints to generate")
+    functional_summary: str = Field(default="", description="Parsed functional requirements summary")
+
+    # -- Pipeline Configuration ------------------------------------
+    pipeline_tier: PipelineTier = Field(
+        default=PipelineTier.STANDARD,
+        description="Pipeline complexity tier (micro, standard, enterprise)",
+    )
+
+    # -- Azure Deployment Target -----------------------------------
+    azure_region: str = Field(default="eastus2", description="Azure deployment region")
+    resource_group_name: str = Field(default="", description="Target resource group (auto-generated if empty)")
+    environment: str = Field(default="dev", description="Deployment environment")
+
+    # -- Generation Tuning ----------------------------------------
+    seed_record_count: int = Field(
+        default=12,
+        ge=1,
+        le=200,
+        description="Number of seed records to generate per entity (1-200)",
+    )
+
+    # -- Agent Metadata --------------------------------------------
+    assumptions: list[str] = Field(default_factory=list, description="Assumptions made during parsing")
+    decisions: list[str] = Field(default_factory=list, description="Decisions made during planning")
+    open_risks: list[str] = Field(default_factory=list, description="Identified open risks")
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0, description="Agent confidence in interpretation")
+
+    def model_post_init(self, __context: object) -> None:
+        """Auto-generate resource group name if not provided."""
+        if not self.resource_group_name:
+            object.__setattr__(self, "resource_group_name", f"rg-{self.project_name}-{self.environment}")
+
+
+class PlanOutput(BaseModel):
+    """Output of the Architecture Planner agent."""
+
+    title: str = Field(..., description="Architecture plan title")
+    summary: str = Field(..., description="Executive summary of the architecture")
+    components: list[ComponentSpec] = Field(..., description="Azure components in the architecture")
+    decisions: list[ArchitectureDecision] = Field(..., description="Architecture Decision Records")
+    threat_model: list[ThreatEntry] = Field(default_factory=list, description="Top threats identified")
+    diagram_mermaid: str = Field(default="", description="Mermaid diagram source")
+
+
+class ComponentSpec(BaseModel):
+    """Specification for a single Azure component."""
+
+    name: str = Field(..., description="Component name")
+    azure_service: str = Field(..., description="Azure service (e.g., 'Azure Container Apps')")
+    purpose: str = Field(..., description="Why this component exists")
+    bicep_module: str = Field(..., description="Bicep module file name")
+    security_controls: list[str] = Field(default_factory=list, description="Applied security controls")
+
+
+class ArchitectureDecision(BaseModel):
+    """An Architecture Decision Record (ADR) entry."""
+
+    id: str = Field(..., description="Decision ID (e.g., ADR-001)")
+    title: str = Field(..., description="Decision title")
+    status: str = Field(default="Accepted", description="Status (Proposed, Accepted, Deprecated)")
+    context: str = Field(..., description="Why this decision was needed")
+    decision: str = Field(..., description="What was decided")
+    consequences: str = Field(..., description="Impact of this decision")
+
+
+class ThreatEntry(BaseModel):
+    """A threat model entry."""
+
+    id: str = Field(..., description="Threat ID (e.g., THREAT-001)")
+    category: str = Field(..., description="STRIDE category")
+    description: str = Field(..., description="Threat description")
+    mitigation: str = Field(..., description="Mitigation strategy")
+    residual_risk: str = Field(default="Low", description="Residual risk after mitigation")
+
+
+class GovernanceReport(BaseModel):
+    """Output of the Governance Reviewer agent."""
+
+    status: str = Field(..., description="PASS or FAIL")
+    checks: list[GovernanceCheck] = Field(..., description="Individual governance checks")
+    summary: str = Field(..., description="Summary of governance findings")
+    recommendations: list[str] = Field(default_factory=list, description="Recommendations")
+
+
+class GovernanceCheck(BaseModel):
+    """Single governance validation check."""
+
+    check_id: str = Field(..., description="Check ID")
+    name: str = Field(..., description="Check name")
+    passed: bool = Field(..., description="Whether the check passed")
+    details: str = Field(..., description="Check details")
+    severity: str = Field(default="medium", description="low, medium, high, critical")

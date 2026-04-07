@@ -1,0 +1,503 @@
+﻿# AGENTS.md -- Enterprise DevEx Orchestrator Agent
+
+> This file defines the agent roles, tool bindings, and orchestration flow
+> for the Enterprise DevEx Orchestrator -- a GitHub Copilot SDK powered agent
+> that transforms business intent into production-ready Azure workloads.
+
+## System Overview
+
+The orchestrator uses a **4-agent chain** architecture where each agent has a
+distinct role, instruction set, and tool access. The chain executes sequentially
+with a governance feedback loop between the reviewer and planner.
+
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#0078D4', 'primaryTextColor': '#fff', 'primaryBorderColor': '#005A9E', 'lineColor': '#555', 'fontFamily': 'Segoe UI'}}}%%
+flowchart LR
+    A["👤 Intent"]:::user --> B["🤖 Intent Parser"]:::agent
+    B --> C["🏗️ Architecture\nPlanner"]:::agent
+    C --> D["🔍 Governance\nReviewer"]:::reviewer
+    D -->|"Pass"| E["⚙️ Infrastructure\nGenerator"]:::agent
+    D -->|"Fail"| C
+
+    classDef user fill:#fff,stroke:#0078D4,color:#333,stroke-width:2px
+    classDef agent fill:#0078D4,stroke:#005A9E,color:#fff,stroke-width:2px
+    classDef reviewer fill:#FFB900,stroke:#D48C00,color:#333,stroke-width:2px
+```
+
+---
+
+## Agent 1: Intent Parser
+
+**Role:** Parse natural-language business intent into a structured `IntentSpec` schema.
+
+**System Instructions:**
+```
+You are an enterprise architecture intent parser. Given a user's business
+description, extract:
+- Project name (kebab-case)
+- Application type (api, web, worker, event-driven)
+- Data stores (blob, cosmos, sql, redis, table)
+- Security requirements (auth model, compliance, data classification)
+- Observability needs
+- CI/CD preferences
+
+Return a complete IntentSpec JSON object. Ask clarifying questions only if
+critical information is genuinely ambiguous.
+```
+
+**Tools:** None (pure LLM reasoning with structured output)
+
+**Fallback:** 5-phase semantic extraction engine (section-header analysis, noun-phrase
+extraction, business-object pattern matching, merge/rank, EntitySpec building) with
+rule-based keyword extraction when LLM is unavailable.
+
+**Parsing Limits:**
+- Up to **20 entities** per intent (from semantic extraction)
+- Up to **25 fields** per entity (from semantic inference)
+- Unlimited explicit entities/fields via `### Entity:` declarations
+- Safe singular/plural normalization (preserves "status", "address", etc.)
+- Multi-parameter path preservation for complex endpoints
+- AI signal filtering (excludes Azure AI Search from AI_APP detection)
+- 10+ field type aliases (string→str, integer→int, boolean→bool, timestamp→datetime, etc.)
+
+**Input:** Plain-English business intent string  
+**Output:** `IntentSpec` (Pydantic model)
+
+---
+
+## Agent 2: Architecture Planner
+
+**Role:** Transform parsed intent into a concrete Azure architecture plan with
+components, ADRs, threat model, and Mermaid diagram.
+
+**System Instructions:**
+```
+You are an Azure Solutions Architect. Given an IntentSpec, produce:
+1. Component list with Azure services, Bicep module names, and security controls
+2. Architecture Decision Records (ADRs) covering compute, security, IaC, data, and networking
+3. STRIDE threat model with mitigations
+4. Mermaid architecture diagram
+
+Always include: Container Apps, Managed Identity, Key Vault, Log Analytics,
+Container Registry. Add data stores based on the spec.
+```
+
+**Tools:**
+- `check_policy` -- Validate components against enterprise policies
+- `check_region_availability` -- Verify Azure service availability
+
+**Fallback:** Deterministic component builder with template ADRs and threat model.
+
+**Input:** `IntentSpec`  
+**Output:** `PlanOutput` (Pydantic model)
+
+---
+
+## Agent 3: Governance Reviewer
+
+**Role:** Validate the architecture plan against enterprise governance policies.
+If violations are found, provide actionable recommendations for the planner.
+
+**System Instructions:**
+```
+You are an enterprise governance reviewer. Evaluate the architecture plan against:
+1. Required components (Key Vault, Managed Identity, Log Analytics)
+2. Security anti-patterns in Bicep templates
+3. Networking controls
+4. Observability coverage
+5. CI/CD security (OIDC, no stored credentials)
+6. Threat model completeness (minimum 4 STRIDE categories)
+7. Azure Well-Architected Framework (WAF) 5-pillar alignment
+
+Return a GovernanceReport with PASS, FAIL, or PASS_WITH_WARNINGS status.
+Perform WAF assessment against 26 design principles across 5 pillars
+(Reliability, Security, Cost Optimization, Operational Excellence,
+Performance Efficiency) and return a WAFAlignmentReport.
+```
+
+**Tools:**
+- `check_policy` -- Evaluate against policy catalog
+- `list_policies` -- Retrieve applicable policies
+- `validate_bicep` -- Validate Bicep syntax
+
+**Input:** `IntentSpec` + `PlanOutput` (+ optional Bicep files)  
+**Output:** `GovernanceReport` (Pydantic model) + `WAFAlignmentReport` (dataclass)
+
+**WAF Assessment:** Evaluates the architecture against 26 Azure Well-Architected
+Framework design principles across all 5 pillars. Produces per-pillar coverage
+scores, evidence for covered principles, and actionable recommendations for gaps.
+Maps governance checks and ADRs to WAF pillars via `GOVERNANCE_TO_WAF` and
+`ADR_TO_WAF` lookup tables.
+
+**Feedback Loop:** If status is FAIL, recommendations are fed back to the
+Architecture Planner for remediation (max 2 iterations).
+
+---
+
+## Agent 4: Infrastructure Generator
+
+**Role:** Generate all deployable artifacts -- Bicep IaC, CI/CD workflows,
+application scaffold, and documentation.
+
+**System Instructions:**
+```
+You are an infrastructure code generator. Given the validated plan, produce:
+1. Bicep templates (main.bicep + modules) with parameters
+2. GitHub Actions workflows (validate, deploy, dependabot, codeql)
+3. Application scaffold (FastAPI + Dockerfile)
+4. Documentation (plan, security, deployment, RAI, demo script)
+
+All generated code must follow enterprise security baselines:
+- RBAC over access policies
+- Soft delete and purge protection for Key Vault
+- Non-root Docker containers
+- OIDC for CI/CD authentication
+```
+
+**Tools:**
+- `render_template` -- Render specific template categories
+- `preview_output` -- Preview file manifest before writing
+- `validate_bicep` -- Validate generated Bicep syntax
+
+**Architecture:** Uses the Generator Plugin Protocol (`GeneratorRegistry` +
+`GeneratorAdapter`) to dispatch work to all 9 sub-generators via a uniform
+`generate(spec, context)` interface. New generators are added with a single
+`register()` call -- no changes to the agent itself (Open-Closed Principle).
+
+**Sub-generators:**
+- `BicepGenerator` -- 7+ Bicep modules + parameters + enterprise naming/tagging (includes Azure OpenAI + AI Search modules for AI workloads)
+- `CICDGenerator` -- 4 GitHub Actions workflows with language-aware lint/test steps, CodeQL language detection, and Dependabot ecosystem mapping (Python/Node/dotnet)
+- `AppGenerator` -- FastAPI app + Docker + requirements with dynamic entity-driven services. Uses `DomainContext` for domain-specific seed data, terminology, and org details. Includes CORS middleware for frontend dev servers (localhost:3000/5173), rate limiting middleware, OWASP security headers. AI workloads get `ai/client.py` (Managed Identity auth), `ai/chat.py` (chat router with RAG), `ai/agent.py` (Semantic Kernel agents with tool-calling), `ai/model_registry.py` (Azure AI Foundry multi-model management), `ai/content_safety.py` (Azure AI Content Safety filtering), `ai/evaluation.py` (groundedness/relevance evaluation framework). Generates **12 realistic seed records per entity** with domain-aware values (names, addresses, descriptions, statuses, priorities, dynamic timestamps relative to current date).
+- `FrontendGenerator` -- Entity-driven React + Vite + TypeScript SPA with domain-aware design system. Includes: design-token-driven theming (10 industry presets), dark mode toggle, responsive mobile nav, loading skeletons, error boundaries, toast notifications, SVG icon library (15 Lucide-style icons), mini charts (sparkline + bar), pagination, sortable columns, delete confirmation modals, CSP meta tag, HTML-rendered AI chat with suggestions. Local Tailwind CSS (no CDN), tightened CSP. Environment-variable-driven API base URL, WCAG AA accessible.
+- `FrontendApiGenerator` -- Backend-for-Frontend (BFF) FastAPI proxy with Fabric data connector. Generates `frontend-api/main.py` (proxy with POST/DELETE cache-write-through), `frontend-api/fabric_connector.py` (500 synthetic records per entity), `Dockerfile`, and `docker-entrypoint.sh`. Enables production deployment where frontend SPA calls the BFF which proxies to the backend API.
+- `DocsGenerator` -- 7 documentation files + standards reference + improvement suggestions + `AGENTS.md` (agent-legible project context) + `CONTRIBUTING.md` (progressive-disclosure onboarding)
+- `TestGenerator` -- Auto-generated pytest test suite (health, API, security, config, storage) + RouteManifest-driven entity CRUD tests covering LIST/CREATE/GET/DELETE/CUSTOM actions + E2E integration tests (create→read→delete lifecycle, list verification, action workflows)
+- `AlertGenerator` -- Azure Monitor alert rules (Bicep) + action groups + alerting runbook
+
+**Post-generation Validation:**
+- `ScaffoldValidator` runs after all generators, producing a `docs/validation-report.md` with cross-generator consistency checks (required files, entity coverage, route-test alignment, Bicep completeness, Dockerfile presence)
+- `devex lint` provides post-generation drift detection: required file checks, CAF naming convention validation, API endpoint consistency, Docker security, test coverage, and stale documentation detection
+
+**Supporting Modules:**
+- `DomainContext` -- Semantic domain model with 12 domain definitions (healthcare, fintech, logistics, retail, etc.) providing org names, email domains, terminology, seed data pools, compliance frameworks, and UI branding per domain
+- `DeploymentProfile` / `SKUSelector` -- Environment-aware resource sizing (DEV/STAGING/PRODUCTION_LOW/PRODUCTION_HIGH workload classes) with structured SKU tables for compute, datastores, and core infra
+- `RouteManifest` / `RouteBuilder` -- Single source of truth for all API routes, consumed by TestGenerator and ScaffoldValidator for deterministic test generation and route-test alignment validation
+- `LLMEnricher` -- Optional AI enrichment layer with type-constrained targets (seed descriptions, ADR rationale, doc sections, entity descriptions, threat mitigations), guardrails against code injection and prompt manipulation, and batch processing support
+
+**AI Chat Engine (Local Data):**
+- Smart analytical engine with 11 intent handlers (greeting, help, temporal, cross-entity, recommendation, count, analytics, list, filter, action, status)
+- Temporal queries: "latest incidents", "oldest work orders", "most recent vehicle"
+- Cross-entity comparison: health scores, action/progress/done breakdown per entity
+- Recommendation engine: data-driven suggestions based on priority/severity distributions
+- HTML-formatted responses with stat cards, bar charts, tables, and suggestions
+- Works without any AI provider — pure Python analysis on seed data
+
+**Input:** `IntentSpec` + `PlanOutput` + `GovernanceReport`  
+**Output:** `dict[str, str]` -- file path -> content mapping
+
+---
+
+## Tool Registry
+
+| Tool | Category | Agent(s) | Description |
+|------|----------|----------|-------------|
+| `validate_bicep` | Azure | Reviewer, Generator | Validate Bicep template syntax |
+| `validate_deployment` | Azure | Generator | Run az deployment group validate |
+| `check_region_availability` | Azure | Planner | Check service availability in region |
+| `check_policy` | Governance | Planner, Reviewer | Evaluate against 20-policy catalog |
+| `list_policies` | Governance | Reviewer | List all governance policies |
+| `explain_policy` | Governance | Reviewer | Get policy details and remediation |
+| `render_template` | Generation | Generator | Render a template category |
+| `list_templates` | Generation | Generator | List available templates |
+| `preview_output` | Generation | Generator | Preview files without writing |
+
+---
+
+## Enterprise Standards Engine
+
+| Component | Description |
+|-----------|-------------|
+| `NamingEngine` | Azure CAF naming conventions (22 resource types incl. OpenAI + AI Search, 34 region abbreviations) |
+| `TaggingEngine` | Enterprise tagging (7 required + 5 optional tags with regex validation) |
+| `EnterpriseStandardsConfig` | YAML-driven config (`standards.yaml`) for naming, tagging, governance. Configurable via `--standards` CLI flag |
+| `StateManager` | Persistent state in `.devex/state.json` -- drift detection, file manifests, audit trail |
+| `WAFAssessor` | Azure Well-Architected Framework assessment (5 pillars, 26 principles, per-pillar scoring) |
+| `DesignSystem` | Domain-aware UI/UX design intelligence (10 industry presets, CSS custom properties, WCAG AA, dark mode, anti-patterns) |
+| `DomainContext` | Semantic domain intelligence (12 domains) -- org names, seed data pools, terminology, compliance frameworks |
+| `DeploymentProfile` | Environment-aware workload classification (4 tiers) with SKU tables for compute, datastores, and core infra |
+| `RouteManifest` | Canonical API route registry -- single source of truth for tests, validators, and documentation |
+| `ScaffoldValidator` | Post-generation cross-generator consistency checks (5 validation rules, markdown report) |
+| `LLMEnricher` | Optional AI enrichment with guardrails (code injection detection, prompt manipulation filtering) |
+
+---
+
+## Generator Plugin Protocol
+
+**Module:** `src/orchestrator/generators/protocol.py`
+
+Uniform interface for all generators via Python's structural subtyping
+(`typing.Protocol`). Replaces the previous ad-hoc signatures (some took
+`plan`, some didn't, `CostEstimator` used `estimate()`) with a single
+`generate(spec, context) -> dict[str, str]` contract.
+
+**Key Components:**
+
+| Component | Description |
+|-----------|-------------|
+| `GeneratorProtocol` | `@runtime_checkable` Protocol requiring `generate(spec, context)` |
+| `GeneratorContext` | Frozen dataclass bundling `plan`, `governance`, `waf_report`, `version`, `standards` |
+| `GeneratorAdapter` | Wraps any legacy generator to the protocol via a bridge function |
+| `GeneratorRegistry` | Priority-ordered collection; `run_all(spec, ctx)` executes all generators |
+| `create_default_registry()` | Factory pre-loading all 11 built-in generators with correct bridges |
+
+**Bridge Functions:**
+
+| Bridge | Target Generators | Mapping |
+|--------|-------------------|---------|
+| `_bridge_spec_only` | Alert, App, Dashboard, Frontend, FrontendApi, Fabric, Test | `gen.generate(spec)` |
+| `_bridge_spec_plan` | Bicep | `gen.generate(spec, ctx.plan)` |
+| `_bridge_cicd` | CICD | `gen.generate(spec, version=ctx.version)` |
+| `_bridge_docs` | Docs | `gen.generate(spec, ctx.plan, governance=ctx.governance, waf_report=ctx.waf_report)` |
+| `_bridge_cost` | CostEstimator | `gen.estimate(spec, ctx.plan)` -> markdown file |
+
+**Adding a New Generator:**
+```python
+# 1. Write your generator (any signature)
+class MyGenerator:
+    def generate(self, spec: IntentSpec) -> dict[str, str]:
+        return {"my-file.txt": "content"}
+
+# 2. Add one line to create_default_registry() in protocol.py
+registry.register("my-gen", GeneratorAdapter(MyGenerator(), _bridge_spec_only), priority=85)
+```
+
+No changes to `InfrastructureGeneratorAgent` required -- Open-Closed Principle.
+
+---
+
+## Advanced Patterns
+
+### Skills Registry
+
+**Module:** `src/orchestrator/skills/registry.py`
+
+Pluggable skill system with dynamic discovery, priority-based routing, and execution
+tracking. 12 skill categories, 9 built-in skills.
+
+| Skill | Category | Capabilities |
+|-------|----------|--------------|
+| GovernanceSkill | GOVERNANCE | policy validation, compliance check |
+| WAFSkill | GOVERNANCE | WAF assessment, well-architected review |
+| ThreatModelSkill | SECURITY | STRIDE analysis, threat modeling |
+| NamingSkill | STANDARDS | Azure CAF naming, resource naming |
+| TaggingSkill | STANDARDS | enterprise tagging, tag validation |
+| BicepGenerationSkill | INFRASTRUCTURE | Bicep templates, IaC generation |
+| CICDSkill | CICD | GitHub Actions, CI/CD pipelines |
+| AppScaffoldSkill | APPLICATION | FastAPI scaffold, app generation |
+| DocumentationSkill | DOCUMENTATION | docs generation, ADR writing |
+
+### Subagent Dispatcher
+
+**Module:** `src/orchestrator/agents/subagent_dispatcher.py`
+
+Dynamic subagent spawning with parallel fan-out (ThreadPoolExecutor) and structured
+result aggregation. 6 built-in subagents: Bicep Module, Compliance Check, Cost
+Estimation, Security Scan, Doc Writer, Alert Rule.
+
+```
+Dispatcher.fan_out([task1, task2, task3]) -> parallel execution -> aggregate results
+```
+
+### Persistent Planning
+
+**Module:** `src/orchestrator/planning/__init__.py`
+
+Manus-style persistent, resumable, checkpoint-based task execution. Creates a
+13-task dependency graph with retry logic, duration tracking, and plan history.
+
+State persisted to `.devex/plan_state.json` with history in `.devex/plan_history.json`.
+
+### Prompt Generator
+
+**Module:** `src/orchestrator/prompts/generator.py`
+
+Scans user repositories to detect languages, frameworks, security patterns, and
+CI/CD configuration. Generates context-enriched prompts for each agent adapted
+to the project's technology stack.
+
+### Deploy Orchestrator
+
+**Module:** `src/orchestrator/agents/deploy_orchestrator.py`
+
+Staged Azure deployment engine: validate -> what-if -> deploy-infra -> verify.
+8 error categories with regex matching, automatic retry for transient errors,
+and actionable remediation suggestions.
+
+---
+
+## Orchestration Model
+
+```python
+# Simplified orchestration flow
+spec = intent_parser.parse(user_intent)
+plan = architecture_planner.plan(spec)
+
+for attempt in range(max_iterations):
+    report = governance_reviewer.validate_plan(spec, plan)
+    if report.status != "FAIL":
+        break
+    plan = architecture_planner.remediate(spec, plan, report)
+
+files = infrastructure_generator.generate(spec, plan, report)
+write_to_disk(files, output_directory)
+
+# Intent file workflow -- zero-prompt scaffold
+from src.orchestrator.intent_file import IntentFileParser
+parser = IntentFileParser()
+result = parser.parse("intent.md")
+spec = intent_parser.parse(result.full_intent)
+# ... pipeline continues as above
+
+# Version management -- track, upgrade, rollback
+from src.orchestrator.versioning import VersionManager
+vm = VersionManager(output_directory)
+vm.record_version(parsed_intent, file_count, governance_status)
+plan = vm.plan_upgrade(new_intent)
+vm.rollback(version_number)
+history = vm.get_history()
+
+# Persistent planning -- checkpoint-based execution
+planner = PersistentPlanner(output_directory)
+planner.create_pipeline_plan(intent, intent_hash)
+for task_id in ["parse-intent", "plan-architecture", ...]:
+    planner.execute_task(task_id)  # auto-saved to .devex/plan_state.json
+
+# Skills -- pluggable capability routing
+registry = create_default_registry()
+result = registry.execute("governance", spec=spec, plan=plan)
+
+# Subagents -- parallel fan-out
+dispatcher = create_default_dispatcher()
+results = dispatcher.fan_out(tasks, max_workers=4)
+
+# State management -- track and detect drift
+state_manager = StateManager(output_directory)
+state_manager.record_generation(intent, spec, report, files)
+drift = state_manager.detect_drift(new_intent)
+
+# Deploy -- staged deployment with error recovery
+orchestrator = DeployOrchestrator(output_dir, resource_group, region)
+result = orchestrator.deploy()
+```
+
+---
+
+## Intent File System
+
+**Module:** `src/orchestrator/intent_file.py`
+
+Markdown-based declarative intent files that force comprehensive enterprise
+requirement definition. The parser extracts project name, business description,
+9 enterprise requirement sections, configuration, and version metadata.
+
+**Key Components:**
+- `IntentFileParser` -- Parses intent.md files including enterprise sections
+- `IntentFileResult` -- Parsed result with 9 enterprise fields, full_intent, version_info, config
+- `IntentFileVersion` -- Version metadata (version number, based_on, changes)
+- `generate_intent_template()` -- Creates a structured enterprise requirements template
+- `generate_upgrade_template()` -- Creates upgrade template with improvement suggestions from previous run
+
+**9 Enterprise Requirement Sections:**
+
+| Section | Parsed Field | Purpose |
+|---------|-------------|---------|
+| Problem Statement | `problem_statement` | Business problem, affected users, cost of inaction |
+| Business Goals | `business_goals` | Measurable KPIs, revenue/cost impact |
+| Target Users | `target_users` | User personas with roles and proficiency |
+| Functional Requirements | `functional_requirements` | Features, endpoints, workflows |
+| Scalability Requirements | `scalability_requirements` | Concurrent users, RPS, data volume |
+| Security & Compliance | `security_compliance` | Auth, RBAC, encryption, compliance frameworks |
+| Performance Requirements | `performance_requirements` | p50/p95/p99 latency, SLA, RTO/RPO |
+| Integration Requirements | `integration_requirements` | Upstream/downstream systems, events |
+| Acceptance Criteria | `acceptance_criteria` | Functional tests, benchmarks, security scans |
+
+**Heading Aliases:** 45 heading name aliases mapped via `_ENTERPRISE_SECTIONS`
+(e.g., "goals" -> `business_goals`, "scaling" -> `scalability_requirements`,
+"kpis" -> `business_goals`, "user stories" -> `functional_requirements`,
+"sla" -> `performance_requirements`, "third-party" -> `integration_requirements`).
+
+**Completeness Tracking:**
+- `enterprise_sections_filled` -- `dict[str, bool]` of which sections have content
+- `completeness_pct` -- Percentage of sections filled (0-100%)
+
+**Improvement Suggestions Loop:**
+- `generate_upgrade_template()` accepts `improvement_suggestions: list[str]`
+- Suggestions from `DocsGenerator.generate_improvement_suggestions()` are embedded
+  in the upgrade template's "Improvement Suggestions from vN" section
+- Users review, incorporate, and re-run -- each cycle converges toward production
+
+**Supported Configuration:**
+
+| Markdown Field | IntentSpec Field | Values |
+|---------------|-----------------|--------|
+| App Type | app_type | api, web, worker, event-driven |
+| Data Stores | data_stores | blob, cosmos, sql, redis, table |
+| Region | region | Any Azure region |
+| Environment | environment | dev, staging, prod |
+| Auth | auth_model | managed-identity, entra-id, api-key |
+| Compliance | compliance | SOC2, HIPAA, PCI, FedRAMP, ISO27001 |
+
+---
+
+## Version Management
+
+**Module:** `src/orchestrator/versioning.py`
+
+Tracks scaffold versions, manages upgrades, and supports rollback.
+State is persisted in `.devex/versions.json`.
+
+**Key Components:**
+- `VersionManager` -- Core version tracking (record, upgrade, rollback, history)
+- `VersionRecord` -- Individual version entry (version, intent, status, file_count)
+- `VersionState` -- Full state container (project_name, versions list)
+- `UpgradePlan` -- Upgrade diff with summary and notes
+
+**Version Statuses:** `active`, `superseded`, `rolled-back`
+
+**CI/CD Integration:** When upgrading to v2+, the CICDGenerator produces
+promotion and rollback GitHub Actions workflows that deploy as Container Apps
+revisions with traffic shifting (0% -> health check -> 100%).
+
+---
+
+## CLI Commands
+
+**Module:** `src/orchestrator/main.py`
+
+12 commands accessible via the `devex` CLI entry point:
+
+| Command | Purpose |
+|---------|---------|
+| `devex init` | Create an intent.md template |
+| `devex plan` | Preview architecture plan (no files) |
+| `devex scaffold` | Generate full production scaffold |
+| `devex validate` | Validate existing scaffold against policies |
+| `devex lint` | Lint scaffold for drift, naming, security, and structural issues |
+| `devex deploy` | Deploy to Azure (staged) |
+| `devex upgrade` | Upgrade existing scaffold with new version |
+| `devex history` | View version history |
+| `devex new-version` | Generate upgrade intent template |
+| `devex version` | Show orchestrator version info |
+| `devex providers` | List supported LLM providers and models |
+| `devex interactive` | Interactive guided scaffold wizard |
+
+## Security Boundaries
+
+- Agents cannot access external networks during generation
+- All secrets are referenced, never embedded in generated code
+- Bicep templates use parameter references for sensitive values
+- Generated CI/CD workflows use OIDC, never stored credentials
+- Tool execution is sandboxed -- no arbitrary code execution
+- State files (`.devex/state.json`) contain only hashes, never raw secrets or credentials
+- Enterprise tags enforce data-sensitivity classification on every generated resource
+
