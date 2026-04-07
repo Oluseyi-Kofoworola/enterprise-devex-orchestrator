@@ -1,0 +1,120 @@
+# Enterprise DevEx Orchestrator
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+enterprise_devex_orchestrator.egg-info/
+dist/
+build/
+.eggs/
+*.pyo
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Environment — NEVER commit .env files
+.env
+.env.local
+.env.*.local
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/settings.json
+.vscode/*.code-workspace
+.idea/
+*.swp
+*.swo
+*~
+*.orig
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Azure
+.azure/
+
+# Generated scaffold outputs (disposable -- regenerate with `devex scaffold`)
+output/
+*-output/
+out-*/
+out/
+contract-review/
+slhs-voice-agent/
+doc-intelligence/
+fresh-enterprise-docs/
+my-intent/
+deploy-test/
+demo-output/
+demo-voice-agent-output/
+my-project/
+my-first-output/
+test-enterprise/
+test-inline/
+test-from-template/
+test-upgrade/
+test-iot-pipeline/
+my-test/
+
+# Generated infra at root (use `devex scaffold -o <dir>` to output elsewhere)
+/infra/
+/intent.md
+
+# State
+.devex/
+
+# Ruff
+.ruff_cache/
+
+# Testing artifacts
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+test_results.txt
+test_run.txt
+test_full.txt
+test_parser_results.txt
+test_parser2.txt
+
+# Temp scripts
+fix_encoding.py
+test-intent.md
+debug-pipeline*.py
+fix*.py
+patch*.py
+rewrite.py
+run.py
+test_doc_intel.py
+
+# Debug logs
+*.log
+out*.log
+catch*.log
+err.log
+pipeline-*.log
+
+# Debug output directories
+doc-AST-output*/
+
+# Node
+node_modules/
+.vite/
+
+# Run artifacts (logs, temp output)
+*.output.txt
+deploy*.txt
+plan-output.txt
+scaffold*.txt
+validate*.txt
+redeploy*.txt
+
+# Generated scaffold outputs (catch-all)
+voice-agent-output/
+*-output/
+ecommerce-returns-output/
+pet-adoption-output/
+propane-delivery-output/
